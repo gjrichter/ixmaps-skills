@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ambiti Territoriali Lombardia</title>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            max-width: 350px;
+        }
+
+        .info-panel h1 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .info-panel .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .info-panel .close-btn:hover {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="info-panel">
+        <button class="close-btn">×</button>
+        <h1>Ambiti Territoriali Lombardia</h1>
+        <p>Visualizzazione dei confini degli ambiti territoriali della regione Lombardia.</p>
+        <p>I confini sono colorati con una scala di colori per distinguere le diverse aree.</p>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // Crea la mappa centrata sulla Lombardia
+        ixmaps.Map("map", {
+            mapType: "VT_TONER_LITE"
+        })
+        .options({
+            objectscaling: "dynamic",
+            basemapopacity: 0.6
+        })
+        .view({
+            center: { lat: 45.6, lng: 9.8 },
+            zoom: 8
+        })
+        .layer(
+            ixmaps.layer("ambiti_lombardia")
+                .data({
+                    url: "https://s3.fr-par.scw.cloud/ixmaps.data/test%20only/lombardia_ambiti_territoriali_confini_wgs84.geojson",
+                    type: "geojson"
+                })
+                .binding({
+                    geo: "geometry",
+                    value: "$item$"
+                })
+                .style({
+                    colorscheme: ["#e8f4f8", "#b3d9e6", "#7fbfd4", "#4ba5c2", "#178bb0"],
+                    fillcolor: "#4ba5c2",
+                    fillopacity: 0.5,
+                    strokecolor: "#178bb0",
+                    strokewidth: 2
+                })
+                .type("FEATURE")
+                .title("Ambiti Territoriali Lombardia")
+                .define()
+        );
+
+        // Funzionalità chiusura pannello info
+        const closeBtn = document.querySelector('.close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                document.querySelector('.info-panel').style.display = 'none';
+            });
+        }
+    </script>
+</body>
+</html>

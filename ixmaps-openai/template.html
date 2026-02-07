@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            max-width: 350px;
+        }
+
+        .info-panel h1 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .info-panel .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .info-panel .close-btn:hover {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    {{INFO_PANEL}}
+
+    <div id="map"></div>
+
+    <script>
+        // Data configuration
+        const mapData = {{DATA}};
+
+        // Create and configure the map
+        ixmaps.Map("map", {
+            mapType: "{{MAPTYPE}}"
+        })
+        .options({
+            objectscaling: "dynamic",
+            normalSizeScale: "{{NORMAL_SIZE_SCALE}}",
+            basemapopacity: {{BASEMAP_OPACITY}},
+            flushChartDraw: {{FLUSH_CHART_DRAW}}
+        })
+        .view({
+            center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
+            zoom: {{ZOOM}}
+        })
+        .layer(
+            ixmaps.layer("{{LAYER_ID}}")
+                .data({{DATA_CONFIG}})
+                .binding({{BINDING}})
+                .type("{{VIZ_TYPE}}")
+                .style({{STYLE}})
+                .meta({{META}})
+                .title("{{LAYER_TITLE}}")
+                .define()
+        );
+
+        // Info panel close functionality
+        const closeBtn = document.querySelector('.close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                document.querySelector('.info-panel').style.display = 'none';
+            });
+        }
+    </script>
+</body>
+</html>

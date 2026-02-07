@@ -1,0 +1,636 @@
+---
+# ixMaps Skill UI Configuration
+# Defines parameters, options, and presets for interactive map creation
+
+skill:
+  name: create-ixmap
+  version: 2.0
+  description: Create interactive maps using the ixMaps framework
+  icon: 🗺️
+  category: visualization
+
+# Parameter definitions
+parameters:
+
+  # Basic parameters
+  - name: filename
+    type: string
+    default: "ixmap.html"
+    description: "Output HTML filename"
+    required: false
+    pattern: "^[a-zA-Z0-9_-]+\\.html$"
+    example: "mymap.html"
+
+  - name: title
+    type: string
+    default: "Interactive Map"
+    description: "Map title (shown in browser tab and optional info panel)"
+    required: false
+    example: "European Population Density"
+
+  - name: data
+    type: data
+    description: "Data source (JSON array, CSV, GeoJSON, TopoJSON, or URL)"
+    required: true
+    formats:
+      - json
+      - csv
+      - geojson
+      - topojson
+      - url
+    example: |
+      [
+        {"name": "Rome", "lat": 41.9, "lon": 12.5, "population": 2870500},
+        {"name": "Milan", "lat": 45.5, "lon": 9.2, "population": 1378000}
+      ]
+
+  # Visualization parameters
+  - name: viztype
+    type: select
+    default: "CHART|BUBBLE|SIZE|VALUES"
+    description: "Visualization type"
+    required: false
+    group: visualization
+    options:
+      point_data:
+        - value: "CHART|DOT"
+          label: "Simple Dots"
+          description: "Uniform dots at locations"
+        - value: "CHART|DOT|CATEGORICAL"
+          label: "Categorical Dots"
+          description: "Dots colored by category"
+        - value: "CHART|BUBBLE|SIZE|VALUES"
+          label: "Sized Bubbles"
+          description: "Bubbles sized by data values"
+        - value: "CHART|PIE"
+          label: "Pie Charts"
+          description: "Pie charts at locations"
+        - value: "CHART|BAR|VALUES"
+          label: "Bar Charts"
+          description: "Bar charts at locations"
+        - value: "CHART|BUBBLE|SIZE|AGGREGATE"
+          label: "Density Heatmap"
+          description: "Grid-based density visualization"
+      geometry_data:
+        - value: "FEATURE"
+          label: "Simple Features"
+          description: "Display polygons with uniform color"
+        - value: "FEATURE|CHOROPLETH"
+          label: "Choropleth"
+          description: "Color-coded by numeric values"
+        - value: "FEATURE|CHOROPLETH|EQUIDISTANT"
+          label: "Choropleth (Equal Intervals)"
+          description: "Equal interval breaks"
+        - value: "FEATURE|CHOROPLETH|QUANTILE"
+          label: "Choropleth (Quantiles)"
+          description: "Quantile breaks"
+        - value: "FEATURE|CHOROPLETH|CATEGORICAL"
+          label: "Categorical Choropleth"
+          description: "Color-coded by categories"
+
+  # Map configuration
+  - name: maptype
+    type: select
+    default: "VT_TONER_LITE"
+    description: "Base map style"
+    required: false
+    group: map_config
+    options:
+      - value: "VT_TONER_LITE"
+        label: "Toner Lite (Clean)"
+        description: "Minimal clean base map (recommended)"
+        preview: "🗺️"
+      - value: "white"
+        label: "White Background"
+        description: "Plain white, no base map"
+        preview: "⬜"
+      - value: "OpenStreetMap"
+        label: "OpenStreetMap"
+        description: "Standard OSM tiles"
+        preview: "🌍"
+      - value: "CartoDB - Positron"
+        label: "CartoDB Positron"
+        description: "Light gray base map"
+        preview: "☁️"
+      - value: "CartoDB - Dark_Matter"
+        label: "CartoDB Dark Matter"
+        description: "Dark base map"
+        preview: "🌑"
+      - value: "Stamen Terrain"
+        label: "Stamen Terrain"
+        description: "Terrain with hill shading"
+        preview: "⛰️"
+
+  - name: center
+    type: coordinates
+    default: {lat: 42.5, lng: 12.5}
+    description: "Map center coordinates"
+    required: false
+    group: map_config
+    validation:
+      lat: {min: -90, max: 90}
+      lng: {min: -180, max: 180}
+    example: {lat: 40.7128, lng: -74.0060}
+    presets:
+      - name: "Italy"
+        value: {lat: 42.5, lng: 12.5}
+      - name: "Europe"
+        value: {lat: 50.0, lng: 10.0}
+      - name: "New York"
+        value: {lat: 40.7128, lng: -74.0060}
+      - name: "London"
+        value: {lat: 51.5074, lng: -0.1278}
+      - name: "Tokyo"
+        value: {lat: 35.6762, lng: 139.6503}
+
+  - name: zoom
+    type: number
+    default: 6
+    description: "Initial zoom level (1-18)"
+    required: false
+    group: map_config
+    min: 1
+    max: 18
+    step: 1
+    hints:
+      - "1-3: World/Continent"
+      - "4-6: Country"
+      - "7-10: Region/State"
+      - "11-14: City"
+      - "15-18: Street/Building"
+
+  # Data binding
+  - name: geo_field
+    type: string
+    default: "lat|lon"
+    description: "Geographic coordinate field(s)"
+    required: false
+    group: data_binding
+    examples:
+      - "lat|lon"
+      - "coordinates"
+      - "geometry"
+    depends_on: data
+
+  - name: value_field
+    type: string
+    description: "Field containing values to visualize"
+    required: false
+    group: data_binding
+    examples:
+      - "population"
+      - "value"
+      - "$item$"
+    special_values:
+      - value: "$item$"
+        description: "Use for: simple features, counting items in aggregation"
+
+  - name: title_field
+    type: string
+    default: "name"
+    description: "Field to use for labels/tooltips"
+    required: false
+    group: data_binding
+    example: "name"
+
+  - name: category_field
+    type: string
+    description: "Field for categorical coloring (if using categorical visualization)"
+    required: false
+    group: data_binding
+    depends_on:
+      viztype: ["CHART|DOT|CATEGORICAL", "FEATURE|CHOROPLETH|CATEGORICAL"]
+
+  # Styling
+  - name: colorscheme
+    type: colors
+    default: ["#0066cc"]
+    description: "Color scheme (static colors or dynamic palette)"
+    required: false
+    group: styling
+    types:
+      static:
+        description: "Array of hex colors"
+        examples:
+          - ["#0066cc"]
+          - ["#ffffcc", "#ff0000"]
+          - ["#f7fbff", "#deebf7", "#c6dbef", "#6baed6", "#08519c"]
+      dynamic:
+        description: "Auto-generate colors for categories"
+        format: ["count", "palette_name"]
+        palettes:
+          - name: "tableau"
+            description: "Tableau 10 (good for 5-10 categories)"
+            colors: 10
+          - name: "paired"
+            description: "ColorBrewer Paired (12 colors)"
+            colors: 12
+          - name: "set1"
+            description: "ColorBrewer Set1 (9 colors)"
+            colors: 9
+          - name: "set2"
+            description: "ColorBrewer Set2 (8 colors)"
+            colors: 8
+          - name: "pastel1"
+            description: "ColorBrewer Pastel1 (9 colors)"
+            colors: 9
+          - name: "dark2"
+            description: "ColorBrewer Dark2 (8 colors)"
+            colors: 8
+        examples:
+          - ["100", "tableau"]
+          - ["50", "paired"]
+
+  - name: scale
+    type: number
+    default: 1.0
+    description: "Symbol size multiplier"
+    required: false
+    group: styling
+    min: 0.1
+    max: 10.0
+    step: 0.1
+    hint: "1.0 = normal, 2.0 = double size, 0.5 = half size"
+
+  - name: opacity
+    type: number
+    default: 0.7
+    description: "Symbol opacity (0.0 = transparent, 1.0 = opaque)"
+    required: false
+    group: styling
+    min: 0.0
+    max: 1.0
+    step: 0.1
+
+  - name: linecolor
+    type: color
+    default: "#ffffff"
+    description: "Border/stroke color"
+    required: false
+    group: styling
+    example: "#ffffff"
+
+  - name: linewidth
+    type: number
+    default: 1
+    description: "Border/stroke width in pixels"
+    required: false
+    group: styling
+    min: 0
+    max: 10
+    step: 0.5
+
+  # Aggregation settings
+  - name: gridwidth
+    type: string
+    default: "5px"
+    description: "Grid cell size for aggregation (requires AGGREGATE viztype)"
+    required: false
+    group: aggregation
+    depends_on:
+      viztype: ["CHART|BUBBLE|SIZE|AGGREGATE", "CHART|GRID|AGGREGATE", "CHART|DOT|AGGREGATE"]
+    options:
+      - "3px"
+      - "5px"
+      - "10px"
+      - "15px"
+      - "20px"
+    hint: "Larger values = coarser aggregation"
+
+  # Advanced options
+  - name: legend_title
+    type: string
+    description: "Custom legend title (optional)"
+    required: false
+    group: advanced
+    example: "Population by Region"
+
+  - name: tooltip_template
+    type: string
+    default: "{{theme.item.chart}}{{theme.item.data}}"
+    description: "Custom tooltip HTML template"
+    required: false
+    group: advanced
+    examples:
+      - "{{theme.item.chart}}{{theme.item.data}}"
+      - "<h3>{{name}}</h3><p>{{description}}</p>"
+      - "<strong>{{title}}</strong><br>Value: {{value}}"
+    hint: "Use {{FIELD_NAME}} for field placeholders"
+
+  - name: basemap_opacity
+    type: number
+    default: 0.6
+    description: "Base map opacity (0.0 = invisible, 1.0 = opaque)"
+    required: false
+    group: advanced
+    min: 0.0
+    max: 1.0
+    step: 0.1
+
+  - name: enable_tooltips
+    type: boolean
+    default: true
+    description: "Enable hover tooltips"
+    required: false
+    group: advanced
+
+  - name: animation
+    type: select
+    default: "instant"
+    description: "Chart rendering animation speed"
+    required: false
+    group: advanced
+    options:
+      - value: "instant"
+        label: "Instant (No Animation)"
+        description: "All charts render at once"
+        flushChartDraw: 1000000
+      - value: "fast"
+        label: "Fast Animation"
+        description: "Charts render in batches"
+        flushChartDraw: 100
+      - value: "slow"
+        label: "Slow Animation"
+        description: "Charts render one by one"
+        flushChartDraw: 1
+
+  - name: template
+    type: select
+    default: "auto"
+    description: "Template to use"
+    required: false
+    group: advanced
+    options:
+      - value: "auto"
+        label: "Auto-select"
+        description: "Automatically choose best template"
+      - value: "template.html"
+        label: "General Purpose"
+        description: "Works for all data types"
+      - value: "template-flexible.html"
+        label: "Flexible (Advanced)"
+        description: "Maximum flexibility and control"
+      - value: "template-points.html"
+        label: "Point Data"
+        description: "Optimized for CSV/JSON points"
+      - value: "template-geojson.html"
+        label: "GeoJSON"
+        description: "Optimized for polygons/features"
+      - value: "template-multi-layer.html"
+        label: "Multi-Layer"
+        description: "Multiple data layers"
+
+# Parameter groups for UI organization
+groups:
+  - name: basic
+    label: "Basic Settings"
+    icon: "📝"
+    parameters: [filename, title, data]
+
+  - name: visualization
+    label: "Visualization"
+    icon: "📊"
+    parameters: [viztype]
+
+  - name: map_config
+    label: "Map Configuration"
+    icon: "🗺️"
+    parameters: [maptype, center, zoom]
+
+  - name: data_binding
+    label: "Data Binding"
+    icon: "🔗"
+    parameters: [geo_field, value_field, title_field, category_field]
+    description: "Map data fields to visualization properties"
+
+  - name: styling
+    label: "Styling"
+    icon: "🎨"
+    parameters: [colorscheme, scale, opacity, linecolor, linewidth]
+
+  - name: aggregation
+    label: "Aggregation"
+    icon: "📍"
+    parameters: [gridwidth]
+    description: "Settings for density/heatmap visualizations"
+
+  - name: advanced
+    label: "Advanced Options"
+    icon: "⚙️"
+    parameters: [legend_title, tooltip_template, basemap_opacity, enable_tooltips, animation, template]
+    collapsible: true
+    collapsed: true
+
+# Presets for common use cases
+presets:
+
+  - name: simple_points
+    label: "Simple Point Map"
+    description: "Display locations with uniform markers"
+    icon: "📍"
+    parameters:
+      viztype: "CHART|DOT"
+      maptype: "VT_TONER_LITE"
+      colorscheme: ["#0066cc"]
+      scale: 1.0
+
+  - name: sized_bubbles
+    label: "Bubble Map (Sized)"
+    description: "Bubbles sized by data values"
+    icon: "⭕"
+    parameters:
+      viztype: "CHART|BUBBLE|SIZE|VALUES"
+      maptype: "VT_TONER_LITE"
+      colorscheme: ["#ff5722"]
+      scale: 1.5
+
+  - name: categorical_points
+    label: "Categorical Point Map"
+    description: "Points colored by category"
+    icon: "🎨"
+    parameters:
+      viztype: "CHART|DOT|CATEGORICAL"
+      maptype: "white"
+      colorscheme: ["100", "tableau"]
+      scale: 1.2
+
+  - name: density_heatmap
+    label: "Density Heatmap"
+    description: "Grid-based point aggregation"
+    icon: "🔥"
+    parameters:
+      viztype: "CHART|BUBBLE|SIZE|AGGREGATE"
+      maptype: "CartoDB - Positron"
+      colorscheme: ["#ffeb3b", "#ff9800", "#f44336"]
+      gridwidth: "5px"
+      scale: 1.5
+
+  - name: choropleth
+    label: "Choropleth Map"
+    description: "Colored regions by values"
+    icon: "🗺️"
+    parameters:
+      viztype: "FEATURE|CHOROPLETH|EQUIDISTANT"
+      maptype: "white"
+      colorscheme: ["#ffffcc", "#ffeda0", "#feb24c", "#f03b20"]
+      opacity: 0.7
+      linecolor: "#ffffff"
+      linewidth: 2
+
+  - name: categorical_choropleth
+    label: "Categorical Choropleth"
+    description: "Regions colored by category"
+    icon: "🌈"
+    parameters:
+      viztype: "FEATURE|CHOROPLETH|CATEGORICAL"
+      maptype: "white"
+      colorscheme: ["100", "tableau"]
+      opacity: 0.7
+      linecolor: "#ffffff"
+      linewidth: 2
+
+  - name: dark_theme
+    label: "Dark Theme Map"
+    description: "Dark base with bright markers"
+    icon: "🌙"
+    parameters:
+      maptype: "CartoDB - Dark_Matter"
+      colorscheme: ["#ffeb3b", "#ff5722", "#e91e63"]
+      basemap_opacity: 1.0
+      opacity: 0.9
+
+  - name: minimal_white
+    label: "Minimal White Map"
+    description: "Clean white background"
+    icon: "⬜"
+    parameters:
+      maptype: "white"
+      colorscheme: ["100", "pastel1"]
+      opacity: 0.7
+      linecolor: "#ffffff"
+      linewidth: 3
+
+# Validation rules
+validation:
+  rules:
+    - name: coordinates_required
+      condition: "viztype starts with 'CHART|'"
+      requires: [geo_field]
+      message: "Point visualizations require geographic coordinates"
+
+    - name: geometry_required
+      condition: "viztype starts with 'FEATURE'"
+      requires: [geo_field]
+      message: "Feature visualizations require GeoJSON/TopoJSON geometry"
+
+    - name: value_for_sizing
+      condition: "viztype contains 'SIZE'"
+      requires: [value_field]
+      message: "Sized visualizations require a value field"
+
+    - name: category_for_categorical
+      condition: "viztype contains 'CATEGORICAL'"
+      requires: [category_field]
+      suggests: {colorscheme: ["100", "tableau"]}
+      message: "Categorical visualizations work best with dynamic color schemes"
+
+    - name: gridwidth_for_aggregate
+      condition: "viztype contains 'AGGREGATE'"
+      requires: [gridwidth]
+      suggests: {value_field: "$item$"}
+      message: "Aggregation requires gridwidth; use value: '$item$' to count items"
+
+    - name: dynamic_colors_for_categorical
+      condition: "viztype contains 'CATEGORICAL'"
+      suggests: {colorscheme: ["100", "tableau"]}
+      message: "Consider using dynamic color scheme for categorical data"
+
+# Quick start wizard
+wizard:
+  steps:
+    - name: data_type
+      title: "What type of data do you have?"
+      type: choice
+      options:
+        - value: "points"
+          label: "Point Data (CSV/JSON with lat/lon)"
+          icon: "📍"
+          next: point_visualization
+        - value: "geometry"
+          label: "Polygon Data (GeoJSON/TopoJSON)"
+          icon: "🗺️"
+          next: geometry_visualization
+
+    - name: point_visualization
+      title: "How do you want to visualize points?"
+      type: choice
+      options:
+        - value: "simple"
+          label: "Simple markers (all the same)"
+          preset: simple_points
+        - value: "sized"
+          label: "Sized by values (bubble map)"
+          preset: sized_bubbles
+        - value: "categorical"
+          label: "Colored by category"
+          preset: categorical_points
+        - value: "density"
+          label: "Density heatmap"
+          preset: density_heatmap
+
+    - name: geometry_visualization
+      title: "How do you want to visualize regions?"
+      type: choice
+      options:
+        - value: "simple"
+          label: "Simple boundaries (uniform color)"
+          parameters: {viztype: "FEATURE"}
+        - value: "choropleth"
+          label: "Colored by numeric values"
+          preset: choropleth
+        - value: "categorical"
+          label: "Colored by categories"
+          preset: categorical_choropleth
+
+# Command-line aliases
+cli:
+  aliases:
+    # Short forms
+    -f: filename
+    -t: title
+    -d: data
+    -v: viztype
+    -m: maptype
+    -c: center
+    -z: zoom
+
+  # Common patterns
+  examples:
+    - command: "/create-ixmap -t 'My Map' -v BUBBLE"
+      description: "Create a bubble map"
+
+    - command: "/create-ixmap -f cities.html -m 'CartoDB - Positron'"
+      description: "Create map with CartoDB base"
+
+    - command: "/create-ixmap --preset density_heatmap"
+      description: "Use density heatmap preset"
+
+# Export formats
+export:
+  formats:
+    - name: html
+      description: "Standalone HTML file (default)"
+      extension: ".html"
+
+  options:
+    minify: false
+    inline_data: true
+    include_cdn: true
+
+# Metadata
+metadata:
+  author: "Claude Code Community"
+  license: "MIT"
+  documentation: "https://github.com/gjrichter/ixmaps-skills"
+  version: "2.0"
+  last_updated: "2026-02-07"

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+        #map { width: 100%; height: 100vh; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 999; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading map...</div>
+    <div id="map"></div>
+
+    <script>
+        try {
+            ixmaps.Map("map", {
+                mapType: "{{MAPTYPE}}",
+                mode: "info"
+            })
+            .options({
+                basemapopacity: {{BASEMAP_OPACITY}},
+                flushChartDraw: {{FLUSH_CHART_DRAW}}
+            })
+            .view({
+                center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
+                zoom: {{ZOOM}}
+            })
+            .legend("{{LEGEND_TITLE}}")
+            .layer(
+                ixmaps.layer("features")
+                    .data({
+                        url: "{{DATA_URL}}",
+                        type: "{{DATA_TYPE}}"
+                    })
+                    .binding({
+                        geo: "geometry",
+                        value: "{{VALUE_FIELD}}",
+                        title: "{{TITLE_FIELD}}"
+                    })
+                    .style({
+                        colorscheme: {{COLORSCHEME}},
+                        fillopacity: {{FILL_OPACITY}},
+                        linecolor: "{{LINE_COLOR}}",
+                        linewidth: {{LINE_WIDTH}},
+                        showdata: "true"
+                    })
+                    .meta({
+                        tooltip: "{{TOOLTIP_TEMPLATE}}"
+                    })
+                    .type("{{VIZ_TYPE}}")
+                    .title("{{LAYER_TITLE}}")
+                    .define()
+            );
+
+            setTimeout(() => document.getElementById('loading').style.display = 'none', 1000);
+
+        } catch (error) {
+            console.error('Map initialization failed:', error);
+            document.getElementById('loading').innerHTML = '<div style="color: #d32f2f;">Error: ' + error.message + '</div>';
+        }
+    </script>
+</body>
+</html>

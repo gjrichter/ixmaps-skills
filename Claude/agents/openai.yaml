@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create ixMap"
+  short_description: "Build interactive ixMaps HTML maps fast"
+  default_prompt: "Use $create-ixmap to build an interactive ixMaps HTML map from my CSV."

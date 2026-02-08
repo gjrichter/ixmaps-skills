@@ -688,6 +688,34 @@ Complete visualization type reference.
 
 ---
 
+### ⚠️ Deprecated: EXACT Classification
+
+**DO NOT USE: `|EXACT`**
+
+`EXACT` was a classification method in older ixmaps versions (similar to `CATEGORICAL`, `QUANTILE`, `EQUIDISTANT`) but is now **deprecated**.
+
+**What NOT to do:**
+```javascript
+// DEPRECATED - Don't use EXACT:
+.type("FEATURE|CHOROPLETH|EXACT")
+```
+
+**What to do instead:**
+```javascript
+// Use modern classification methods:
+.type("FEATURE|CHOROPLETH|QUANTILE")      // Quantile breaks
+.type("FEATURE|CHOROPLETH|EQUIDISTANT")   // Equal intervals
+.type("FEATURE|CHOROPLETH|CATEGORICAL")   // Categories
+```
+
+**Why it's deprecated:**
+- Obsolete classification algorithm from older ixmaps versions
+- Replaced by more robust classification methods
+- Can cause unexpected behavior in current ixmaps
+- Modern methods provide better results
+
+---
+
 ## Color Schemes
 
 ### Static Color Schemes

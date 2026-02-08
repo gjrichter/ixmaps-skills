@@ -24,6 +24,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 5. **For GeoJSON/TopoJSON**: Reference properties directly (NOT with "properties." prefix)
 6. **For aggregation**: Use `value: "$item$"` and `gridwidth` in style (NOT in type)
 7. **NEVER use `.tooltip()`** - It doesn't exist in ixMaps API
+8. **NEVER use `|EXACT` classification** - It's a deprecated classification method from older ixmaps versions (use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL` instead)
 
 ## Choosing Visualization Type
 

@@ -362,6 +362,47 @@ Solutions to common issues when creating ixMaps visualizations.
 
 ---
 
+## Type Modifier Issues
+
+### Problem: Using deprecated EXACT classification
+
+**Common mistake:**
+
+```javascript
+// WRONG - EXACT is deprecated:
+.type("FEATURE|CHOROPLETH|EXACT")
+
+// CORRECT - Use modern classification methods:
+.type("FEATURE|CHOROPLETH|QUANTILE")
+.type("FEATURE|CHOROPLETH|EQUIDISTANT")
+.type("FEATURE|CHOROPLETH|CATEGORICAL")
+```
+
+**Why EXACT is deprecated:**
+
+1. **Obsolete algorithm** - From older ixmaps versions
+2. **Replaced by better methods** - QUANTILE, EQUIDISTANT, CATEGORICAL
+3. **Can cause errors** - Not supported in current ixmaps
+4. **Like CATEGORICAL was** - EXACT was a classification method, not a modifier
+
+**Background:**
+- In older ixmaps: `EXACT` was used like `CATEGORICAL` as a classification method
+- In current ixmaps: `EXACT` is deprecated and must not be used
+- Exact values are preserved regardless of classification method chosen
+
+**Valid classification methods:**
+- `QUANTILE` - Equal frequency distribution
+- `EQUIDISTANT` - Equal interval ranges
+- `CATEGORICAL` - One color per category
+
+**Chart types and options:**
+- `BUBBLE`, `PIE`, `BAR`, `DOT`, `GRID`
+- `SIZE`, `VALUES`, `AGGREGATE`
+
+**Never use:** `EXACT` ❌ (deprecated)
+
+---
+
 ## Coordinate Problems
 
 ### Problem: Data appears in wrong location

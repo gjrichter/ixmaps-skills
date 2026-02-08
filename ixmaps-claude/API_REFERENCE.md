@@ -194,7 +194,7 @@ Create a new layer.
 1. `.data()` - Define data source
 2. `.binding()` - Map data fields
 3. `.filter()` - Optional data filter
-### `.type(vizType)`
+4. `.type()` - Visualization type
 5. `.style()` - Visual styling
 6. `.meta()` - Metadata/tooltips
 7. `.title()` - Layer title
@@ -279,6 +279,7 @@ Filter data before visualization.
 .filter("value > 100")
 ```
 
+### `.type(vizType)`
 
 Specify visualization type.
 
@@ -553,6 +554,83 @@ Complete style property reference.
 - Only used with `|AGGREGATE` types
 - Larger values = coarser aggregation
 
+### Diverging Scale Properties
+
+**rangecentervalue** (number)
+- Creates automatic diverging color scale around a center value
+- Center value is the BOUNDARY between colors, not a color itself
+- **IMPORTANT: Use EVEN number of colors** (4, 6, 8, etc.) for equal distribution above and below
+- Perfect for target-based visualizations (e.g., EU 65% target)
+- DO NOT combine with QUANTILE, EQUIDISTANT classification methods
+- Use with plain `CHOROPLETH` or `FEATURE` type only
+
+**Example:**
+```javascript
+.style({
+    colorscheme: [
+        "#b71c1c", "#d32f2f", "#e57373",  // 3 reds (below 65%)
+        "#66bb6a", "#43a047", "#2e7d32"   // 3 greens (above 65%)
+    ],  // 6 colors total (even number) - 65% is the boundary between reds and greens
+    rangecentervalue: 65,  // EU target - boundary between color groups
+    opacity: 0.7,
+    showdata: "true"
+})
+.type("FEATURE|CHOROPLETH")  // No QUANTILE/EQUIDISTANT
+```
+
+**ranges** (array)
+- Explicitly defines class break values for choropleth
+- Array must have n+1 values for n colors
+- First value = minimum, last value = maximum, middle values = breaks
+- Allows precise control over class intervals
+- **Can use ANY number of colors** (not restricted like rangecentervalue)
+- Allows asymmetric distributions (e.g., 3 below center, 4 above center)
+- DO NOT combine with QUANTILE, EQUIDISTANT classification methods
+- Use with plain `CHOROPLETH` or `FEATURE` type only
+
+**Example (symmetric, 6 colors):**
+```javascript
+.style({
+    colorscheme: [
+        "#b71c1c",  // 1. <50%
+        "#d32f2f",  // 2. 50-57.5%
+        "#e57373",  // 3. 57.5-65%
+        "#66bb6a",  // 4. 65-72.5%
+        "#43a047",  // 5. 72.5-80%
+        "#2e7d32"   // 6. >80%
+    ],
+    ranges: [0, 50, 57.5, 65, 72.5, 80, 100],  // 6 colors = 7 values
+    opacity: 0.7,
+    showdata: "true"
+})
+.type("FEATURE|CHOROPLETH")  // No QUANTILE/EQUIDISTANT
+```
+
+**Example (asymmetric, 7 colors):**
+```javascript
+.style({
+    colorscheme: [
+        "#b71c1c",  // <50%
+        "#d32f2f",  // 50-55%
+        "#e57373",  // 55-60%
+        "#ff9800",  // 60-65%
+        "#66bb6a",  // 65-70%
+        "#43a047",  // 70-80%
+        "#2e7d32"   // >80%
+    ],
+    ranges: [0, 50, 55, 60, 65, 70, 80, 100],  // 7 colors = 8 values, 4 below + 3 above
+    opacity: 0.7,
+    showdata: "true"
+})
+.type("FEATURE|CHOROPLETH")
+```
+
+**When to use:**
+- `rangecentervalue` - Simple, automatic, symmetric distribution around target/threshold (use even number of colors)
+- `ranges` - Full control, asymmetric intervals, specific meaningful breaks (any number of colors)
+
+**IMPORTANT:** Both properties conflict with classification methods (QUANTILE, EQUIDISTANT). Use plain `CHOROPLETH` type when using these properties.
+
 ### Example Styles
 
 **Simple dot style:**
@@ -685,6 +763,26 @@ Complete visualization type reference.
 - Colored by category/text field
 - Different color per unique value
 - Use with: `value: "fieldname"` and dynamic colorscheme
+
+**⚠️ Important: When to omit classification methods**
+
+When using `rangecentervalue` or `ranges` in style properties, DO NOT include classification methods:
+
+```javascript
+// WRONG - conflict between rangecentervalue and QUANTILE:
+.style({ rangecentervalue: 65 })
+.type("FEATURE|CHOROPLETH|QUANTILE")
+
+// CORRECT - use plain CHOROPLETH:
+.style({ rangecentervalue: 65 })
+.type("FEATURE|CHOROPLETH")
+
+// CORRECT - explicit ranges:
+.style({ ranges: [0, 50, 60, 65, 70, 80, 100] })
+.type("FEATURE|CHOROPLETH")
+```
+
+Classification methods (QUANTILE, EQUIDISTANT) calculate their own class breaks, which conflicts with explicit range definitions.
 
 ---
 

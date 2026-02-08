@@ -364,6 +364,42 @@ Solutions to common issues when creating ixMaps visualizations.
 
 ## Type Modifier Issues
 
+### Problem: Diverging scale not centered correctly
+
+**Common mistake:** Using odd number of colors with `rangecentervalue`
+
+```javascript
+// WRONG - 7 colors (odd number):
+.style({
+    colorscheme: [
+        "#b71c1c", "#d32f2f", "#e57373",  // 3 below
+        "#ff9800",                          // 1 at center (wrong!)
+        "#66bb6a", "#43a047", "#2e7d32"   // 3 above
+    ],
+    rangecentervalue: 65
+})
+// Creates unequal distribution with middle color AT 65
+
+// CORRECT - 6 colors (even number):
+.style({
+    colorscheme: [
+        "#b71c1c", "#d32f2f", "#e57373",  // 3 below 65%
+        "#66bb6a", "#43a047", "#2e7d32"   // 3 above 65%
+    ],
+    rangecentervalue: 65  // 65% is the BOUNDARY between reds and greens
+})
+```
+
+**Why even numbers required:**
+- Center value is a BOUNDARY, not a color itself
+- With 6 colors: 3 below + 3 above = equal distribution
+- With 7 colors: creates unbalanced scale
+- Always use even numbers: 4, 6, 8, 10, etc.
+
+**Note:** `ranges` property works with any number of colors since you explicitly define breaks.
+
+---
+
 ### Problem: Using deprecated EXACT classification
 
 **Common mistake:**

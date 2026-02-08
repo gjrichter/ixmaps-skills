@@ -25,6 +25,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 6. **For aggregation**: Use `value: "$item$"` and `gridwidth` in style (NOT in type)
 7. **NEVER use `.tooltip()`** - It doesn't exist in ixMaps API
 8. **NEVER use `|EXACT` classification** - It's a deprecated classification method from older ixmaps versions (use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL` instead)
+9. **For diverging scales**: `rangecentervalue` requires EVEN number of colors (4, 6, 8). `ranges` requires n+1 values for n colors. DO NOT combine either with QUANTILE/EQUIDISTANT
 
 ## Choosing Visualization Type
 
@@ -188,6 +189,8 @@ ixmaps.layer("layer_id")
   - Static: `["#0066cc"]` or `["#ffffcc", "#ff0000"]`
   - Dynamic: `["100", "tableau"]` (ixMaps calculates count)
   - Palettes: "tableau", "paired", "set1", "set2", "pastel1", "dark2"
+- `rangecentervalue`: Number - creates automatic diverging scale around this value (e.g., `65` for EU target). **Use EVEN number of colors** (4, 6, 8) for equal distribution above/below. DO NOT combine with QUANTILE/EQUIDISTANT classification
+- `ranges`: Array - explicitly defines class breaks (e.g., `[0, 50, 60, 65, 70, 80, 100]`). Array must have n+1 values for n colors. DO NOT combine with QUANTILE/EQUIDISTANT classification
 - `scale`: Size multiplier (e.g., `1.5` = 50% larger)
 - `normalsizevalue`: Data value = 30px chart (avoid with AGGREGATE)
 - `opacity`: Fill opacity (0-1)
@@ -263,9 +266,68 @@ For density visualization:
 **GeoJSON data:**
 ```javascript
 .binding({ value: "NAME_ENGL" })  // Field to colorize by
-.type("FEATURE|CHOROPLETH|CATEGORICAL")
 .style({ colorscheme: ["100", "tableau"] })
+.type("FEATURE|CHOROPLETH|CATEGORICAL")
 ```
+
+### Diverging Color Schemes
+
+For visualizations centered around a target value (e.g., EU 65% recycling target):
+
+**Method 1: rangecentervalue (Recommended - Automatic):**
+```javascript
+.binding({ geo: "geometry", value: "recycling_rate", title: "name" })
+.style({
+    colorscheme: [
+        "#b71c1c", "#d32f2f", "#e57373",  // 3 reds (below 65%)
+        "#66bb6a", "#43a047", "#2e7d32"   // 3 greens (above 65%)
+    ],  // 6 colors (EVEN number) - equal above/below, 65% is the boundary
+    rangecentervalue: 65,  // EU target - boundary between color groups
+    opacity: 0.7,
+    showdata: "true"
+})
+.type("FEATURE|CHOROPLETH")  // No QUANTILE/EQUIDISTANT
+```
+
+**Method 2: ranges (Explicit Control):**
+```javascript
+.binding({ geo: "geometry", value: "recycling_rate", title: "name" })
+.style({
+    colorscheme: [
+        "#b71c1c",  // <50%
+        "#d32f2f",  // 50-57.5%
+        "#e57373",  // 57.5-65%
+        "#66bb6a",  // 65-72.5%
+        "#43a047",  // 72.5-80%
+        "#2e7d32"   // >80%
+    ],
+    ranges: [0, 50, 57.5, 65, 72.5, 80, 100],  // 6 colors = 7 values (n+1)
+    opacity: 0.7,
+    showdata: "true"
+})
+.type("FEATURE|CHOROPLETH")  // No QUANTILE/EQUIDISTANT
+```
+
+**Asymmetric example (4 below + 3 above target):**
+```javascript
+.style({
+    colorscheme: [
+        "#b71c1c", "#d32f2f", "#e57373", "#ff9800",  // 4 below
+        "#66bb6a", "#43a047", "#2e7d32"              // 3 above
+    ],
+    ranges: [0, 50, 55, 60, 65, 70, 80, 100],  // 7 colors = 8 values
+    showdata: "true"
+})
+```
+
+**Key points:**
+- Use `rangecentervalue` for automatic, symmetric distribution (requires **EVEN number of colors**: 4, 6, 8, etc.)
+- Center value is the boundary between color groups (not a color itself)
+- Use `ranges` for precise control over class breaks (**any number of colors**, allows asymmetric)
+- ranges array must have n+1 values for n colors (first = min, last = max, middle = breaks)
+- DO NOT combine with QUANTILE or EQUIDISTANT classification methods
+- Use plain `CHOROPLETH` type (no classification modifier)
+- Colors array is ordered from low to high values
 
 ## Data Handling
 
@@ -300,8 +362,22 @@ For density visualization:
 ### Categorical GeoJSON
 ```javascript
 .binding({ geo: "geometry", value: "category_field", title: "name" })
-.type("FEATURE|CHOROPLETH|CATEGORICAL")
 .style({ colorscheme: ["100", "tableau"], showdata: "true" })
+.type("FEATURE|CHOROPLETH|CATEGORICAL")
+```
+
+### Diverging choropleth (target-based)
+```javascript
+.binding({ geo: "geometry", value: "rate_field", title: "name" })
+.style({
+    colorscheme: [
+        "#d32f2f", "#e57373", "#ffab91",  // 3 below target
+        "#66bb6a", "#43a047", "#2e7d32"   // 3 above target
+    ],  // 6 colors (even) - target is boundary
+    rangecentervalue: 65,  // Boundary between color groups
+    showdata: "true"
+})
+.type("FEATURE|CHOROPLETH")  // No classification method
 ```
 
 ## Templates Available

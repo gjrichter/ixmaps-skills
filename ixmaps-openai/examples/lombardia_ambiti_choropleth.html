@@ -92,13 +92,13 @@
                     geo: "geometry",
                     value: "$item$"
                 })
+                .type("FEATURE|CHOROPLETH|QUANTILE")
                 .style({
                     colorscheme: ["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#bd0026", "#800026"],
                     opacity: 0.7,
                     strokecolor: "#666666",
                     strokewidth: 1.5
                 })
-                .type("FEATURE|CHOROPLETH|QUANTILE")
                 .title("Ambiti Territoriali Lombardia - Choropleth")
                 .define()
         );

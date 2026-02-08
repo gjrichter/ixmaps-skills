@@ -1,22 +1,21 @@
-# ixMaps Claude Skill
+# ixMaps Skill
 
-A Claude Code skill for creating interactive maps using the [ixMaps framework](https://github.com/gjrichter/ixmaps_flat).
+A skill for creating interactive maps using the [ixMaps framework](https://github.com/gjrichter/ixmaps_flat). Optimized for Codex.
 
 [![ixMaps](https://img.shields.io/badge/ixMaps-Interactive%20Maps-blue)](https://github.com/gjrichter/ixmaps_flat)
-[![Claude Code](https://img.shields.io/badge/Claude-Code%20Skill-purple)](https://claude.ai)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-> **💡 New to ixMaps?** This skill works in both **Claude Code** (command-line) and **Claude Chat** (conversational). 
-> - **Chat users**: Jump to [Using in Claude Chat](#-using-in-claude-chat-not-claude-code)
-> - **Code users**: See [Quick Start for Claude Code](#-quick-start-for-claude-code) below
+> **💡 New to ixMaps?** This skill works in both chat and code workflows. 
+> - **Chat users**: Jump to [Using in Chat](#-using-in-chat)
+> - **CLI users**: See [Quick Start](#-quick-start) below
 
 ## 🗺️ What is this?
 
-This skill enables Claude to generate interactive HTML maps with ixMaps using simple natural language commands.
+This skill enables an assistant to generate interactive HTML maps with ixMaps using simple natural language commands.
 
 **Works in two modes:**
-- **Claude Code**: Use `/create-ixmap` skill command for file-based workflow
-- **Claude Chat**: Share the skill, then request maps conversationally
+- **CLI**: Use `/create-ixmap` skill command for file-based workflow
+- **Chat**: Share the skill, then request maps conversationally
 
 Perfect for data visualization, geographic analysis, and creating beautiful interactive maps.
 
@@ -25,55 +24,55 @@ Perfect for data visualization, geographic analysis, and creating beautiful inte
 * **Multiple visualization types**: Bubble charts, choropleth maps, pie charts, bar charts, dot maps
 * **GeoJSON/TopoJSON support**: Full support for geographic features with proper binding
 * **Interactive tooltips**: Automatic tooltip generation with customization options
-* **Multiple base maps**: VT_TONER_LITE, OpenStreetMap, CartoDB Positron/Dark_Matter, Stamen Terrain
+* **Multiple base maps**: VT_TONER_LITE, OpenStreetMap, CartoDB - Positron/Dark_Matter, Stamen Terrain
 * **Flexible data input**: Inline JSON, CSV files, GeoJSON, TopoJSON, external URLs
-* **Standalone output**: No server needed, works offline with CDN resources
+* **Standalone output**: No server needed; CDN-hosted assets require internet (or download assets for offline use)
 * **Categorical coloring**: Dynamic color palettes for categorical data
 
-## 💬 Using in Claude Chat (Not Claude Code)
+## 💬 Using in Chat
 
-This skill works in both Claude Code AND regular chat conversations!
+This skill works in both CLI tools and regular chat conversations.
 
 ### Quick Setup for Chat
 
 **Option 1: Share the raw file URL (Recommended)**
 1. Copy this URL: `https://raw.githubusercontent.com/gjrichter/ixmaps-claude-skill/main/SKILL.md`
-2. Paste it in your Claude chat with a message like:
+2. Paste it in your chat with a message like:
 ```
    Please read the ixmaps skill from this URL and use it to create maps:
    https://raw.githubusercontent.com/gjrichter/ixmaps-claude-skill/main/SKILL.md
 ```
-3. Once Claude confirms, ask for your map in natural language:
+3. Once the assistant confirms, ask for your map in natural language:
 ```
    Create a map of Italian cities with pie charts showing gender distribution
 ```
 
 **Option 2: Upload the file**
 1. Download [SKILL.md](https://raw.githubusercontent.com/gjrichter/ixmaps-claude-skill/main/SKILL.md) (right-click → Save as)
-2. Upload it to your Claude chat conversation
-3. Ask Claude to follow those specifications
+2. Upload it to your chat conversation
+3. Ask the assistant to follow those specifications
 
 **Option 3: Copy-paste**
 1. Open [SKILL.md](https://github.com/gjrichter/ixmaps-claude-skill/blob/main/SKILL.md)
 2. Copy the entire content
-3. Paste it in your chat with Claude
+3. Paste it in your chat with the assistant
 4. Ask for your map
 
 ### Chat Mode Examples
 ```
 User: "Create a bubble map of Italian cities sized by population"
-Claude: [generates complete HTML file with ixmaps]
+Assistant: [generates complete HTML file with ixmaps]
 
 User: "Now add a choropleth layer showing regions"
-Claude: [adds layer to existing map]
+Assistant: [adds layer to existing map]
 
 User: "Change the base map to dark theme"
-Claude: [updates mapType to CartoDB - Dark_Matter]
+Assistant: [updates mapType to CartoDB - Dark_Matter]
 ```
 
 **See [CHAT_USAGE.md](CHAT_USAGE.md) for detailed chat mode guide with more examples.**
 
-## 🚀 Quick Start for Claude Code
+## 🚀 Quick Start
 
 ### Installation
 
@@ -82,11 +81,11 @@ Claude: [updates mapType to CartoDB - Dark_Matter]
 git clone https://github.com/gjrichter/ixmaps-claude-skill.git
 ```
 
-2. Copy the skill to your Claude Code skills directory:
+2. Copy the skill to your skills directory:
 ```bash
-mkdir -p ~/.claude/skills/create-ixmap
-cp ixmaps-claude-skill/SKILL.md ~/.claude/skills/create-ixmap/
-cp ixmaps-claude-skill/template.html ~/.claude/skills/create-ixmap/
+mkdir -p <skills_dir>/create-ixmap
+cp ixmaps-claude-skill/SKILL.md <skills_dir>/create-ixmap/
+cp ixmaps-claude-skill/template.html <skills_dir>/create-ixmap/
 ```
 
 Or use the install script:
@@ -95,9 +94,9 @@ cd ixmaps-claude-skill
 ./install.sh
 ```
 
-3. Restart Claude Code or reload skills
+3. Restart your tool or reload skills
 
-### Usage in Claude Code
+### Usage (CLI)
 
 Simply invoke the skill:
 ```bash
@@ -120,6 +119,7 @@ ixmaps.layer("cities")
         value: "population",
         title: "name"
     })
+    .type("CHART|BUBBLE|SIZE|VALUES")
     .style({
         colorscheme: ["#0066cc"],
         showdata: "true"
@@ -127,7 +127,6 @@ ixmaps.layer("cities")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("CHART|BUBBLE|SIZE|VALUES")
     .title("Italian Cities by Population")
     .define()
 ```
@@ -141,6 +140,7 @@ ixmaps.layer("regions")
         value: "$item$",
         title: "region_name"
     })
+    .type("FEATURE|CHOROPLETH|EQUIDISTANT")
     .style({
         colorscheme: ["#ffffcc","#ff0000"],
         opacity: 0.7,
@@ -149,7 +149,6 @@ ixmaps.layer("regions")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("FEATURE|CHOROPLETH|EQUIDISTANT")
     .title("Regions")
     .define()
 ```
@@ -166,6 +165,7 @@ ixmaps.layer("european_countries")
         value: "NAME_ENGL",
         title: "NAME_ENGL"
     })
+    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .style({
         colorscheme: ["100", "tableau"],
         fillopacity: 0.7,
@@ -176,7 +176,6 @@ ixmaps.layer("european_countries")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .title("European Countries by Name")
     .define()
 ```
@@ -269,9 +268,9 @@ The skill follows ixMaps best practices:
 
 1. `.data()` - Define data source
 2. `.binding()` - Map data fields to map properties (REQUIRED)
-3. `.style()` - Visual styling (MUST include `showdata: "true"`)
-4. `.meta()` - Metadata and tooltip configuration (REQUIRED)
-5. `.type()` - Visualization type
+3. `.type()` - Visualization type
+4. `.style()` - Visual styling (MUST include `showdata: "true"`)
+5. `.meta()` - Metadata and tooltip configuration (REQUIRED)
 6. `.title()` - Layer title
 7. `.define()` - Finalize layer definition
 
@@ -286,8 +285,8 @@ The skill follows ixMaps best practices:
 
 ## 📚 Documentation
 
-* [SKILL.md](SKILL.md) - Complete skill documentation for Claude
-* [CHAT_USAGE.md](CHAT_USAGE.md) - Detailed guide for using in Claude Chat
+* [SKILL.md](SKILL.md) - Complete skill documentation
+* [CHAT_USAGE.md](CHAT_USAGE.md) - Detailed guide for using in chat
 * [QUICK_START.md](QUICK_START.md) - Quick reference guide
 * [template.html](template.html) - HTML template with placeholders
 * [examples/](examples/) - Working HTML examples
@@ -311,7 +310,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 * [ixMaps](https://github.com/gjrichter/ixmaps_flat) - The interactive mapping framework
-* [Claude Code](https://claude.ai) - AI-powered coding assistant
 * All contributors and users of this skill
 
 ## 📧 Contact
@@ -322,8 +320,7 @@ For questions or feedback about this skill, please open an issue on GitHub.
 
 * [ixMaps Framework](https://github.com/gjrichter/ixmaps_flat)
 * [ixMaps Documentation](https://gjrichter.github.io/ixmaps_flat/)
-* [Claude Code Skills](https://github.com/topics/claude-code-skill)
 
 ---
 
-Made with ❤️ for the ixMaps and Claude Code communities
+Made with ❤️ for the ixMaps community

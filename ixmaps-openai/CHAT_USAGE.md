@@ -1,13 +1,13 @@
-# Using ixMaps Skill in Claude Chat
+# Using ixMaps Skill in Chat
 
-This guide explains how to use the ixMaps skill in regular Claude chat conversations (not Claude Code).
+This guide explains how to use the ixMaps skill in regular chat conversations (not the CLI).
 
 ## Setup (One-Time)
 
 Choose one method to load the skill into your conversation:
 
 ### Method A: Share the GitHub URL (Recommended)
-In your chat with Claude, paste:
+In your chat, paste:
 ```
 Please read and follow the ixmaps skill specifications from:
 https://raw.githubusercontent.com/gjrichter/ixmaps-claude-skill/main/SKILL.md
@@ -21,7 +21,7 @@ https://raw.githubusercontent.com/gjrichter/ixmaps-claude-skill/main/SKILL.md
 ### Method C: Direct Paste
 1. Copy the content of [SKILL.md](https://github.com/gjrichter/ixmaps-claude-skill/blob/main/SKILL.md)
 2. Paste it in your chat
-3. Ask Claude to use those specifications
+3. Ask the assistant to use those specifications
 
 ## Usage Examples
 
@@ -32,7 +32,7 @@ You: Create an ixmap showing these cities with bubble charts sized by population
 - Milan: 1,372,000  
 - Naples: 967,000
 
-Claude: [creates complete HTML file with ixmaps]
+Assistant: [creates complete HTML file with ixmaps]
 ```
 
 **Result**: Standalone HTML file with interactive map, bubbles sized proportionally to population values.
@@ -44,7 +44,7 @@ https://example.com/cities.csv
 
 Show it as a choropleth map with CartoDB Positron base map
 
-Claude: [creates map with data from URL]
+Assistant: [creates map with data from URL]
 ```
 
 **Result**: Map loads data from URL and displays as choropleth with specified base map.
@@ -56,7 +56,7 @@ https://s3.eu-central-1.amazonaws.com/maps.ixmaps.com/topojson/CNTR_RG_10M_2020_
 
 Color them categorically by country name using the tableau palette
 
-Claude: [creates FEATURE|CHOROPLETH|CATEGORICAL map]
+Assistant: [creates FEATURE|CHOROPLETH|CATEGORICAL map]
 ```
 
 **Result**: Each country gets a unique color from the tableau palette, automatically calculated.
@@ -67,7 +67,7 @@ You: Create a map with two layers:
 1. Italian regions as choropleth (population density)
 2. Major cities as pie charts (age distribution)
 
-Claude: [creates map with both layers]
+Assistant: [creates map with both layers]
 ```
 
 **Result**: Layered visualization with regions and cities, each with appropriate styling.
@@ -80,7 +80,7 @@ Use these cities:
 - Milano: 665,420 male, 706,580 female
 - Napoli: 469,000 male, 498,000 female
 
-Claude: [creates CHART|PIE|SIZE|VALUES map]
+Assistant: [creates CHART|PIE|SIZE|VALUES map]
 ```
 
 **Result**: Pie charts sized by total population, with two segments (male/female) in different colors.
@@ -92,7 +92,7 @@ https://data.example.com/infrastructure.csv
 
 Show dots colored by the "type" field using the tableau palette
 
-Claude: [creates CHART|DOT|CATEGORICAL map]
+Assistant: [creates CHART|DOT|CATEGORICAL map]
 ```
 
 **Result**: Each infrastructure type gets a unique color, legend automatically generated.
@@ -148,7 +148,7 @@ Make a map of cities
 You: I have this data: [paste JSON array]
      Create an ixmap with bubbles sized by "value" field
 
-Claude: [immediate map generation]
+Assistant: [immediate map generation]
 ```
 
 **Use when**: You have data ready and know what visualization you want.
@@ -156,16 +156,16 @@ Claude: [immediate map generation]
 ### Pattern 2: Iterative Refinement
 ```
 You: Create a basic map of Italy
-Claude: [creates map]
+Assistant: [creates map]
 
 You: Add major cities as dots
-Claude: [adds layer]
+Assistant: [adds layer]
 
 You: Color the cities by region
-Claude: [modifies layer styling]
+Assistant: [modifies layer styling]
 
 You: Make the dots bigger and use the tableau palette
-Claude: [updates scale and colorscheme]
+Assistant: [updates scale and colorscheme]
 ```
 
 **Use when**: You want to build the map step by step.
@@ -178,7 +178,7 @@ You: Create an ixmap template I can reuse for different datasets.
      - Value field name
      - Title field name
 
-Claude: [creates parameterized template with clear data section]
+Assistant: [creates parameterized template with clear data section]
 ```
 
 **Use when**: You need to create multiple similar maps with different data.
@@ -188,10 +188,10 @@ Claude: [creates parameterized template with clear data section]
 You: Search for population data for the top 10 Italian cities,
      then create an ixmap with pie charts showing age distribution
 
-Claude: [searches web, structures data, creates map]
+Assistant: [searches web, structures data, creates map]
 ```
 
-**Use when**: You need Claude to find and structure the data first.
+**Use when**: You need the assistant to find and structure the data first.
 
 ### Pattern 5: Complex Multi-Layer
 ```
@@ -201,7 +201,7 @@ You: Create a map showing:
      3. Overlay: Tourist attractions as blue stars
      Use CartoDB Dark_Matter base map
 
-Claude: [creates multi-layer map with proper styling]
+Assistant: [creates multi-layer map with proper styling]
 ```
 
 **Use when**: You need multiple data sources on one map.
@@ -209,18 +209,18 @@ Claude: [creates multi-layer map with proper styling]
 ## Troubleshooting
 
 ### "I don't have the skill loaded"
-**Problem**: Claude doesn't follow ixmaps specifications.
+**Problem**: The assistant doesn't follow ixmaps specifications.
 
 **Solution**: 
 - Make sure you've shared the SKILL.md URL or content in the current conversation
-- Claude needs it loaded to know the correct API syntax
+- The assistant needs it loaded to know the correct API syntax
 - Try Method A from the Setup section
 
 ### "The map doesn't work"
 **Problem**: HTML file doesn't display correctly or has errors.
 
 **Solutions**:
-- Ask Claude: "Please validate this code against the ixmaps skill specifications"
+- Ask the assistant: "Please validate this code against the ixmaps skill specifications"
 - Check browser console (F12) for JavaScript errors
 - Verify data format matches expectations (check field names, coordinate format)
 - Ensure URLs are accessible (try opening data URLs in browser)
@@ -235,7 +235,7 @@ Claude: [creates multi-layer map with proper styling]
 - For colors: 
   - Static: Use hex color arrays `["#ff0000", "#0000ff"]`
   - Categorical: Use dynamic scheme `["100", "tableau"]`
-- Ask Claude: "Make the bubbles twice as large" or "Use brighter colors"
+- Ask the assistant: "Make the bubbles twice as large" or "Use brighter colors"
 
 ### "GeoJSON doesn't display"
 **Problem**: GeoJSON features not showing on map.
@@ -244,7 +244,7 @@ Claude: [creates multi-layer map with proper styling]
 - Verify binding includes: `geo: "geometry"` and `value: "$item$"`
 - Check type is `FEATURE` or `FEATURE|CHOROPLETH`, NOT a chart type
 - Ensure `showdata: "true"` is in style
-- Ask Claude: "Debug why the GeoJSON isn't displaying"
+- Ask the assistant: "Debug why the GeoJSON isn't displaying"
 
 ### "Categorical colors not working"
 **Problem**: All items same color instead of different colors per category.
@@ -253,7 +253,7 @@ Claude: [creates multi-layer map with proper styling]
 - Verify colorscheme is dynamic: `["100", "tableau"]` not static colors
 - Check type includes `|CATEGORICAL`: e.g., `FEATURE|CHOROPLETH|CATEGORICAL`
 - Ensure binding's value field points to the categorical field
-- Ask Claude: "Use categorical coloring for the 'type' field with tableau palette"
+- Ask the assistant: "Use categorical coloring for the 'type' field with tableau palette"
 
 ### "Tooltips not showing"
 **Problem**: Hovering over map elements shows no information.
@@ -262,11 +262,11 @@ Claude: [creates multi-layer map with proper styling]
 - Verify `.meta()` method is present with tooltip template
 - Check that `showdata: "true"` is in style
 - Ensure data binding includes a `title` field
-- Ask Claude: "Add tooltips showing the name and value"
+- Ask the assistant: "Add tooltips showing the name and value"
 
-## Differences from Claude Code Mode
+## Differences from CLI Mode
 
-| Feature       | Claude Code                 | Claude Chat               |
+| Feature       | CLI                          | Chat                      |
 | ------------- | --------------------------- | ------------------------- |
 | Invocation    | `/create-ixmap` command     | Natural language request  |
 | File creation | Automatic to disk           | Returns HTML code block   |
@@ -282,17 +282,17 @@ Claude: [creates multi-layer map with proper styling]
 You: Search for the latest population data for European capitals,
      then create an ixmap with bubbles sized by population
 
-Claude: [searches web, finds data, structures it, creates map]
+Assistant: [searches web, finds data, structures it, creates map]
 ```
 
-**Result**: Claude finds current data and creates map in one flow.
+**Result**: The assistant finds current data and creates the map in one flow.
 
 ### Using with CKAN Data
 ```
 You: Query the dati.gov.it CKAN portal for infrastructure data in Lombardy,
      then create a categorized dot map colored by infrastructure type
 
-Claude: [queries CKAN API, processes results, creates map]
+Assistant: [queries CKAN API, processes results, creates map]
 ```
 
 **Result**: Live data from open data portals visualized immediately.
@@ -302,7 +302,7 @@ Claude: [queries CKAN API, processes results, creates map]
 You: Create a map with the data variable at the top so I can easily 
      change the data later without touching the rest of the code
 
-Claude: [creates map with clearly separated data section]
+Assistant: [creates map with clearly separated data section]
 ```
 
 **Result**: Template where you can just paste new data and reload.
@@ -314,7 +314,7 @@ You: Create two maps side by side:
      2. Population in 2024
      Use the same scale for both
 
-Claude: [creates HTML with two map divs, synchronized styling]
+Assistant: [creates HTML with two map divs, synchronized styling]
 ```
 
 **Result**: Visual comparison made easy with consistent styling.
@@ -324,7 +324,7 @@ Claude: [creates HTML with two map divs, synchronized styling]
 You: Create an ixmap where I can easily add time-series data
      to animate changes over time
 
-Claude: [creates structure ready for animation implementation]
+Assistant: [creates structure ready for animation implementation]
 ```
 
 **Result**: Foundation for animated visualizations.
@@ -334,7 +334,7 @@ Claude: [creates structure ready for animation implementation]
 1. **Always specify data source clearly**
    - Inline: Paste JSON array directly
    - URL: Provide full URL to CSV/JSON/GeoJSON
-   - Search: Ask Claude to find and structure data
+   - Search: Ask the assistant to find and structure data
 
 2. **Name your fields explicitly for binding**
 ```
@@ -357,7 +357,7 @@ Claude: [creates structure ready for animation implementation]
    Finally: Add additional layers
 ```
 
-5. **Save the HTML files** Claude creates for reuse
+5. **Save the HTML files** the assistant creates for reuse
    - Copy code to .html file
    - Open in browser
    - Modify data section for new datasets
@@ -382,7 +382,7 @@ Claude: [creates structure ready for animation implementation]
 You: I have sales data by region. Create a choropleth map of Italy
      showing sales volume by region, using green (low) to red (high) colors
 
-Claude: [creates FEATURE|CHOROPLETH|EQUIDISTANT map]
+Assistant: [creates FEATURE|CHOROPLETH|EQUIDISTANT map]
 ```
 
 ### Use Case 2: Academic Research
@@ -390,7 +390,7 @@ Claude: [creates FEATURE|CHOROPLETH|EQUIDISTANT map]
 You: Create a map showing survey response locations with pie charts
      displaying yes/no/undecided responses. Data: [paste survey data]
 
-Claude: [creates CHART|PIE map with three-segment pies]
+Assistant: [creates CHART|PIE map with three-segment pies]
 ```
 
 ### Use Case 3: Public Data Visualization
@@ -398,7 +398,7 @@ Claude: [creates CHART|PIE map with three-segment pies]
 You: Query CKAN for hospital locations in Tuscany,
      create a map with dots colored by hospital type
 
-Claude: [queries CKAN, creates CHART|DOT|CATEGORICAL map]
+Assistant: [queries CKAN, creates CHART|DOT|CATEGORICAL map]
 ```
 
 ### Use Case 4: Travel Planning
@@ -406,7 +406,7 @@ Claude: [queries CKAN, creates CHART|DOT|CATEGORICAL map]
 You: Create a map of hotels in Rome with bubbles sized by price
      and colored by rating (red=low, green=high)
 
-Claude: [creates CHART|BUBBLE with gradient colorscheme]
+Assistant: [creates CHART|BUBBLE with gradient colorscheme]
 ```
 
 ### Use Case 5: Environmental Monitoring
@@ -414,13 +414,13 @@ Claude: [creates CHART|BUBBLE with gradient colorscheme]
 You: Map air quality monitoring stations with current AQI values.
      Use this CSV: [URL]. Color by AQI category (good/moderate/unhealthy)
 
-Claude: [creates CHART|DOT|CATEGORICAL with appropriate colors]
+Assistant: [creates CHART|DOT|CATEGORICAL with appropriate colors]
 ```
 
 ## Getting Help
 
-### Ask Claude Directly
-Claude can explain any aspect of the skill:
+### Ask the Assistant Directly
+The assistant can explain any aspect of the skill:
 ```
 "What's the difference between FEATURE and CHART types?"
 "Show me all available color palettes"
@@ -458,4 +458,4 @@ Found a better way to use the skill in chat?
 
 **Happy Mapping! 🗺️**
 
-Questions? Just ask Claude - it's an expert on this skill!
+Questions? Just ask the assistant.

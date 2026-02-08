@@ -54,9 +54,9 @@ This is the **recommended example** to study for understanding all ixMaps requir
 
 ```javascript
 .binding({ geo: "geometry", value: "$item$" })
+.type("FEATURE|CHOROPLETH|QUANTILE")
 .style({ colorscheme: [...], opacity: 0.7, showdata: "true" })
 .meta({ tooltip: "{{theme.item.chart}}{{theme.item.data}}" })
-.type("FEATURE|CHOROPLETH|QUANTILE")
 ```
 
 ---
@@ -82,7 +82,7 @@ From these examples, you'll learn:
 ✅ **Required binding**: `{ geo: "geometry", value: "$item$" }`
 ✅ **Style property**: Always include `showdata: "true"`
 ✅ **Meta method**: Always include tooltip configuration
-✅ **Method order**: data → binding → style → meta → type → title → define
+✅ **Method order**: data → binding → type → style → meta → title → define
 
 ## 🔧 Customization Tips
 

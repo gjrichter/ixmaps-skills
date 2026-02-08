@@ -107,6 +107,7 @@
                     geo: "geometry",
                     value: "$item$"
                 })
+                .type("FEATURE|CHOROPLETH|QUANTILE")
                 .style({
                     colorscheme: ["#e8f4f8", "#b3d9e6", "#7fbfd4", "#4ba5c2", "#178bb0"],
                     opacity: 0.7,
@@ -117,7 +118,6 @@
                 .meta({
                     tooltip: "{{theme.item.chart}}{{theme.item.data}}"
                 })
-                .type("FEATURE|CHOROPLETH|QUANTILE")
                 .title("Ambiti Territoriali Lombardia - Completo")
                 .define()
         );

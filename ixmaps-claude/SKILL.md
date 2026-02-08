@@ -236,13 +236,13 @@ For density visualization:
     value: "$item$",  // Count items, not sum field
     title: "location"
 })
+.type("CHART|BUBBLE|SIZE|AGGREGATE")
 .style({
     colorscheme: ["#ffeb3b", "#ff9800", "#f44336"],
     gridwidth: "5px",  // Grid cell size
     scale: 1.5,
     showdata: "true"
 })
-.type("CHART|BUBBLE|SIZE|AGGREGATE")
 ```
 
 **Key points:**
@@ -255,15 +255,15 @@ For density visualization:
 **Point data:**
 ```javascript
 .binding({ value: "category_field" })  // Field to colorize by
-.style({ colorscheme: ["100", "tableau"] })  // Dynamic colors
 .type("CHART|DOT|CATEGORICAL")
+.style({ colorscheme: ["100", "tableau"] })  // Dynamic colors
 ```
 
 **GeoJSON data:**
 ```javascript
 .binding({ value: "NAME_ENGL" })  // Field to colorize by
-.style({ colorscheme: ["100", "tableau"] })
 .type("FEATURE|CHOROPLETH|CATEGORICAL")
+.style({ colorscheme: ["100", "tableau"] })
 ```
 
 ## Data Handling
@@ -278,29 +278,29 @@ For density visualization:
 ### Simple point map
 ```javascript
 .binding({ geo: "lat|lon", title: "name" })
-.style({ colorscheme: ["#0066cc"], showdata: "true" })
 .type("CHART|DOT")
+.style({ colorscheme: ["#0066cc"], showdata: "true" })
 ```
 
 ### Sized bubbles
 ```javascript
 .binding({ geo: "lat|lon", value: "population", title: "name" })
-.style({ colorscheme: ["#0066cc"], showdata: "true" })
 .type("CHART|BUBBLE|SIZE|VALUES")
+.style({ colorscheme: ["#0066cc"], showdata: "true" })
 ```
 
 ### Simple GeoJSON features
 ```javascript
 .binding({ geo: "geometry", value: "$item$", title: "name" })
-.style({ colorscheme: ["#0066cc"], showdata: "true" })
 .type("FEATURE")
+.style({ colorscheme: ["#0066cc"], showdata: "true" })
 ```
 
 ### Categorical GeoJSON
 ```javascript
 .binding({ geo: "geometry", value: "category_field", title: "name" })
-.style({ colorscheme: ["100", "tableau"], showdata: "true" })
 .type("FEATURE|CHOROPLETH|CATEGORICAL")
+.style({ colorscheme: ["100", "tableau"], showdata: "true" })
 ```
 
 ## Templates Available

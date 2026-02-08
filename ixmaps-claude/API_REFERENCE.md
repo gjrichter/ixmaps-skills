@@ -162,9 +162,10 @@ Add a data layer to the map.
     ixmaps.layer("layer_id")
         .data({...})
         .binding({...})
+        .type("...")
+4. `.type()` - Visualization type
         .style({...})
         .meta({...})
-        .type("...")
         .title("...")
         .define()
 )
@@ -193,7 +194,7 @@ Create a new layer.
 1. `.data()` - Define data source
 2. `.binding()` - Map data fields
 3. `.filter()` - Optional data filter
-4. `.type()` - Visualization type
+### `.type(vizType)`
 5. `.style()` - Visual styling
 6. `.meta()` - Metadata/tooltips
 7. `.title()` - Layer title
@@ -278,7 +279,6 @@ Filter data before visualization.
 .filter("value > 100")
 ```
 
-### `.type(vizType)`
 
 Specify visualization type.
 
@@ -851,9 +851,9 @@ ixmaps.Map("map", { mapType: "VT_TONER_LITE", mode: "info" })
     ixmaps.layer("layer_id")
         .data({ obj: data, type: "json" })
         .binding({ geo: "lat|lon", value: "population", title: "name" })
+        .type("CHART|BUBBLE|SIZE|VALUES")
         .style({ colorscheme: ["#0066cc"], showdata: "true" })
         .meta({ tooltip: "{{theme.item.chart}}{{theme.item.data}}" })
-        .type("CHART|BUBBLE|SIZE|VALUES")
         .title("Layer Title")
         .define()
 );
@@ -872,9 +872,9 @@ map.layer(
     ixmaps.layer("layer1")
         .data({ ... })
         .binding({ ... })
+        .type("...")
         .style({ ... })
         .meta({ ... })
-        .type("...")
         .title("Layer 1")
         .define()
 );
@@ -884,9 +884,9 @@ map.layer(
     ixmaps.layer("layer2")
         .data({ ... })
         .binding({ ... })
+        .type("...")
         .style({ ... })
         .meta({ ... })
-        .type("...")
         .title("Layer 2")
         .define()
 );
@@ -899,8 +899,9 @@ map.layer(
 ### Essential Three Rules
 
 1. ⚠️ **ALWAYS** include `.binding()` with `geo` and appropriate `value`
-2. ⚠️ **ALWAYS** include `showdata: "true"` in `.style()`
-3. ⚠️ **ALWAYS** include `.meta()` with tooltip template
+2. ⚠️ **ALWAYS** include `.type()` before `.style()`
+3. ⚠️ **ALWAYS** include `showdata: "true"` in `.style()`
+4. ⚠️ **ALWAYS** include `.meta()` with tooltip template
 
 ### Method Chain Order
 
@@ -909,7 +910,8 @@ ixmaps.layer(id)
   → .data()
   → .binding()     [REQUIRED]
   → .filter()      [optional]
-  → .type()
+  → .type("CHART|BUBBLE|SIZE|VALUES")  // point data
+  → .type("FEATURE")                  // GeoJSON/TopoJSON
   → .style()       [MUST include showdata: "true"]
   → .meta()        [REQUIRED]
   → .title()
@@ -921,27 +923,25 @@ ixmaps.layer(id)
 **Point data:**
 ```javascript
 .binding({ geo: "lat|lon", value: "field", title: "name" })
-.type("CHART|BUBBLE|SIZE|VALUES")
 ```
 
 **GeoJSON features:**
 ```javascript
 .binding({ geo: "geometry", value: "$item$", title: "name" })
-.type("FEATURE")
 ```
 
 **Categorical:**
 ```javascript
 .binding({ geo: "...", value: "category_field", title: "name" })
-.style({ colorscheme: ["100", "tableau"], showdata: "true" })
 .type("...|CATEGORICAL")
+.style({ colorscheme: ["100", "tableau"], showdata: "true" })
 ```
 
 **Aggregation:**
 ```javascript
 .binding({ geo: "lat|lon", value: "$item$", title: "location" })
-.style({ gridwidth: "5px", showdata: "true" })
 .type("CHART|BUBBLE|SIZE|AGGREGATE")
+.style({ gridwidth: "5px", showdata: "true" })
 ```
 
 ---

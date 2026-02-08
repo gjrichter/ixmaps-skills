@@ -81,6 +81,7 @@ Solutions to common issues when creating ixMaps visualizations.
    // CORRECT:
    .data({ obj: data, type: "json" })
    .binding({ geo: "lat|lon", title: "name" })  // REQUIRED
+   .type("CHART|BUBBLE|SIZE|VALUES")
    .style({ ... })
    ```
 
@@ -186,11 +187,10 @@ Solutions to common issues when creating ixMaps visualizations.
 2. **Use aggregation for many points**
    ```javascript
    // Instead of 10,000 individual points:
-   .type("CHART|BUBBLE|SIZE|VALUES")
 
    // Use aggregation:
-   .style({ gridwidth: "5px" })
    .type("CHART|BUBBLE|SIZE|AGGREGATE")
+   .style({ gridwidth: "5px" })
    ```
 
 3. **Simplify GeoJSON geometry**
@@ -257,11 +257,11 @@ Solutions to common issues when creating ixMaps visualizations.
    ```javascript
    // For categorical data:
    .binding({ value: "category_field" })
+   .type("CHART|DOT|CATEGORICAL")
    .style({
        colorscheme: ["100", "tableau"],  // Dynamic
        showdata: "true"
    })
-   .type("CHART|DOT|CATEGORICAL")
    ```
 
 ### Problem: Symbols too small/large
@@ -285,6 +285,9 @@ Solutions to common issues when creating ixMaps visualizations.
 
 3. **Set normalsizevalue (layer-level)**
    ```javascript
+   .type("CHART|BUBBLE|SIZE|VALUES")
+   .type("FEATURE")
+   .type("FEATURE|CHOROPLETH")
    .style({
        normalsizevalue: 100000  // Value of 100k = 30px
    })
@@ -312,12 +315,9 @@ Solutions to common issues when creating ixMaps visualizations.
 1. **Wrong visualization type**
    ```javascript
    // WRONG for GeoJSON:
-   .type("CHART|BUBBLE|SIZE|VALUES")
 
    // CORRECT:
-   .type("FEATURE")
    // or
-   .type("FEATURE|CHOROPLETH")
    ```
 
 2. **Missing `value: "$item$"` for simple features**
@@ -544,7 +544,7 @@ If you're still stuck:
    - Include `.define()`
 
 6. **Use proper method order**
-   - data → binding → style → meta → type → title → define
+   - data → binding → type → style → meta → title → define
 
 7. **Save working versions**
    - Keep backups of working code

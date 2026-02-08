@@ -1,6 +1,6 @@
 # ixMaps Skill
 
-A skill for creating interactive maps using the [ixMaps framework](https://github.com/gjrichter/ixmaps_flat). Optimized for Codex.
+A skill for creating interactive maps using the [ixMaps framework](https://github.com/gjrichter/ixmaps_flat). **Optimized** for **Codex**.
 
 [![ixMaps](https://img.shields.io/badge/ixMaps-Interactive%20Maps-blue)](https://github.com/gjrichter/ixmaps_flat)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)

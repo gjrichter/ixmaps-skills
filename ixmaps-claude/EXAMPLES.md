@@ -26,6 +26,7 @@ ixmaps.layer("cities")
         geo: "lat|lon",
         title: "name"
     })
+    .type("CHART|DOT")
     .style({
         colorscheme: ["#0066cc"],
         scale: 1,
@@ -34,7 +35,6 @@ ixmaps.layer("cities")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("CHART|DOT")
     .title("Italian Cities")
     .define()
 ```
@@ -51,6 +51,7 @@ ixmaps.layer("population")
         value: "population",
         title: "name"
     })
+    .type("CHART|BUBBLE|SIZE|VALUES")
     .style({
         colorscheme: ["#0066cc"],
         normalsizevalue: 100000,  // 100k population = 30px
@@ -60,7 +61,6 @@ ixmaps.layer("population")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("CHART|BUBBLE|SIZE|VALUES")
     .title("Cities by Population")
     .define()
 ```
@@ -86,6 +86,7 @@ ixmaps.layer("poi")
         value: "category",   // Color by this field
         title: "name"
     })
+    .type("CHART|DOT|CATEGORICAL")
     .style({
         colorscheme: ["100", "tableau"],  // Dynamic colors
         scale: 1.5,
@@ -95,7 +96,6 @@ ixmaps.layer("poi")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("CHART|DOT|CATEGORICAL")
     .title("Points of Interest by Category")
     .define()
 ```
@@ -112,6 +112,7 @@ ixmaps.layer("demographics")
         value: "age_0_14|age_15_64|age_65_plus",  // Multiple values
         title: "city"
     })
+    .type("CHART|PIE")
     .style({
         colorscheme: ["#4CAF50", "#2196F3", "#FF9800"],
         scale: 2,
@@ -120,7 +121,6 @@ ixmaps.layer("demographics")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("CHART|PIE")
     .title("Age Distribution")
     .define()
 ```
@@ -141,6 +141,7 @@ ixmaps.layer("boundaries")
         value: "$item$",  // Required even without data
         title: "name"
     })
+    .type("FEATURE")
     .style({
         colorscheme: ["#cccccc"],
         fillopacity: 0.3,
@@ -151,7 +152,6 @@ ixmaps.layer("boundaries")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("FEATURE")
     .title("Administrative Boundaries")
     .define()
 ```
@@ -168,6 +168,7 @@ ixmaps.layer("population_density")
         value: "$item$",
         title: "region_name"
     })
+    .type("FEATURE|CHOROPLETH|EQUIDISTANT")
     .style({
         colorscheme: ["#ffffcc", "#ffeda0", "#feb24c", "#f03b20"],
         opacity: 0.7,
@@ -178,7 +179,6 @@ ixmaps.layer("population_density")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("FEATURE|CHOROPLETH|EQUIDISTANT")
     .title("Population Density")
     .define()
 ```
@@ -195,6 +195,7 @@ ixmaps.layer("regions_by_type")
         value: "region_type",  // Categorical field
         title: "name"
     })
+    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .style({
         colorscheme: ["100", "tableau"],  // Dynamic colors
         fillopacity: 0.7,
@@ -205,7 +206,6 @@ ixmaps.layer("regions_by_type")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .title("Regions by Type")
     .define()
 ```
@@ -225,6 +225,7 @@ ixmaps.layer("territories")
         value: "AMBITO",
         title: "AMBITO"
     })
+    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .style({
         colorscheme: ["100", "tableau"],
         fillopacity: 0.7,
@@ -235,7 +236,6 @@ ixmaps.layer("territories")
     .meta({
         tooltip: "<h3>{{AMBITO}}</h3><p>{{LISTA_COMUNI}}</p>"
     })
-    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .title("Territorial Areas")
     .define()
 ```
@@ -259,6 +259,7 @@ ixmaps.layer("european_countries")
         value: "$item$",
         title: "NAME_ENGL"  // Property name directly
     })
+    .type("FEATURE")
     .style({
         colorscheme: ["#6ba3d9"],
         fillopacity: 0.6,
@@ -269,7 +270,6 @@ ixmaps.layer("european_countries")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("FEATURE")
     .title("European Countries (2020)")
     .define()
 ```
@@ -289,6 +289,7 @@ ixmaps.layer("countries_colored")
         value: "NAME_ENGL",  // Color by country name
         title: "NAME_ENGL"
     })
+    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .style({
         colorscheme: ["100", "tableau"],
         fillopacity: 0.7,
@@ -299,7 +300,6 @@ ixmaps.layer("countries_colored")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("FEATURE|CHOROPLETH|CATEGORICAL")
     .title("European Countries by Name")
     .define()
 ```
@@ -323,6 +323,7 @@ ixmaps.layer("incident_density")
         value: "$item$",  // Count items per cell
         title: "location"
     })
+    .type("CHART|BUBBLE|SIZE|AGGREGATE")
     .style({
         colorscheme: ["#ffeb3b", "#ff9800", "#f44336", "#b71c1c"],
         gridwidth: "5px",  // 5 pixel grid cells
@@ -333,7 +334,6 @@ ixmaps.layer("incident_density")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("CHART|BUBBLE|SIZE|AGGREGATE")
     .title("Incident Density (5px grid)")
     .define()
 ```
@@ -350,6 +350,7 @@ ixmaps.layer("crime_heatmap")
         value: "$item$",
         title: "type"
     })
+    .type("CHART|GRID|AGGREGATE")
     .style({
         colorscheme: ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"],
         gridwidth: "10px",  // Larger cells
@@ -360,7 +361,6 @@ ixmaps.layer("crime_heatmap")
     .meta({
         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
     })
-    .type("CHART|GRID|AGGREGATE")
     .title("Crime Density Heatmap")
     .define()
 ```
@@ -400,6 +400,7 @@ ixmaps.Map("map", {
             value: "$item$",
             title: "region_name"
         })
+        .type("FEATURE")
         .style({
             colorscheme: ["#e0e0e0"],
             fillopacity: 0.3,
@@ -410,7 +411,6 @@ ixmaps.Map("map", {
         .meta({
             tooltip: "{{theme.item.chart}}{{theme.item.data}}"
         })
-        .type("FEATURE")
         .title("Regions")
         .define()
 )
@@ -424,6 +424,7 @@ ixmaps.Map("map", {
             value: "population",
             title: "name"
         })
+        .type("CHART|BUBBLE|SIZE|VALUES")
         .style({
             colorscheme: ["#ff5722"],
             normalsizevalue: 500000,
@@ -433,7 +434,6 @@ ixmaps.Map("map", {
         .meta({
             tooltip: "{{theme.item.chart}}{{theme.item.data}}"
         })
-        .type("CHART|BUBBLE|SIZE|VALUES")
         .title("Cities")
         .define()
 );
@@ -467,6 +467,7 @@ ixmaps.Map("map", {
             value: "rating",
             title: "name"
         })
+        .type("CHART|BUBBLE|SIZE|VALUES")
         .style({
             colorscheme: ["#ff6f00"],
             scale: 1.2,
@@ -475,7 +476,6 @@ ixmaps.Map("map", {
         .meta({
             tooltip: "{{theme.item.chart}}{{theme.item.data}}"
         })
-        .type("CHART|BUBBLE|SIZE|VALUES")
         .title("Restaurants")
         .define()
 )
@@ -489,6 +489,7 @@ ixmaps.Map("map", {
             value: "rating",
             title: "name"
         })
+        .type("CHART|BUBBLE|SIZE|VALUES")
         .style({
             colorscheme: ["#2196f3"],
             scale: 1.2,
@@ -497,7 +498,6 @@ ixmaps.Map("map", {
         .meta({
             tooltip: "{{theme.item.chart}}{{theme.item.data}}"
         })
-        .type("CHART|BUBBLE|SIZE|VALUES")
         .title("Hotels")
         .define()
 )
@@ -510,6 +510,7 @@ ixmaps.Map("map", {
             geo: "coordinates",
             title: "name"
         })
+        .type("CHART|DOT")
         .style({
             colorscheme: ["#4caf50"],
             scale: 1,
@@ -518,7 +519,6 @@ ixmaps.Map("map", {
         .meta({
             tooltip: "{{theme.item.chart}}{{theme.item.data}}"
         })
-        .type("CHART|DOT")
         .title("Attractions")
         .define()
 );
@@ -533,6 +533,7 @@ ixmaps.Map("map", {
 Multi-stop color gradient for choropleth.
 
 ```javascript
+.type("FEATURE|CHOROPLETH|EQUIDISTANT")
 .style({
     colorscheme: [
         "#f7fbff",  // Lightest
@@ -550,7 +551,6 @@ Multi-stop color gradient for choropleth.
     linewidth: 1,
     showdata: "true"
 })
-.type("FEATURE|CHOROPLETH|EQUIDISTANT")
 ```
 
 ### Example 16: Dark Theme Map
@@ -581,6 +581,7 @@ ixmaps.Map("map", {
             value: "category",
             title: "name"
         })
+        .type("CHART|DOT|CATEGORICAL")
         .style({
             colorscheme: ["#ffeb3b", "#ff5722", "#e91e63", "#9c27b0", "#3f51b5"],
             scale: 1.5,
@@ -591,7 +592,6 @@ ixmaps.Map("map", {
             tooltip: "<div style='background: #333; color: white; padding: 10px;'>" +
                      "<strong>{{name}}</strong><br>{{category}}</div>"
         })
-        .type("CHART|DOT|CATEGORICAL")
         .title("Events by Category")
         .define()
 );
@@ -623,6 +623,7 @@ ixmaps.Map("map", {
             value: "NAME",
             title: "NAME"
         })
+        .type("FEATURE|CHOROPLETH|CATEGORICAL")
         .style({
             colorscheme: ["100", "pastel1"],
             fillopacity: 0.7,
@@ -633,7 +634,6 @@ ixmaps.Map("map", {
         .meta({
             tooltip: "<h3>{{NAME}}</h3><p>{{DESCRIPTION}}</p>"
         })
-        .type("FEATURE|CHOROPLETH|CATEGORICAL")
         .title("Territorial Areas")
         .define()
 );
@@ -694,6 +694,7 @@ ixmaps.Map("map", {
                         value: "population",
                         title: "name"
                     })
+                    .type("CHART|BUBBLE|SIZE|VALUES")
                     .style({
                         colorscheme: ["#0066cc"],
                         normalsizevalue: 1000000,
@@ -703,7 +704,6 @@ ixmaps.Map("map", {
                     .meta({
                         tooltip: "{{theme.item.chart}}{{theme.item.data}}"
                     })
-                    .type("CHART|BUBBLE|SIZE|VALUES")
                     .title("Cities")
                     .define()
             );

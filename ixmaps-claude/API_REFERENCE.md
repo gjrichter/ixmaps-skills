@@ -222,9 +222,18 @@ Define the data source.
 
 **Supported types:**
 - `"json"` - JSON array
+- `"jsonl"` - JSON line array
 - `"csv"` - Comma-separated values
 - `"geojson"` - GeoJSON format
 - `"topojson"` - TopoJSON format
+- `"parquet"` - Parquet format
+- `"geoparquet"` - GeoParquet format
+- `"geopackage"` - GeoPackage format
+- `"gpck"` - GeoPackage format
+- `"flatgeobuf"` - FlatGeoBuf format
+- `"fgb"` - FlatGeoBuf format
+- `"geobuf"` - GeoBuf format
+- `"pbf"` - GeoBuf format
 
 ### `.binding(config)` ⚠️ REQUIRED
 
@@ -276,7 +285,7 @@ Filter data before visualization.
 
 **Example:**
 ```javascript
-.filter("value > 100")
+.filter("WHERE value > 100")
 ```
 
 ### `.type(vizType)`

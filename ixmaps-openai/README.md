@@ -232,7 +232,7 @@ See [CHAT_USAGE.md](CHAT_USAGE.md) for detailed chat mode guide.
 ## 🗺️ Supported Map Types
 
 * `VT_TONER_LITE` - Clean, minimal base map (default)
-* `OpenStreetMap` - Standard OSM
+* `OpenStreetMap - Osmarenderer` - Standard OSM
 * `CartoDB - Positron` - Light CartoDB style
 * `CartoDB - Dark_Matter` - Dark CartoDB style
 * `Stamen Terrain` - Terrain with hill shading

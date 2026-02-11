@@ -83,7 +83,7 @@ Is your data...
 
 Use these when not specified:
 - **filename**: "ixmap.html"
-- **maptype**: "VT_TONER_LITE"
+- **maptype**: "VT_TONER_LITE" ⚠️ ALWAYS use this unless user specifically requests different basemap
 - **center**: {lat: 42.5, lng: 12.5} (Italy)
 - **zoom**: 6
 - **viztype**: "CHART|BUBBLE|SIZE|VALUES"
@@ -95,15 +95,26 @@ Use these when not specified:
 
 ## Valid Map Types
 
-Use exact names (case-sensitive):
-- `"VT_TONER_LITE"` - Clean minimal base map (default)
-- `"white"` - Plain white background
-- `"OpenStreetMap"` - Standard OSM
-- `"CartoDB - Positron"` - Light CartoDB (note spaces)
-- `"CartoDB - Dark_Matter"` - Dark CartoDB (note spaces)
-- `"Stamen Terrain"` - Terrain with hill shading
+⚠️ **CRITICAL**: Map types are case-sensitive. Use ONLY verified types from MAP_TYPES_GUIDE.md
 
-**CRITICAL**: CartoDB types require spaces: `"CartoDB - Positron"` NOT `"CartoDB Positron"`
+### Safe, Verified Map Types (Use These):
+
+- `"VT_TONER_LITE"` - ✅ Clean minimal base map (DEFAULT - use 90% of the time)
+- `"white"` - ✅ Plain white background
+- `"OpenStreetMap - Osmarenderer"` - Standard OSM
+- `"CartoDB - Positron"` - ✅ Light CartoDB (note spaces!)
+- `"CartoDB - Dark_Matter"` - ✅ Dark CartoDB (note spaces!)
+- `"Stamen Terrain"` - ✅ Terrain with hill shading
+
+### ⚠️ Do NOT Use (Unreliable):
+
+- ❌ `"OpenStreetMap"` - Unreliable, use `"VT_TONER_LITE"` instead
+- ❌ `"OSM"` - Does not exist
+- ❌ `"CartoDB Positron"` - Missing spaces (must be `"CartoDB - Positron"`)
+
+**DEFAULT RECOMMENDATION:** When in doubt, always use `"VT_TONER_LITE"`
+
+**For full details, see MAP_TYPES_GUIDE.md**
 
 ## Data Types & Binding
 
@@ -122,6 +133,9 @@ Use exact names (case-sensitive):
 - `CHART|DOT` - Uniform dots
 - `CHART|DOT|CATEGORICAL` - Dots colored by category
 - `CHART|BUBBLE|SIZE|VALUES` - Sized by values
+- `CHART|SYMBOL` - Custom SVG icons poossible (see SYMBOLS_GUIDE.md)
+- `CHART|SYMBOL|CATEGORICAL` - Custom icons cìpossible colored by category
+- `CHART|SYMBOL|SIZE` - Custom icons possible sized by values
 - `CHART|PIE` - Pie charts
 - `CHART|BAR|VALUES` - Bar charts
 - `CHART|BUBBLE|SIZE|AGGREGATE` - Density grid (add `gridwidth: "5px"` to style)
@@ -202,7 +216,8 @@ ixmaps.layer("layer_id")
 - `fillopacity`: Alternative to opacity
 - `linecolor`: Border color (NOT strokecolor)
 - `linewidth`: Border width (NOT strokewidth)
-- `gridwidth`: For aggregation (e.g., `"5px"`)
+- `aggregationfield`: String - field name to group/aggregate by (e.g., "comune", "region")
+- `gridwidth`: String - spatial grid cell size for density heatmaps (e.g., "5px", "10px")
 
 **Properties that DON'T exist:**
 - ❌ `fillcolor` - Use `colorscheme` instead
@@ -233,31 +248,87 @@ Field names reference properties directly (no "properties." prefix).
 .legend("Custom Legend Title")  // Call after .view(), before .layer()
 ```
 
-## Special Cases
+### Custom Symbols (Icons)
 
-### Aggregation with Grid
+⚠️ **CRITICAL**: Use `symbols` (plural), not `symbol`. Must be array format.
 
-For density visualization:
-
+**Basic symbol usage:**
 ```javascript
-.binding({
-    geo: "lat|lon",
-    value: "$item$",  // Count items, not sum field
-    title: "location"
-})
-.type("CHART|BUBBLE|SIZE|AGGREGATE")
+.type("CHART|SYMBOL|CATEGORICAL")
 .style({
-    colorscheme: ["#ffeb3b", "#ff9800", "#f44336"],
-    gridwidth: "5px",  // Grid cell size
-    scale: 1.5,
+    colorscheme: ["#d32f2f", "#ff9800"],  // Colors per category
+    symbols: [
+        "https://files.svgcdn.io/material-symbols/icon1.svg",
+        "https://files.svgcdn.io/material-symbols/icon2.svg"
+    ],  // One symbol URL per category
+    scale: 0.1,  // Much smaller than dots (symbols are larger)
     showdata: "true"
 })
 ```
 
 **Key points:**
-- Use `value: "$item$"` to count items
-- Set `gridwidth` in style (NOT type)
+- Property name is `symbols` (PLURAL), not `symbol`
+- Must be an array: `symbols: ["url"]` not `symbols: "url"`
+- Array length must match number of categories
+- Use scale 0.05-0.2 (symbols are much larger than dots)
+- Recommended CDN: `https://files.svgcdn.io/material-symbols/icon-name.svg`
+
+**For complete symbol documentation, see SYMBOLS_GUIDE.md**
+
+## Special Cases
+
+### Aggregation Types
+
+There are TWO complementary aggregation methods:
+
+#### 1. Aggregation by Field (Group by data field)
+
+Aggregates items by a specific data field (e.g., count devices per municipality):
+
+```javascript
+.binding({
+    geo: "geometry",  // or "lat|lon" for point data
+    value: "$item$",  // Count items in each group
+    title: "comune"   // Field to display
+})
+.type("CHART|BUBBLE|SIZE|AGGREGATE")
+.style({
+    colorscheme: ["#ffeb3b", "#ff9800", "#f44336"],
+    aggregationfield: "comune",  // Field to group by
+    scale: 1.5,
+    showdata: "true"
+})
+```
+
+**Use when:** You want to count/sum items grouped by a categorical field (municipality, region, category, etc.)
+
+#### 2. Spatial Grid Aggregation (Density heatmap)
+
+Aggregates items into spatial grid cells for density visualization:
+
+```javascript
+.binding({
+    geo: "lat|lon",
+    value: "$item$",  // Count items per grid cell
+    title: "location"
+})
+.type("CHART|BUBBLE|SIZE|AGGREGATE")
+.style({
+    colorscheme: ["#ffeb3b", "#ff9800", "#f44336"],
+    gridwidth: "5px",  // Grid cell size (5px, 10px, etc.)
+    scale: 1.5,
+    showdata: "true"
+})
+```
+
+**Use when:** You want a spatial density heatmap showing where items cluster geographically
+
+**Key points:**
+- Use `aggregationfield` to group by data field (comune, region, category)
+- Use `gridwidth` for spatial density grid
+- Both use `value: "$item$"` to count items
 - Avoid `normalsizevalue` (max count unknown)
+- These are complementary - choose based on your aggregation goal
 
 ### Categorical Coloring
 
@@ -395,6 +466,8 @@ For visualizations centered around a target value (e.g., EU 65% recycling target
 
 ## Additional Resources
 
+- **MAP_TYPES_GUIDE.md** - ⚠️ CRITICAL: Valid map types reference (read this first!)
+- **SYMBOLS_GUIDE.md** - ⚠️ IMPORTANT: How to use custom SVG symbols/icons
 - **EXAMPLES.md** - Complete working examples
 - **API_REFERENCE.md** - Full API documentation
 - **TROUBLESHOOTING.md** - Common issues and solutions

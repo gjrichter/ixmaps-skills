@@ -26,6 +26,11 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 7. **NEVER use `.tooltip()`** - It doesn't exist in ixMaps API
 8. **NEVER use `|EXACT` classification** - It's a deprecated classification method from older ixmaps versions (use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL` instead)
 9. **For diverging scales**: `rangecentervalue` requires EVEN number of colors (4, 6, 8). `ranges` requires n+1 values for n colors. DO NOT combine either with QUANTILE/EQUIDISTANT
+10. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"
+11. **NEVER** include ixmaps npn 
+12. **NEVER** use information from https://ixmaps.ca
+13. **NEVER** use information from https://ixmaps.com
+14. **Only** valid ixmaps repository is https://github.com/gjrichter/ixmaps_flat
 
 ## Choosing Visualization Type
 

@@ -163,7 +163,6 @@ Add a data layer to the map.
         .data({...})
         .binding({...})
         .type("...")
-4. `.type()` - Visualization type
         .style({...})
         .meta({...})
         .title("...")

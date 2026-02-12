@@ -299,6 +299,7 @@ Specify visualization type.
 - `"CHART|BAR|VALUES"` - Bar charts
 - `"CHART|BUBBLE|SIZE|AGGREGATE"` - Density grid
 - `"CHART|GRID|AGGREGATE"` - Square grid
+- `"CHART|VECTOR|BEZIER|POINTER"` - Directional flow arrows (origin → destination)
 
 **GeoJSON/TopoJSON types:**
 - `"FEATURE"` - Simple features
@@ -306,6 +307,102 @@ Specify visualization type.
 - `"FEATURE|CHOROPLETH|EQUIDISTANT"` - Equal intervals
 - `"FEATURE|CHOROPLETH|QUANTILE"` - Quantile breaks
 - `"FEATURE|CHOROPLETH|CATEGORICAL"` - Category choropleth
+- `"CHOROPLETH|QUANTILE|DOPACITYMAX"` - Dynamic opacity (varies transparency by data values)
+- `"CHOROPLETH|QUANTILE|DOPACITYMINMAX"` - Dynamic opacity highlighting min/max extremes
+
+**Type Modifier: DOPACITYMAX**
+
+Adds dynamic opacity to choropleth maps based on data values, creating linear opacity gradient from low to high.
+
+**Usage:**
+```javascript
+.type("CHOROPLETH|QUANTILE|DOPACITYMAX")
+```
+
+**Requires style properties:**
+- `dopacitypow`: Interpolation curve power (default: 1)
+- `dopacityscale`: Opacity intensity multiplier (default: 1)
+
+**Effect:** High values become more opaque, low values more transparent, creating visual hierarchy.
+
+See SKILL.md "Dynamic Opacity (DOPACITYMAX)" for detailed documentation and examples.
+
+**Type Modifier: DOPACITYMINMAX**
+
+Adds dynamic opacity with U-shaped curve that highlights both minimum AND maximum values while fading mid-range values.
+
+**Usage:**
+```javascript
+.type("CHOROPLETH|QUANTILE|DOPACITYMINMAX")
+```
+
+**Requires style properties:**
+- `dopacitypow`: U-curve steepness (default: 1)
+- `dopacityscale`: Opacity intensity multiplier (default: 1)
+
+**Effect:** Both low and high values become opaque (prominent), mid-range values become transparent (fade), creating outlier emphasis.
+
+**Use cases:**
+- Outlier detection (quality control, anomalies)
+- Diverging data (temperature hot/cold, sentiment positive/negative)
+- Performance extremes (best and worst performers)
+- Deviation from norm (above/below target)
+
+See SKILL.md "Dynamic Opacity - Min/Max Variant (DOPACITYMINMAX)" for detailed documentation and examples.
+
+**Type: VECTOR (Flow Visualization)**
+
+Creates directional arrows showing flows between geographic locations.
+
+**Usage:**
+```javascript
+.type("CHART|VECTOR|BEZIER|POINTER")
+```
+
+**Requires binding properties:**
+- `position`: Origin/source location field
+- `position2`: Destination/target location field
+
+**Common modifiers:**
+- `BEZIER`: Smooth curved arrows (vs straight lines)
+- `POINTER`: Adds arrowheads showing direction
+- `DASH`: Dashed lines instead of solid
+- `NOSCALE`: Constant arrow thickness (doesn't scale with zoom)
+- `EXACT`: Precise positioning at geographic coordinates
+- `AGGREGATE`: Combines multiple flows between same origin-destination
+- `SUM`: Sums values when aggregating (use with AGGREGATE)
+
+**Requires style properties:**
+- `colorfield`: Field name for arrow color (e.g., "origin")
+- `sizefield`: Field name for arrow thickness (e.g., "value")
+- `rangescale`: Thickness variation range (typical: 3-10)
+
+**Effect:** Creates directional arrows from origin → destination locations. Arrow thickness encodes numeric values, arrow color encodes categories.
+
+**Use cases:**
+- Supply chain flows (supplier → buyer)
+- Migration patterns (origin → destination)
+- Trade routes (exporter → importer)
+- Transportation flows (departure → arrival)
+
+**Example:**
+```javascript
+.binding({
+    position: "origin_region",
+    position2: "destination_region"
+})
+.type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
+.style({
+    colorscheme: ["#1F77B4", "#FF7F0E", "#2CA02C"],
+    colorfield: "origin_region",
+    sizefield: "trade_value",
+    opacity: 0.67,
+    rangescale: 5,
+    showdata: "true"
+})
+```
+
+See SKILL.md "Flow Visualization (VECTOR)" and EXAMPLES.md "Flow Visualization Examples" for complete documentation.
 
 **Notes:**
 - Point types MUST include `CHART|` prefix
@@ -418,6 +515,140 @@ name,lat,lon,population
 Rome,41.9028,12.4964,2870500
 Milan,45.4642,9.1900,1378000
 ```
+
+### Data Preprocessing with `process`
+
+The `process` property allows you to transform data **after loading but before visualization**. This is useful for:
+- Standardizing field values (e.g., region name variations)
+- Computing derived fields (e.g., "is_cross_region")
+- Converting data formats (e.g., string to number)
+- Filtering or enriching records
+
+**Syntax:**
+```javascript
+// IMPORTANT: process requires STRING representation of function
+.data({
+    url: "data.csv",
+    type: "csv",
+    process: functionName.toString()  // ← Convert function to string!
+})
+```
+
+**Preprocessing function signature:**
+```javascript
+function preprocessData(data, options) {
+    // data: array of objects (one per CSV row or JSON record)
+    // options: data configuration object
+
+    // Transform data in place or return modified data
+    data.forEach(record => {
+        // Modify each record
+        record.newField = computeValue(record);
+    });
+
+    return data;  // Return transformed data
+}
+```
+
+**Example 1: Standardize region names**
+```javascript
+// Define preprocessing function as variable
+var standardizeRegions = function(data, options) {
+    data.forEach(record => {
+        // Fix naming inconsistencies
+        if (record.region === "EMILIA ROMAGNA") {
+            record.region = "EMILIA-ROMAGNA";
+        }
+        if (record.region === "TRENTINO ALTO ADIGE") {
+            record.region = "TRENTINO-ALTO ADIGE";
+        }
+    });
+    return data;
+};
+
+// Use in layer definition with .toString()
+myMap.layer("regions")
+    .data({
+        url: "https://example.com/data.csv",
+        type: "csv",
+        process: standardizeRegions.toString()  // ← String representation!
+    })
+    .binding({ geo: "lat|lon", value: "population" })
+    .type("CHART|BUBBLE|SIZE|VALUES")
+    .define();
+```
+
+**Example 2: Compute derived fields**
+```javascript
+// Add computed "is_interstate" field
+var addDerivedFields = function(data, options) {
+    data.forEach(record => {
+        // Compute boolean field
+        record.is_interstate = (record.origin_state !== record.dest_state) ? "true" : "false";
+
+        // Compute numeric field
+        record.distance_km = calculateDistance(record.origin_lat, record.origin_lon,
+                                              record.dest_lat, record.dest_lon);
+    });
+    return data;
+};
+
+myMap.layer("flows")
+    .data({
+        url: "flows.csv",
+        type: "csv",
+        process: addDerivedFields.toString()  // ← String representation!
+    })
+    .filter("is_interstate = 'true'")  // ← Use derived field in filter
+    .binding({
+        position: "origin_state",
+        position2: "dest_state",
+        value: "distance_km"
+    })
+    .type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
+    .define();
+```
+
+**Example 3: Transform TopoJSON properties**
+```javascript
+// Convert region names to uppercase for consistent IDs
+var uppercaseRegions = function(topoData, options) {
+    topoData.objects.regions.geometries.forEach(region => {
+        if (region.properties && region.properties.reg_name) {
+            region.properties.reg_name = region.properties.reg_name.toUpperCase();
+        }
+    });
+    return topoData;
+};
+
+myMap.layer("regions")
+    .data({
+        url: "regions.topojson",
+        type: "topojson",
+        name: "regions",
+        process: uppercaseRegions.toString()  // ← String representation!
+    })
+    .binding({ geo: "geometry", id: "reg_name", title: "reg_name" })
+    .type("FEATURE")
+    .define();
+```
+
+**Key Points:**
+- ✅ Function is called **after data loads, before visualization**
+- ✅ Modify data in place OR return new data object
+- ✅ Works with CSV, JSON, GeoJSON, and TopoJSON
+- ✅ Can add new fields, modify existing fields, or filter records
+- ✅ **CRITICAL:** Use `.toString()` to convert function to string: `process: myFunc.toString()`
+- ✅ Define function as `var` or `function` declaration (both work with `.toString()`)
+- ⚠️ Process function runs synchronously - keep it fast
+- ⚠️ New fields are available in `.binding()`, `.filter()`, and tooltips
+
+**Common Use Cases:**
+1. **Name standardization**: Fix spelling variations, add hyphens, change case
+2. **Derived fields**: Compute categories, booleans, or calculated values
+3. **Data enrichment**: Add lookup values or join with other data
+4. **Format conversion**: Parse dates, convert strings to numbers
+5. **Record filtering**: Remove invalid or incomplete records
 
 ---
 
@@ -996,13 +1227,14 @@ ixmaps.Map("map", { mapType: "VT_TONER_LITE", mode: "info" })
 ### Multi-Layer Flow
 
 ```javascript
-const map = ixmaps.Map("map", { mapType: "white", mode: "info" })
+// IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
+const myMap = ixmaps.Map("map", { mapType: "white", mode: "info" })
     .options({ ... })
     .view({ ... })
     .legend("Multi-Layer Map");
 
 // Layer 1
-map.layer(
+myMap.layer(
     ixmaps.layer("layer1")
         .data({ ... })
         .binding({ ... })
@@ -1014,7 +1246,7 @@ map.layer(
 );
 
 // Layer 2
-map.layer(
+myMap.layer(
     ixmaps.layer("layer2")
         .data({ ... })
         .binding({ ... })

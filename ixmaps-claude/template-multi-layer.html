@@ -42,7 +42,8 @@
 
     <script>
         try {
-            const map = ixmaps.Map("map", {
+            // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
+            const myMap = ixmaps.Map("map", {
                 mapType: "{{MAPTYPE}}",
                 mode: "info"
             })

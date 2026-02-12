@@ -69,7 +69,25 @@
 
     <script>
         // Data configuration
+
+        // Option 1: Inline data (embedded in HTML - works immediately, but large files)
         const mapData = {{DATA}};
+
+        // Option 2: External hosted data (recommended for production - smaller HTML, easy updates)
+        // Uncomment and replace with your GitHub CDN URL:
+        // const dataConfig = {
+        //     url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/by-date/2026-02/yourfile.csv",
+        //     type: "csv"
+        // };
+        //
+        // Benefits of external hosting:
+        // - Smaller HTML files (faster loading)
+        // - Update data without regenerating HTML
+        // - Reuse data across multiple maps
+        // - Version control for data
+        // - Free CDN (jsDelivr)
+        //
+        // See DATA_HOSTING_GUIDE.md for setup instructions
 
         // Error handling wrapper
         try {

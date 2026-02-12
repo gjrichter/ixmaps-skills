@@ -16,8 +16,20 @@
     <div id="map"></div>
 
     <script>
-        // Point data
+        // Point data configuration
+
+        // Option 1: Inline data (embedded in HTML - works immediately)
         const pointData = {{POINT_DATA}};
+
+        // Option 2: External hosted data (recommended for production)
+        // Uncomment and replace with your GitHub CDN URL:
+        // const dataConfig = {
+        //     url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/by-date/2026-02/points.csv",
+        //     type: "csv"
+        // };
+        // Then use: .data(dataConfig) instead of .data({ obj: pointData, type: "json" })
+        //
+        // See DATA_HOSTING_GUIDE.md for setup
 
         try {
             ixmaps.Map("map", {

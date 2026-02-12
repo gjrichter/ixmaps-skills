@@ -6,12 +6,13 @@ Solutions to common issues when creating ixMaps visualizations.
 
 1. [Map Not Displaying](#map-not-displaying)
 2. [Data Not Showing](#data-not-showing)
-3. [Tooltips Not Working](#tooltips-not-working)
-4. [Performance Issues](#performance-issues)
-5. [Styling Issues](#styling-issues)
-6. [GeoJSON Issues](#geojson-issues)
-7. [Coordinate Problems](#coordinate-problems)
-8. [Browser Issues](#browser-issues)
+3. [Data Hosting Issues](#data-hosting-issues) ⭐ NEW
+4. [Tooltips Not Working](#tooltips-not-working)
+5. [Performance Issues](#performance-issues)
+6. [Styling Issues](#styling-issues)
+7. [GeoJSON Issues](#geojson-issues)
+8. [Coordinate Problems](#coordinate-problems)
+9. [Browser Issues](#browser-issues)
 
 ---
 
@@ -591,6 +592,287 @@ If you're still stuck:
 - Validate at http://geojson.io
 - Check coordinate arrays format
 - Verify geometry type is valid
+
+---
+
+## Data Hosting Issues
+
+### Problem: CORS errors with local files
+
+**Error:** "Access to fetch at 'file:///...' from origin 'null' has been blocked by CORS policy"
+
+**Cause:** Browsers block local file access due to CORS security restrictions. ixMaps cannot read CSV/JSON files from your filesystem when opening HTML files locally (file:// protocol).
+
+**Solution:** Use external hosting
+
+1. **GitHub + CDN (recommended):**
+   ```javascript
+   .data({
+       url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/path/to/data.csv",
+       type: "csv"
+   })
+   ```
+   - Free, fast, reliable
+   - CORS-enabled by default
+   - See DATA_HOSTING_GUIDE.md for setup
+
+2. **Inline data (for small datasets):**
+   ```javascript
+   const data = [{...}];  // Embed in HTML
+   .data({ obj: data, type: "json" })
+   ```
+   - Works immediately
+   - No external dependencies
+   - Bloats HTML for large datasets
+
+### Problem: Data URL returns 404
+
+**Error:** "Failed to load resource: the server responded with a status of 404 (Not Found)"
+
+**Possible causes:**
+
+1. **Incorrect file path (case-sensitive)**
+   ```javascript
+   // WRONG:
+   url: ".../By-Date/2026-02/Cities.csv"  // Wrong capitalization
+
+   // CORRECT:
+   url: ".../by-date/2026-02/cities.csv"  // Exact path
+   ```
+
+2. **Wrong branch name**
+   ```javascript
+   // Check your default branch
+   url: ".../main/..."  // or
+   url: ".../master/..."
+   ```
+
+3. **File not yet pushed to GitHub**
+   ```bash
+   # Verify file exists on GitHub:
+   https://github.com/<user>/ixmaps-data/blob/main/path/to/file.csv
+   ```
+
+4. **Repository is private**
+   - Raw GitHub URLs only work with public repositories
+   - Make repository public for CORS access
+
+**Solutions:**
+```bash
+# Verify exact path
+ls -la ~/ixmaps-data/by-date/2026-02/
+
+# Check git status
+git status
+
+# Verify on GitHub
+# Visit: https://github.com/<user>/ixmaps-data
+# Navigate to file location
+```
+
+### Problem: CDN not updating with new data
+
+**Error:** Map shows old data after updating CSV file on GitHub
+
+**Cause:** jsDelivr CDN caches files for 5-10 minutes. Your updates haven't synced yet.
+
+**Solutions:**
+
+1. **Wait 5-10 minutes** (recommended for production)
+   - CDN will automatically sync
+   - Check again after delay
+
+2. **Use raw URL for development:**
+   ```javascript
+   // Development - immediate updates, no cache
+   url: "https://raw.githubusercontent.com/<user>/ixmaps-data/main/path/to/data.csv"
+
+   // Production - fast CDN, cached
+   url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/path/to/data.csv"
+   ```
+
+3. **Cache bust (temporary fix):**
+   ```javascript
+   url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/path/to/data.csv?v=" + Date.now()
+   ```
+
+4. **Use version tags (best for published maps):**
+   ```bash
+   # Tag new version
+   git tag -a v1.0.1 -m "Update dataset"
+   git push origin v1.0.1
+   ```
+
+   ```javascript
+   // Immutable version URL
+   url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@v1.0.1/path/to/data.csv"
+   ```
+
+### Problem: Rate limit errors with raw GitHub URLs
+
+**Error:** "API rate limit exceeded for..." (HTTP 429)
+
+**Cause:** GitHub raw content has rate limits:
+- Unauthenticated: ~60 requests/hour
+- Authenticated: ~5000 requests/hour
+
+**Solutions:**
+
+1. **Switch to CDN URLs (no rate limits):**
+   ```javascript
+   // No limits, faster
+   url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/path/to/data.csv"
+   ```
+
+2. **Reduce request frequency:**
+   - Don't reload map repeatedly during development
+   - Cache data in browser
+
+3. **Wait for limit reset:**
+   - Limits reset after 1 hour
+   - Check `X-RateLimit-Reset` header
+
+### Problem: Token authentication failed
+
+**Error:** "Bad credentials" or "Not Found" when using GitHub API for automated uploads
+
+**Possible causes:**
+
+1. **Token expired**
+   - Fine-grained tokens expire (default: 90 days)
+   - Create new token at https://github.com/settings/tokens
+
+2. **Wrong permissions**
+   - Token needs: Contents (Read and Write)
+   - Repository access: ixmaps-data only
+
+3. **Token not in environment**
+   ```bash
+   # Check if set
+   echo $IXMAPS_GITHUB_TOKEN
+
+   # Set token
+   export IXMAPS_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+   export IXMAPS_REPO_USER="<your-username>"
+
+   # Make permanent (add to ~/.bashrc or ~/.zshrc)
+   echo 'export IXMAPS_GITHUB_TOKEN="ghp_xxx"' >> ~/.bashrc
+   ```
+
+4. **Token in wrong format**
+   ```bash
+   # WRONG:
+   export IXMAPS_GITHUB_TOKEN=ghp_xxx  # Missing quotes
+
+   # CORRECT:
+   export IXMAPS_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+   ```
+
+**Solutions:**
+```bash
+# Re-create token with correct permissions
+# 1. Go to: https://github.com/settings/tokens
+# 2. Generate new token (fine-grained)
+# 3. Repository access: Only ixmaps-data
+# 4. Permissions: Contents (Read and Write)
+# 5. Expiration: 90 days
+# 6. Generate and copy token
+
+# Set in environment
+export IXMAPS_GITHUB_TOKEN="ghp_xxxxxxxxxxxx"
+export IXMAPS_REPO_USER="your-username"
+
+# Test
+./upload-helper.sh test.csv
+```
+
+### Problem: File too large for GitHub
+
+**Error:** "file exceeds maximum size" (HTTP 422)
+
+**GitHub limits:** 100 MB per file
+
+**Solutions:**
+
+1. **Compress data:**
+   ```bash
+   # Convert GeoJSON to TopoJSON (much smaller)
+   npm install -g topojson
+   geo2topo data.geojson > data.topojson
+   ```
+
+2. **Split large files:**
+   ```bash
+   # Split CSV into chunks
+   split -l 10000 large.csv chunk-
+   # Creates: chunk-aa, chunk-ab, chunk-ac, etc.
+   ```
+
+3. **Reduce precision:**
+   ```javascript
+   // Round coordinates to fewer decimal places
+   // 6 decimals = ~10cm precision (usually enough)
+   lat: 41.902800  // 6 decimals
+   lon: 12.496400  // 6 decimals
+
+   // Not: 41.90280000000000 (unnecessary precision)
+   ```
+
+4. **Aggregate data:**
+   - Use grid aggregation instead of individual points
+   - Remove unnecessary fields from CSV
+   - Filter out low-importance data
+
+5. **Alternative hosting (for very large files):**
+   - S3 + CloudFront (costs money)
+   - Backblaze B2 (cheaper)
+   - CloudFlare R2 (no bandwidth fees)
+
+### Problem: Data shows but map is slow
+
+**Cause:** Dataset too large for browser to handle efficiently
+
+**Solutions:**
+
+1. **Use aggregation:**
+   ```javascript
+   // Instead of 100,000 individual points
+   .type("CHART|BUBBLE|SIZE|AGGREGATE")
+   .style({
+       gridwidth: "5px",  // Aggregate into grid
+       showdata: "true"
+   })
+   ```
+
+2. **Reduce data volume:**
+   ```bash
+   # Filter CSV to reduce rows
+   awk 'NR==1 || $3>1000000 {print}' data.csv > filtered.csv
+   ```
+
+3. **Use TopoJSON for geometry:**
+   - 80-90% smaller than GeoJSON
+   - Faster to load and parse
+
+4. **Simplify geometries:**
+   ```bash
+   # Use mapshaper to simplify
+   mapshaper input.json -simplify 10% -o output.json
+   ```
+
+### Quick Reference: Data Hosting
+
+| Scenario | Solution | URL Format |
+|----------|----------|------------|
+| Local file won't load | Use GitHub hosting | `cdn.jsdelivr.net/gh/...` |
+| 404 Not Found | Check path, branch, public | Verify on GitHub web |
+| CDN not updating | Wait 5-10 min or use raw URL | `raw.githubusercontent.com/...` |
+| Rate limits | Switch to CDN | `cdn.jsdelivr.net/gh/...` |
+| Token failed | Re-create with correct permissions | Environment variable |
+| File too large | Compress, split, or aggregate | TopoJSON, chunked files |
+| Slow performance | Aggregate or simplify data | AGGREGATE type, gridwidth |
+
+**For complete guide, see DATA_HOSTING_GUIDE.md**
 
 ---
 

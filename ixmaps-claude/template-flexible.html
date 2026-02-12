@@ -138,7 +138,8 @@
             }
 
             // Create map
-            const map = ixmaps.Map("map", mapOptions);
+            // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
+            const myMap = ixmaps.Map("map", mapOptions);
 
             // Configure options
             const options = {

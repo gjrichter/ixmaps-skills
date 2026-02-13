@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 999;
+            font-size: 16px;
+            color: #666;
+        }
+
+        #error {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 40px;
+            text-align: center;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.15);
+            max-width: 500px;
+            z-index: 1000;
+        }
+
+        #error h2 { color: #d32f2f; margin-top: 0; }
+        #error p { color: #666; }
+        #error .details { color: #999; font-size: 12px; margin-top: 20px; }
+
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            max-width: 350px;
+        }
+
+        .info-panel h1 {
+            margin: 0 0 10px 0;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .info-panel .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+        }
+
+        .info-panel .close-btn:hover {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    {{INFO_PANEL}}
+
+    <div id="loading">Loading map...</div>
+    <div id="error">
+        <h2>Error Loading Map</h2>
+        <p id="error-message">There was a problem initializing the map.</p>
+        <div class="details" id="error-details"></div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // Configuration
+        const config = {
+            mapType: "{{MAPTYPE}}" || "VT_TONER_LITE",
+            enableTooltips: {{ENABLE_TOOLTIPS}},
+            center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
+            zoom: {{ZOOM}},
+            basemapOpacity: {{BASEMAP_OPACITY}},
+            legendTitle: "{{LEGEND_TITLE}}",
+            objectScaling: {{OBJECT_SCALING}},
+            normalSizeScale: "{{NORMAL_SIZE_SCALE}}",
+            flushChartDraw: {{FLUSH_CHART_DRAW}}
+        };
+
+        // Data
+        const mapData = {{DATA}};
+
+        // Error handler
+        function showError(error) {
+            console.error('ixMaps error:', error);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error-details').textContent = error.message || error;
+        }
+
+        // Initialize map with error handling
+        try {
+            // Build map options
+            const mapOptions = {
+                mapType: config.mapType
+            };
+            if (config.enableTooltips) {
+                mapOptions.mode = "info";
+            }
+
+            // Create map
+            // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
+            const myMap = ixmaps.Map("map", mapOptions);
+
+            // Configure options
+            const options = {
+                basemapopacity: config.basemapOpacity,
+                flushChartDraw: config.flushChartDraw
+            };
+            if (config.objectScaling) {
+                options.objectscaling = "dynamic";
+                options.normalSizeScale = config.normalSizeScale;
+            }
+            map.options(options);
+
+            // Set view
+            map.view({
+                center: config.center,
+                zoom: config.zoom
+            });
+
+            // Add legend if title provided
+            if (config.legendTitle && config.legendTitle !== "") {
+                map.legend(config.legendTitle);
+            }
+
+            // Add layers
+            {{LAYERS}}
+
+            // Hide loading indicator
+            setTimeout(function() {
+                document.getElementById('loading').style.display = 'none';
+            }, 1000);
+
+            // Info panel close functionality
+            const closeBtn = document.querySelector('.close-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', function() {
+                    document.querySelector('.info-panel').style.display = 'none';
+                });
+            }
+
+        } catch (error) {
+            showError(error);
+        }
+    </script>
+</body>
+</html>

@@ -735,7 +735,7 @@ ixmaps.layer("supply_flows")
     .meta({
         tooltip: `
             <strong>Flow:</strong> {{origin}} → {{destination}}<br>
-            <strong>Value:</strong> €{{value:,.0f}}<br>
+            <strong>Value:</strong> €{{value}}<br>
             <strong>Category:</strong> {{category}}
         `
     })

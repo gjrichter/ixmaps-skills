@@ -25,7 +25,7 @@ This example demonstrates the **correct pattern** for creating multiple thematic
 <head>
     <meta charset="UTF-8">
     <title>MEPA 2024 - Ordini Pubblici per Provincia</title>
-    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
         #map { width: 100%; height: 100vh; }

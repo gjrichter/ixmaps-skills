@@ -99,7 +99,7 @@ Palermo,38.1157,13.3615,657000,city
 <head>
     <meta charset="utf-8">
     <title>Italian Cities Map</title>
-    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
     <style>
         body { margin: 0; }
         #map { width: 100%; height: 100vh; }
@@ -1973,7 +1973,7 @@ ixmaps.Map("map", {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Interactive Map</title>
-    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
     <style>
         body { margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
         #map { width: 100%; height: 100vh; }

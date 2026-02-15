@@ -26,21 +26,33 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 7. **NEVER use `.tooltip()`** - It doesn't exist in ixMaps API
 8. **NEVER use `|EXACT` classification** - It's a deprecated classification method from older ixmaps versions (use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL` instead)
 9. **For diverging scales**: `rangecentervalue` requires EVEN number of colors (4, 6, 8). `ranges` requires n+1 values for n colors. DO NOT combine either with QUANTILE/EQUIDISTANT
-10. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"
+10. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"
 11. **NEVER** include ixmaps npn
 12. **NEVER** use information from https://ixmaps.ca
 13. **NEVER** use information from https://ixmaps.com
-14. **Only** valid ixmaps repository is https://github.com/gjrichter/ixmaps_flat
+14. **Only** valid ixmaps repository is https://github.com/gjrichter/ixmaps-flat
 15. **ONE layer = ONE `.data()`** - Each layer can have ONLY ONE `.data()` call
-16. **Multi-layer join (CRITICAL)**: Joining external data to geometry requires BOTH sides:
+16. **🚨 SAME LAYER NAME IS MANDATORY FOR ALL MULTI-LAYER** - This is the #1 cause of silent failures:
+    - **RULE:** ANY thematic layer (CHOROPLETH, CHART|BUBBLE, CHART|VECTOR, CHART|PIE, CHART|BAR, CHART|SYMBOL, etc.) that uses geometry from a FEATURE layer MUST use the EXACT SAME layer name
+    - ✅ CORRECT: `myMap.layer("us_states").type("FEATURE")` → `myMap.layer("us_states").type("CHOROPLETH")`
+    - ✅ CORRECT: `myMap.layer("regions").type("FEATURE")` → `myMap.layer("regions").type("CHART|VECTOR|...")`
+    - ❌ WRONG: `myMap.layer("us_states").type("FEATURE")` → `myMap.layer("migration").type("CHOROPLETH")` - **FAILS SILENTLY!**
+    - ❌ WRONG: `myMap.layer("states").type("FEATURE")` → `myMap.layer("flows").type("CHART|VECTOR|...")` - **FAILS SILENTLY!**
+    - **WHY:** Thematic layers need to resolve positions/geometry from the base FEATURE layer. Different names = no resolution = no visualization
+    - **APPLIES TO:** ALL chart and choropleth types overlaid on geometry: CHOROPLETH, BUBBLE, VECTOR, PIE, BAR, SYMBOL, DOT, etc.
+17. **Multi-layer join (CRITICAL)**: Joining external data to geometry requires BOTH sides:
     - FEATURE layer: `.binding({ id: "field_name" })` - identifies each feature
     - Thematic layer: `.binding({ lookup: "csv_field" })` - joins CSV to geometry
-17. **`lookup` goes in `.binding()`** - NOT in `.data()`
-18. **`FEATURE` type in multi-layer** - CRITICAL distinction:
+    - **MATCHING VALUES** - The `id` field in geometry and `lookup` field in CSV must contain matching values
+18. **`lookup` goes in `.binding()`** - NOT in `.data()`
+19. **`FEATURE` type in multi-layer** - CRITICAL distinction:
     - Base layer: `FEATURE` (creates geometry)
     - Overlay layers: NO `FEATURE` (use existing geometry)
     - Exception: Single theme can use `FEATURE|CHOROPLETH` (all in one)
-19. **NEVER use `map` as variable name** - The variable name `map` conflicts with ixMaps internals. Use `myMap`, `mapInstance`, or any other name instead
+20. **NEVER use `map` as variable name** - The variable name `map` conflicts with ixMaps internals. Use `myMap`, `mapInstance`, or any other name instead
+21. **ALWAYS use `fillopacity`** - NEVER use `opacity` in `.style()`. Use `fillopacity` for fill transparency
+22. **NEVER add `colorfield` unless explicitly requested** - DO NOT add color coding by categories (`colorfield: "fieldname"`) unless the user specifically asks for it. Default to single color (`colorscheme: ["#0066cc"]`)
+23. **NEVER add `.legend()` unless explicitly requested** - DO NOT add legend titles or calls to `.legend()` unless the user specifically asks for a legend. Omit the `.legend()` method call entirely by default
 
 ## Choosing Visualization Type
 
@@ -84,6 +96,7 @@ Is your data...
    - [ ] Binding includes required fields
    - [ ] If using objectscaling, normalSizeScale is set
    - [ ] Color scheme is valid array
+   - [ ] **ALWAYS start with `scale: 1`** - Let user request adjustments after seeing initial result
 
 6. **After creation**:
    - Confirm file was created
@@ -104,6 +117,7 @@ Use these when not specified:
 - **flushChartDraw**: 1000000 (instant rendering)
 - **basemapopacity**: 0.6
 - **opacity**: 0.7
+- **tools**: true (enable info/pan toolbar buttons)
 
 ## Valid Map Types
 
@@ -198,7 +212,7 @@ ixmaps.layer("provinces")
     })
     .type("FEATURE")
     .style({
-        opacity: 0.1,
+        fillopacity: 0.1,
         linecolor: "#666",
         linewidth: 0.5
     })
@@ -217,7 +231,7 @@ ixmaps.layer("provinces")
     .type("CHOROPLETH|QUANTILE")  // ← NO FEATURE! Uses existing geometry
     .style({
         colorscheme: ["#e3f2fd", "#1565c0"],
-        opacity: 0.7,
+        fillopacity: 0.7,
         showdata: "true"
     })
     .meta({
@@ -238,7 +252,7 @@ ixmaps.layer("provinces")
     .type("CHART|BUBBLE|SIZE|VALUES")
     .style({
         colorscheme: ["#ff6f00"],
-        opacity: 0.6,
+        fillopacity: 0.6,
         showdata: "true"
     })
     .define();
@@ -249,9 +263,30 @@ ixmaps.layer("provinces")
 - FEATURE layer: `id` in `.binding()` identifies features
 - Thematic layers: `lookup` in `.binding()` joins CSV to geometry
 - `lookup` parameter goes in `.binding()`, NOT in `.data()`
-- All layers share same base name (e.g., "provinces")
-- Values in `id` and `lookup` fields must match exactly
+- **All layers MUST share SAME layer name** (e.g., all use `"provinces"`)
+- **Values in `id` and `lookup` fields MUST match exactly** - Check your data!
 - ixMaps caches and shares data automatically across layers
+
+**🚨 CRITICAL - Common failures that cause silent breakage:**
+
+1. **❌ DIFFERENT LAYER NAMES** (Most common error!)
+   - Problem: `myMap.layer("us_states")` for FEATURE, `myMap.layer("migration")` for CHOROPLETH
+   - Symptom: No visualization appears, no error message
+   - Why: Thematic layer cannot find base geometry to resolve positions
+   - Fix: Use identical layer names for both: `myMap.layer("us_states")` for BOTH layers
+   - **Applies to ALL overlay types:** CHOROPLETH, BUBBLE, VECTOR, PIE, BAR, SYMBOL, etc.
+
+2. **❌ Mismatched field values**
+   - Problem: `id: "state_code"` (uses "CA", "TX") but CSV has full names ("California", "Texas")
+   - Symptom: Visualization loads but shows no data, features appear empty
+   - Fix: Ensure `id` field values match `lookup` field values exactly
+
+3. **❌ Case sensitivity**
+   - Problem: Geometry has "Florida" but CSV has "florida"
+   - Symptom: Some features missing data
+   - Fix: Match case exactly in both datasets
+
+✅ **Correct pattern:** Same layer name + matching field values
 
 ### ⚠️ CRITICAL: FEATURE Type in Multi-Layer Contexts
 
@@ -292,7 +327,9 @@ map.layer("provinces").type("CHOROPLETH").define();  // Correct! Uses existing g
 ```javascript
 ixmaps.Map("map", {
     mapType: "VT_TONER_LITE",
-    mode: "info"  // Enable tooltips on hover
+    mode: "info",       // Enable tooltips on hover
+    legend: "closed",   // Start with legend closed (clean view)
+    tools: true         // Enable info/pan toolbar buttons (DEFAULT)
 })
 .options({
     objectscaling: "dynamic",        // Enable dynamic scaling
@@ -302,19 +339,42 @@ ixmaps.Map("map", {
 })
 ```
 
+**Map initialization parameters (second parameter of ixmaps.Map()):**
+- `mapType`: Base map style (use `"VT_TONER_LITE"` as default)
+- `mode`: Set to `"info"` to enable tooltips on hover
+- `legend`: Initial legend state - `"closed"` (default, clean view) or `"open"` (visible on load)
+- `tools`: Enable toolbar with info/pan buttons (default: `true` - always include)
+
+**Map options (.options() method):**
+- `objectscaling`: Dynamic scaling mode
+- `normalSizeScale`: Size scaling reference value
+- `basemapopacity`: Base map transparency
+- `flushChartDraw`: Animation speed
+
+
 ### Layer Methods (Order Matters)
 
 ```javascript
 ixmaps.layer("layer_id")
-    .data()      // 1. Define data source
-    .binding()   // 2. Map fields (REQUIRED)
-    .filter()    // 3. Optional filter
-    .type()      // 4. Visualization type
-    .style()     // 5. Visual styling (MUST include showdata: "true")
-    .meta()      // 6. Tooltip config (REQUIRED)
-    .title()     // 7. Layer title
-    .define()    // 8. Finalize
+    .data()                           // 1. Define data source
+    .binding()                        // 2. Map fields (REQUIRED)
+    .filter("WHERE field == value")   // 3. Optional filter (MUST start with WHERE)
+    .type()                           // 4. Visualization type
+    .style()                          // 5. Visual styling (MUST include showdata: "true")
+    .meta()                           // 6. Tooltip config (REQUIRED)
+    .title()                          // 7. Layer title
+    .define()                         // 8. Finalize
 ```
+
+**Filter syntax:**
+- ⚠️ **CRITICAL: ALL filters MUST start with "WHERE"**
+- `.filter("WHERE field == value")` - Single string parameter with WHERE prefix + filter expression
+- Examples:
+  - `.filter("WHERE year == 2024")`
+  - `.filter("WHERE category == 'Active'")`
+  - `.filter("WHERE value > 1000")`
+- Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`
+- Can use `&&` (AND) and `||` (OR): `.filter("WHERE year == 2024 && value > 1000")`
 
 ### Style Properties
 
@@ -334,10 +394,17 @@ ixmaps.layer("layer_id")
   - Palettes: "tableau", "paired", "set1", "set2", "pastel1", "dark2"
 - `rangecentervalue`: Number - creates automatic diverging scale around this value (e.g., `65` for EU target). **Use EVEN number of colors** (4, 6, 8) for equal distribution above/below. DO NOT combine with QUANTILE/EQUIDISTANT classification
 - `ranges`: Array - explicitly defines class breaks (e.g., `[0, 50, 60, 65, 70, 80, 100]`). Array must have n+1 values for n colors. DO NOT combine with QUANTILE/EQUIDISTANT classification
-- `scale`: Size multiplier (e.g., `1.5` = 50% larger)
-- `normalsizevalue`: Data value = 30px chart (avoid with AGGREGATE)
-- `opacity`: Fill opacity (0-1)
-- `fillopacity`: Alternative to opacity
+- `scale`: Size multiplier (e.g., `1.5` = 50% larger). **Scales all bubbles uniformly - does NOT change size differences**. **For CHART|VECTOR layers, controls overall vector size**. **ALWAYS start with `scale: 1` in initial maps** - let user request adjustments after seeing results
+- `sizepow`: **Controls bubble size scaling power/curve** - Determines how data values map to visual bubble sizes:
+  - `1` = **linear** (radius proportional to value) - DEFAULT, largest visual differences
+  - `2` = **area-based** (value proportional to bubble area) - reduces visual differences significantly
+  - `3` or higher = **volume-based** (even less visual difference) - makes sizes more equal
+  - **To reduce size differences**: increase `sizepow` (2, 3, 4, etc.)
+  - **To increase size differences**: use `sizepow < 1` (0.5, 0.7, etc.) - rarely needed
+  - Works for CHART|BUBBLE and CHART|VECTOR types
+- `rangescale`: **For CHART|VECTOR layers only** - Controls bowing/curvature (`~1` = straight, `>1` = right bow, `<1` = left bow). **Do NOT use for sizing**
+- `normalsizevalue`: Data value that maps to 30px chart size. **Does NOT change the sizing curve**, only shifts the scale. Use with `sizepow` to control both scale and curve (avoid with AGGREGATE)
+- `fillopacity`: Fill opacity (0-1). **ALWAYS use `fillopacity`, NEVER use `opacity`**
 - `linecolor`: Border color (NOT strokecolor)
 - `linewidth`: Border width (NOT strokewidth)
 - `aggregationfield`: String - field name to group/aggregate by (e.g., "comune", "region")
@@ -596,12 +663,27 @@ The `VECTOR` chart type creates directional arrows showing flows between geograp
 })
 ```
 
+**⚠️ CRITICAL: VECTOR layers MUST use the SAME layer name as the base FEATURE layer!**
+
+The VECTOR layer needs to resolve geographic positions from the base geometry. If layer names differ, position resolution fails and arrows won't appear.
+
+```javascript
+// ✓ CORRECT - Same layer name
+myMap.layer("us_states").type("FEATURE").define();
+myMap.layer("us_states").type("CHART|VECTOR|...").define();  // Same name!
+
+// ✗ WRONG - Different layer names
+myMap.layer("us_states").type("FEATURE").define();
+myMap.layer("migration_flows").type("CHART|VECTOR|...").define();  // FAILS! Different name
+```
+
 **Key Features:**
 
 1. **Two Position Bindings (Required):**
    - `position`: Origin/source location field
    - `position2`: Destination/target location field
    - Both fields must reference geographic locations (region names, city names, lat/lon)
+   - **CRITICAL:** VECTOR layer must share same layer name as base FEATURE layer for position resolution
 
 2. **Type Modifiers:**
    - `BEZIER`: Creates smooth curved arrows (vs straight lines)
@@ -611,6 +693,7 @@ The `VECTOR` chart type creates directional arrows showing flows between geograp
    - `EXACT`: Positions arrows precisely at geographic coordinates
    - `AGGREGATE`: Aggregates multiple flows between same origin-destination pair
    - `SUM`: Sums values when aggregating (use with AGGREGATE)
+   - `FADEIN`: Makes vectors fade in gradually when drawn (use when user asks for fade-in animation)
 
 3. **Visual Encoding:**
    - **Size:** Flow thickness based on numeric value (e.g., trade volume, order count)
@@ -666,8 +749,10 @@ ixmaps.layer("supply_flows")
 ```javascript
 .type("CHART|VECTOR|BEZIER|POINTER")  // Smooth curves with arrows
 .style({
-    opacity: 0.65,      // Semi-transparent to see overlapping flows
-    rangescale: 5       // Thickness variation range
+    fillopacity: 0.65,  // Prefer fillopacity over opacity
+    scale: 1.5,         // Overall vector size multiplier
+    sizepow: 1,         // Linear size contrast (1=linear, <1=more contrast, >1=less contrast)
+    rangescale: 5       // Bowing/curvature (~1=straight, >1=right bow, <1=left bow) - NOT for sizing
 })
 ```
 
@@ -676,11 +761,20 @@ ixmaps.layer("supply_flows")
 .type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")  // Sum values per route
 ```
 
+**For fade-in animation:**
+```javascript
+.type("CHART|VECTOR|BEZIER|POINTER|FADEIN")  // Vectors fade in on draw
+.style({
+    fillopacity: 0.67,
+    scale: 1.5
+})
+```
+
 **For minimal visual weight:**
 ```javascript
 .type("CHART|VECTOR|DASH|NOSCALE")  // Dashed lines, constant thickness
 .style({
-    opacity: 0.4        // Very transparent
+    fillopacity: 0.4    // Prefer fillopacity over opacity
 })
 ```
 
@@ -705,11 +799,11 @@ Emilia-Romagna,Toscana,85000,Technology
 
 **Multi-Layer Pattern: Flows + Base Map**
 
-Combine VECTOR flows with a base FEATURE layer for context:
+Combine VECTOR flows with a base FEATURE layer for context. **CRITICAL: Both layers MUST use the same layer name!**
 
 ```javascript
-// Layer 1: Base map (regions)
-myMap.layer("regions")
+// Layer 1: Base map (regions) - FEATURE layer
+myMap.layer("regions")  // ← Layer name: "regions"
     .data({
         url: "https://raw.githubusercontent.com/openpolis/geojson-italy/master/topojson/limits_IT_regions.topo.json",
         type: "topojson",
@@ -723,15 +817,15 @@ myMap.layer("regions")
     .type("FEATURE")
     .style({
         colorscheme: ["#e0e0e0"],
-        opacity: 0.07,              // Very subtle background
+        fillopacity: 0.07,              // Very subtle background
         linecolor: "#666666",
         linewidth: 1.0,
         showdata: "true"
     })
     .define();
 
-// Layer 2: VECTOR flows (origin → destination)
-myMap.layer("flows")
+// Layer 2: VECTOR flows (origin → destination) - SAME LAYER NAME!
+myMap.layer("regions")  // ← SAME name: "regions" (NOT "flows"!)
     .data({
         url: "https://cdn.jsdelivr.net/gh/user/repo@main/flows.csv",
         type: "csv"
@@ -745,11 +839,18 @@ myMap.layer("flows")
         colorscheme: ["#FF7F0E", "#2CA02C", "#D62728"],
         colorfield: "origin_region",
         sizefield: "value",
-        opacity: 0.67,
+        fillopacity: 0.67,
         showdata: "true"
     })
     .define();
 ```
+
+**Why same layer name matters for VECTOR:**
+- VECTOR layer needs to resolve `position` and `position2` fields to geographic coordinates
+- Position resolution happens by looking up locations in the base FEATURE layer's geometry
+- If layer names differ, ixMaps cannot find the geometry to resolve positions
+- Result: Arrows don't appear, no error message, silent failure
+- ✅ **Solution:** Always use identical layer names for base FEATURE and VECTOR overlay
 
 **Comparison: VECTOR vs BUBBLE**
 
@@ -819,7 +920,26 @@ See `/Users/gjrichter/Work/Claude Code/mepa_forniture.html` for a complete imple
 })
 ```
 
-Field names reference properties directly (no "properties." prefix).
+**CRITICAL - Tooltip field syntax:**
+- ✅ Use simple field references: `{{value}}`, `{{name}}`, `{{population}}`
+- ❌ **NEVER use format specifiers** - ixMaps does NOT support Mustache format syntax
+- ❌ Wrong: `{{value:,.0f}}`, `{{price:$,.2f}}`, `{{rate:.1%}}` - These will NOT work!
+- ✅ Correct: `{{value}}`, `{{price}}`, `{{rate}}`
+- Field names reference properties directly (no "properties." prefix)
+- Number formatting happens automatically via the `units` parameter in `.style()` (e.g., `units: " taxpayers"`)
+
+**Example with correct syntax:**
+```javascript
+.meta({
+    tooltip: `
+        <div style="padding: 10px;">
+            <h3>{{name}}</h3>
+            <p><strong>Value:</strong> {{value}}</p>
+            <p><strong>Category:</strong> {{category}}</p>
+        </div>
+    `
+})
+```
 
 ### Legend
 
@@ -911,6 +1031,8 @@ Aggregates items into spatial grid cells for density visualization:
 
 ### Categorical Coloring
 
+#### Simple Categorical (Uniform Size)
+
 **Point data:**
 ```javascript
 .binding({ value: "category_field" })  // Field to colorize by
@@ -924,6 +1046,67 @@ Aggregates items into spatial grid cells for density visualization:
 .style({ colorscheme: ["100", "tableau"] })
 .type("FEATURE|CHOROPLETH|CATEGORICAL")
 ```
+
+#### Categorical Colors + Size by Value
+
+When you want **both categorical coloring AND size by numeric value**:
+
+⚠️ **ALWAYS add `SUM` modifier when using categorical colors with size** - This shows totals per category in the legend.
+
+```javascript
+.binding({
+    geo: "lat|lon",
+    value: "category_field",  // Field for categorical colors
+    title: "name"
+})
+.type("CHART|BUBBLE|SIZE|CATEGORICAL|SUM")  // ALWAYS include SUM with categorical + size
+.style({
+    colorscheme: ["100", "tableau"],    // Dynamic categorical colors
+    sizefield: "numeric_field",         // Field to control bubble size
+    normalsizevalue: 1000000,           // Value = 30px size
+    sizepow: 3,                         // Reduce size differences
+    fillopacity: 0.7,
+    units: " €",                        // Unit display in legend
+    showdata: "true"
+})
+```
+
+**Complete example:**
+```javascript
+.binding({
+    geo: "lat|lon",
+    value: "organization_type",  // Categorical colors
+    title: "name"
+})
+.type("CHART|BUBBLE|SIZE|CATEGORICAL|SUM|VALUES")  // VALUES to show size values on bubbles
+.style({
+    colorscheme: ["100", "tableau"],
+    sizefield: "revenue",       // Size by this numeric field
+    valuefield: "revenue",      // CRITICAL: Must match sizefield when using VALUES
+    normalsizevalue: 2000000,
+    sizepow: 3,
+    fillopacity: 0.7,
+    units: " €",
+    showdata: "true"
+})
+```
+
+**Key points:**
+- `value`: Category field for colors
+- `sizefield`: Numeric field for bubble size
+- `valuefield`: **CRITICAL - When using `VALUES` with categorical + size, MUST set to same field as `sizefield`** to display size values on bubbles
+- `CATEGORICAL`: Enables categorical coloring
+- `SIZE`: Enables size variation
+- `SUM`: **ALWAYS include** - Shows sum of `sizefield` per category in legend
+- `VALUES`: Displays values on bubbles (requires `valuefield` = `sizefield`)
+- `colorscheme: ["100", "tableau"]`: Auto-generates colors for all categories
+- Works with `normalsizevalue` and `sizepow` for size control
+- `units`: Display unit in legend (e.g., " €", " people", " tons")
+
+**Use cases:**
+- Organizations colored by type, sized by revenue
+- Cities colored by region, sized by population
+- Products colored by category, sized by sales
 
 ### Diverging Color Schemes
 
@@ -986,6 +1169,14 @@ For visualizations centered around a target value (e.g., EU 65% recycling target
 
 ## Data Handling
 
+⚠️ **CRITICAL - Local File Restrictions:**
+- **ixMaps CANNOT load local files** - Due to browser CORS restrictions, ixMaps cannot use `file://` URLs or load data from the local filesystem via `.data({url: "local-file.json"})`
+- **MUST use one of these approaches:**
+  - **Inline data** (recommended for local files): Embed JSON array directly in HTML: `const data = [{...}];`, then use `.data({ obj: data, type: "json" })`
+  - **External URL**: Host data on GitHub/CDN and use `.data({url: "https://...", type: "csv/json/geojson/topojson"})`
+- **When user provides local file**: Always embed the data inline in the HTML file, never try to load it with a file path
+
+**Data handling options:**
 - **Inline data**: Embed JSON array directly: `const data = [{...}];`
 - **External URL**: Use `.data({url: "...", type: "csv/json/geojson/topojson"})`
 - **User describes data**: Create reasonable sample data

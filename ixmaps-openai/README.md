@@ -1,8 +1,8 @@
 # ixMaps Skill
 
-A skill for creating interactive maps using the [ixMaps framework](https://github.com/gjrichter/ixmaps_flat). **Optimized** for **Codex**.
+A skill for creating interactive maps using the [ixMaps framework](https://github.com/gjrichter/ixmaps-flat). **Optimized** for **Codex**.
 
-[![ixMaps](https://img.shields.io/badge/ixMaps-Interactive%20Maps-blue)](https://github.com/gjrichter/ixmaps_flat)
+[![ixMaps](https://img.shields.io/badge/ixMaps-Interactive%20Maps-blue)](https://github.com/gjrichter/ixmaps-flat)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 > **💡 New to ixMaps?** This skill works in both chat and code workflows. 
@@ -309,7 +309,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-* [ixMaps](https://github.com/gjrichter/ixmaps_flat) - The interactive mapping framework
+* [ixMaps](https://github.com/gjrichter/ixmaps-flat) - The interactive mapping framework
 * All contributors and users of this skill
 
 ## 📧 Contact
@@ -318,8 +318,8 @@ For questions or feedback about this skill, please open an issue on GitHub.
 
 ## 🔗 Related Projects
 
-* [ixMaps Framework](https://github.com/gjrichter/ixmaps_flat)
-* [ixMaps Documentation](https://gjrichter.github.io/ixmaps_flat/)
+* [ixMaps Framework](https://github.com/gjrichter/ixmaps-flat)
+* [ixMaps Documentation](https://gjrichter.github.io/ixmaps-flat/)
 
 ---
 

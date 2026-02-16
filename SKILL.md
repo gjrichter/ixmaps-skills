@@ -69,7 +69,7 @@ When this skill is invoked, you should:
 <head>
     <meta charset="UTF-8">
     <title>[TITLE]</title>
-    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
     <style>
         body { margin: 0; padding: 0; }
         #map { width: 100%; height: 100vh; }

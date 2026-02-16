@@ -444,8 +444,8 @@ The assistant can explain any aspect of the skill:
 - [SKILL.md](SKILL.md) - Complete skill specifications
 - [QUICK_START.md](QUICK_START.md) - Quick reference
 - [Examples](examples/) - Working HTML examples
-- [ixMaps Documentation](https://gjrichter.github.io/ixmaps_flat/) - Official ixMaps docs
-- [ixMaps GitHub](https://github.com/gjrichter/ixmaps_flat) - Source code
+- [ixMaps Documentation](https://gjrichter.github.io/ixmaps-flat/) - Official ixMaps docs
+- [ixMaps GitHub](https://github.com/gjrichter/ixmaps-flat) - Source code
 
 ## Contributing
 

@@ -43,7 +43,7 @@ Create a complete standalone HTML file with an interactive ixMaps visualization.
 - Do not use deprecated `|EXACT` classification; use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL`.
 - For diverging scales with `rangecentervalue`, use an even number of colors. With `ranges`, use n+1 break values for n colors.
 - Do not combine `rangecentervalue` or `ranges` with `QUANTILE`/`EQUIDISTANT`.
-- Use ixMaps script from `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/ixmaps.js`.
+- Use ixMaps script from `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js`.
 - Use exact mapType names; Carto variants require spaces (`"CartoDB - Positron"`, `"CartoDB - Dark_Matter"`).
 - Avoid `map` as JS variable name; use `myMap`/`mapInstance`.
 

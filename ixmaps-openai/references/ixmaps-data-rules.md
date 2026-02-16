@@ -40,6 +40,7 @@
 - Colors use `colorscheme` (never `fillcolor`).
 - Static colors: `colorscheme: ["#0066cc"]`.
 - Categorical colors: `colorscheme: ["100", "tableau"]` (dynamic palette).
+- VECTOR layers: control arrow opacity with `fillopacity` (set explicitly, e.g. `fillopacity: 1` for opaque vectors).
 - Borders: `linecolor`, `linewidth`.
 - Aggregation grid size: `gridwidth: "5px"`.
 - Avoid `normalsizevalue` with `|AGGREGATE`.
@@ -69,6 +70,7 @@
 ## Visualization Types
 
 - Point data: `CHART|DOT`, `CHART|DOT|CATEGORICAL`, `CHART|BUBBLE|SIZE|VALUES`, `CHART|PIE`, `CHART|BAR|VALUES`.
+- Vector flows: use `CHART|VECTOR|BEZIER|POINTER`; add `|FADEIN` to animate vectors on draw.
 - GeoJSON/TopoJSON: `FEATURE`, `FEATURE|CHOROPLETH`, `FEATURE|CHOROPLETH|CATEGORICAL`.
 - Quantiles/equidistant: add `|QUANTILE` or `|EQUIDISTANT`.
 

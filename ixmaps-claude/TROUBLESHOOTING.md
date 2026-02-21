@@ -254,14 +254,36 @@ Solutions to common issues when creating ixMaps visualizations.
    colorscheme: ["#ff0000"]  // Array
    ```
 
-4. **Categorical coloring needs dynamic scheme**
+4. **Categorical coloring needs dynamic scheme OR explicit parallel arrays**
    ```javascript
-   // For categorical data:
+   // Auto-palette (ixMaps chooses colors):
    .binding({ value: "category_field" })
    .type("CHART|DOT|CATEGORICAL")
    .style({
        colorscheme: ["100", "tableau"],  // Dynamic
        showdata: "true"
+   })
+
+   // Explicit color-to-value binding (parallel arrays):
+   .style({
+       colorscheme: ["#e74c3c", "#27ae60", "#2980b9"],
+       values:      ["CategoryA", "CategoryB", "CategoryC"],
+       colorfield:  "category_field",
+       showdata:    "true"
+   })
+   ```
+
+5. **Using `colorfield` with embedded hex values in data (does NOT work)**
+   ```javascript
+   // WRONG — ixMaps does not read colors from a data field:
+   .style({ colorfield: "color_hex" })  // data: { color_hex: "#e74c3c" }
+
+   // CORRECT — use parallel colorscheme + values arrays:
+   .style({
+       colorscheme: ["#e74c3c", "#27ae60"],
+       values:      ["TypeA", "TypeB"],
+       colorfield:  "type_field",
+       showdata:    "true"
    })
    ```
 

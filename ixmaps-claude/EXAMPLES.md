@@ -1880,7 +1880,7 @@ Map with dark base and bright markers.
 
 ```javascript
 ixmaps.Map("map", {
-    mapType: "CartoDB - Dark_Matter",
+    mapType: "CartoDB - Dark matter",
     mode: "info"
 })
 .options({

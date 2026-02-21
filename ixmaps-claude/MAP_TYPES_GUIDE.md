@@ -25,7 +25,7 @@ mapType: "CartoDB - Positron"  // ✅ Light, minimal CartoDB style
 ```
 
 ```javascript
-mapType: "CartoDB - Dark_Matter"  // ✅ Dark CartoDB style
+mapType: "CartoDB - Dark matter"  // ✅ Dark CartoDB style
 ```
 
 **CRITICAL:** CartoDB types REQUIRE spaces around the dash:
@@ -39,27 +39,29 @@ mapType: "CartoDB - Dark_Matter"  // ✅ Dark CartoDB style
 mapType: "Stamen Terrain"  // ✅ Terrain with hill shading
 ```
 
-## ⚠️ Potentially Problematic Map Types
+## ✅ OpenStreetMap
 
-These are listed in some documentation but may not work reliably:
+Use the full name with renderer suffix:
 
 ```javascript
-mapType: "OpenStreetMap"  // ⚠️ May not work - use VT_TONER_LITE instead
+mapType: "OpenStreetMap - Osmarenderer"  // ✅ Correct full name
 ```
 
-**Recommendation:** If you need an OpenStreetMap-style basemap, use `"VT_TONER_LITE"` instead.
+**Note:** `"OpenStreetMap"` alone does not work — always use `"OpenStreetMap - Osmarenderer"`.
 
 ## 🚫 Common Mistakes to Avoid
 
 ### Wrong: Invalid Map Type Names
 ```javascript
-// ❌ These DON'T exist:
+// ❌ These DON'T exist or are wrong:
 mapType: "OSM"
 mapType: "Leaflet"
 mapType: "Google Maps"
 mapType: "Mapbox"
 mapType: "CartoDB Positron"  // Missing spaces around dash!
+mapType: "CartoDB - Dark_Matter"  // Wrong: underscore+capital; use "CartoDB - Dark matter"
 mapType: "openstreetmap"     // Wrong case
+mapType: "OpenStreetMap"     // Missing renderer; use "OpenStreetMap - Osmarenderer"
 mapType: "vt_toner_lite"     // Wrong case
 ```
 
@@ -78,9 +80,9 @@ mapType: "white"              // Lowercase for this one
 | `"VT_TONER_LITE"` | ✅ Verified | **Default choice** | Clean, minimal, always works |
 | `"white"` | ✅ Verified | Data-focused viz | No basemap distractions |
 | `"CartoDB - Positron"` | ✅ Verified | Light, modern style | **Note the spaces!** |
-| `"CartoDB - Dark_Matter"` | ✅ Verified | Dark theme | **Note the spaces!** |
+| `"CartoDB - Dark matter"` | ✅ Verified | Dark theme | **Note the spaces!** |
 | `"Stamen Terrain"` | ✅ Verified | Topographic maps | Shows elevation |
-| `"OpenStreetMap"` | ⚠️ Unreliable | Not recommended | Use VT_TONER_LITE instead |
+| `"OpenStreetMap - Osmarenderer"` | ✅ Verified | Standard OSM | Use full name with Osmarenderer |
 
 ## 💡 Best Practices
 
@@ -129,10 +131,12 @@ If you're unsure whether a map type is valid:
 
 ### Map Not Displaying
 ```javascript
-// ❌ Problem: Used invalid map type
+// ❌ Problem: Used bare OpenStreetMap name
 mapType: "OpenStreetMap"
 
-// ✅ Solution: Use verified map type
+// ✅ Solution: Use full name with renderer
+mapType: "OpenStreetMap - Osmarenderer"
+// or use the safe default:
 mapType: "VT_TONER_LITE"
 ```
 
@@ -176,5 +180,5 @@ This guide will be updated as new map types are verified or deprecated.
 2. **`"white"`** - For data-focused visualizations
 3. **`"CartoDB - Positron"`** - Modern, light aesthetic (remember the spaces!)
 
-**Avoid these until verified:**
-- `"OpenStreetMap"` - Unreliable, use VT_TONER_LITE instead
+**Common mistakes:**
+- `"OpenStreetMap"` - Missing renderer suffix; use `"OpenStreetMap - Osmarenderer"` instead

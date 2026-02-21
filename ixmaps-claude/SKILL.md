@@ -24,15 +24,16 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 5. **For GeoJSON/TopoJSON**: Reference properties directly (NOT with "properties." prefix)
 6. **For aggregation**: Use `value: "$item$"` and `gridwidth` in style (NOT in type)
 7. **NEVER use `.tooltip()`** - It doesn't exist in ixMaps API
-8. **NEVER use `|EXACT` classification** - It's a deprecated classification method from older ixmaps versions (use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL` instead)
-9. **For diverging scales**: `rangecentervalue` requires EVEN number of colors (4, 6, 8). `ranges` requires n+1 values for n colors. DO NOT combine either with QUANTILE/EQUIDISTANT
-10. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"
-11. **NEVER** include ixmaps npn
-12. **NEVER** use information from https://ixmaps.ca
-13. **NEVER** use information from https://ixmaps.com
-14. **Only** valid ixmaps repository is https://github.com/gjrichter/ixmaps-flat
-15. **ONE layer = ONE `.data()`** - Each layer can have ONLY ONE `.data()` call
-16. **🚨 SAME LAYER NAME IS MANDATORY FOR ALL MULTI-LAYER** - This is the #1 cause of silent failures:
+8. **`CHART` and `CHOROPLETH` are mutually exclusive** — NEVER combine them (e.g., `CHART|CHOROPLETH` is invalid). Polygon/fill layers use `FEATURE` or `FEATURE|CHOROPLETH`; bubble/symbol layers use `CHART|BUBBLE|…`. Use `FEATURE` (not `CHART`) for all geometry-based themes
+9. **NEVER use `|EXACT` classification** - It's a deprecated classification method from older ixmaps versions (use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL` instead)
+10. **For diverging scales**: `rangecentervalue` requires EVEN number of colors (4, 6, 8). `ranges` requires n+1 values for n colors. DO NOT combine either with QUANTILE/EQUIDISTANT
+11. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"
+12. **NEVER** include ixmaps npn
+13. **NEVER** use information from https://ixmaps.ca
+14. **NEVER** use information from https://ixmaps.com
+15. **Only** valid ixmaps repository is https://github.com/gjrichter/ixmaps-flat
+16. **ONE layer = ONE `.data()`** - Each layer can have ONLY ONE `.data()` call
+17. **🚨 SAME LAYER NAME IS MANDATORY FOR ALL MULTI-LAYER** - This is the #1 cause of silent failures:
     - **RULE:** ANY thematic layer (CHOROPLETH, CHART|BUBBLE, CHART|VECTOR, CHART|PIE, CHART|BAR, CHART|SYMBOL, etc.) that uses geometry from a FEATURE layer MUST use the EXACT SAME layer name
     - ✅ CORRECT: `myMap.layer("us_states").type("FEATURE")` → `myMap.layer("us_states").type("CHOROPLETH")`
     - ✅ CORRECT: `myMap.layer("regions").type("FEATURE")` → `myMap.layer("regions").type("CHART|VECTOR|...")`
@@ -40,19 +41,24 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
     - ❌ WRONG: `myMap.layer("states").type("FEATURE")` → `myMap.layer("flows").type("CHART|VECTOR|...")` - **FAILS SILENTLY!**
     - **WHY:** Thematic layers need to resolve positions/geometry from the base FEATURE layer. Different names = no resolution = no visualization
     - **APPLIES TO:** ALL chart and choropleth types overlaid on geometry: CHOROPLETH, BUBBLE, VECTOR, PIE, BAR, SYMBOL, DOT, etc.
-17. **Multi-layer join (CRITICAL)**: Joining external data to geometry requires BOTH sides:
+18. **Multi-layer join (CRITICAL)**: Joining external data to geometry requires BOTH sides:
     - FEATURE layer: `.binding({ id: "field_name" })` - identifies each feature
     - Thematic layer: `.binding({ lookup: "csv_field" })` - joins CSV to geometry
     - **MATCHING VALUES** - The `id` field in geometry and `lookup` field in CSV must contain matching values
-18. **`lookup` goes in `.binding()`** - NOT in `.data()`
-19. **`FEATURE` type in multi-layer** - CRITICAL distinction:
+19. **`lookup` goes in `.binding()`** - NOT in `.data()`
+20. **`FEATURE` type in multi-layer** - CRITICAL distinction:
     - Base layer: `FEATURE` (creates geometry)
     - Overlay layers: NO `FEATURE` (use existing geometry)
     - Exception: Single theme can use `FEATURE|CHOROPLETH` (all in one)
-20. **NEVER use `map` as variable name** - The variable name `map` conflicts with ixMaps internals. Use `myMap`, `mapInstance`, or any other name instead
-21. **ALWAYS use `fillopacity`** - NEVER use `opacity` in `.style()`. Use `fillopacity` for fill transparency
-22. **NEVER add `colorfield` unless explicitly requested** - DO NOT add color coding by categories (`colorfield: "fieldname"`) unless the user specifically asks for it. Default to single color (`colorscheme: ["#0066cc"]`)
-23. **NEVER add `.legend()` unless explicitly requested** - DO NOT add legend titles or calls to `.legend()` unless the user specifically asks for a legend. Omit the `.legend()` method call entirely by default
+21. **NEVER use `map` as variable name** - The variable name `map` conflicts with ixMaps internals. Use `myMap`, `mapInstance`, or any other name instead
+22. **ALWAYS use `fillopacity`** - NEVER use `opacity` in `.style()`. Use `fillopacity` for fill transparency
+23. **NEVER add `colorfield` unless explicitly requested** - DO NOT add color coding by categories (`colorfield: "fieldname"`) unless the user specifically asks for it. Default to single color (`colorscheme: ["#0066cc"]`)
+24. **NEVER use `colorfield` pointing to a hex-value column** - ixMaps does NOT support reading colors from a data field (e.g., `colorfield: "color"` where data has `{ color: "#e74c3c" }`). For explicit CATEGORICAL color assignment always use parallel `colorscheme` + `values` arrays (see "Explicit CATEGORICAL Color Binding" section)
+23. **NEVER add `.legend()` unless explicitly requested** - DO NOT add legend titles or calls to `.legend()` unless the user specifically asks for a legend. Omit the `.legend()` method call entirely by default.
+    - ⚠️ **CRITICAL side-effect**: calling `.legend("any string")` on the map instance **disables the default ixMaps color legend** (color scale, class breaks, layer title). It replaces it with a custom text panel.
+    - ✅ To show the default ixMaps legend open at start: use `legend: "open"` in `ixmaps.Map()` options (or omit `legend: "closed"`)
+    - ❌ Do NOT call `.legend("string")` to "just set a title" — it destroys the color scale
+    - Only use `.legend("string")` when the user explicitly provides a custom legend string or legend file to integrate
 
 ## Choosing Visualization Type
 
@@ -129,12 +135,12 @@ Use these when not specified:
 - `"white"` - ✅ Plain white background
 - `"OpenStreetMap - Osmarenderer"` - Standard OSM
 - `"CartoDB - Positron"` - ✅ Light CartoDB (note spaces!)
-- `"CartoDB - Dark_Matter"` - ✅ Dark CartoDB (note spaces!)
+- `"CartoDB - Dark matter"` - ✅ Dark CartoDB (note spaces!)
 - `"Stamen Terrain"` - ✅ Terrain with hill shading
 
 ### ⚠️ Do NOT Use (Unreliable):
 
-- ❌ `"OpenStreetMap"` - Unreliable, use `"VT_TONER_LITE"` instead
+- ❌ `"OpenStreetMap"` - Does not exist; use `"OpenStreetMap - Osmarenderer"` or `"VT_TONER_LITE"`
 - ❌ `"OSM"` - Does not exist
 - ❌ `"CartoDB Positron"` - Missing spaces (must be `"CartoDB - Positron"`)
 
@@ -144,6 +150,44 @@ Use these when not specified:
 
 ## Data Types & Binding
 
+### Natively Supported Data Formats
+
+ixMaps delegates data loading to **data.js** (a separate module bundled with ixmaps-flat). All formats handled by data.js are available via `.data({ url: "...", type: "..." })` or `.data({ obj: ..., type: "..." })`. Type values are case-insensitive.
+
+| `type` | Description | Engine |
+|--------|-------------|--------|
+| `"csv"` | Comma-separated values — rows with named columns | native |
+| `"json"` | Plain JSON array of objects | native |
+| `"jsonl"` / `"ndjson"` | Newline-delimited JSON (one object per line) | native |
+| `"jsonstat"` | JSON-stat statistical data format | native |
+| `"jsonDB"` | Internal ixMaps database format | native |
+| `"geojson"` | GeoJSON `FeatureCollection` | native |
+| `"topojson"` | TopoJSON — no conversion library needed | native |
+| `"kml"` | KML (Keyhole Markup Language) | native |
+| `"gml"` | GML (Geography Markup Language) | native |
+| `"rss"` | RSS feed with geographic data | native |
+| `"parquet"` | Apache Parquet columnar binary format | DuckDB WASM |
+| `"geoparquet"` | GeoParquet (Parquet with geometry) | DuckDB WASM |
+| `"gpkg"` / `"geopackage"` | GeoPackage spatial database | DuckDB WASM |
+| `"fgb"` / `"flatgeobuf"` | FlatGeobuf binary vector format | DuckDB WASM |
+| `"pbf"` / `"geobuf"` | Geobuf Protocol Buffer format | DuckDB WASM |
+| `"ext"` | External data reference resolved from another layer or function| — |
+
+**URL example:**
+```javascript
+.data({ url: "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", type: "topojson" })
+```
+
+**Inline object example:**
+```javascript
+.data({ obj: myGeoJSON, type: "geojson" })
+.data({ obj: myArray,   type: "json" })
+```
+
+⚠️ **Local files (`file://`) are NOT supported** — browser CORS blocks them. Use inline `obj` or a CDN/GitHub URL.
+
+---
+
 ### Point Data (CSV/JSON with lat/lon)
 
 **Binding format:**
@@ -151,7 +195,8 @@ Use these when not specified:
 .binding({
     geo: "lat|lon",          // or single field: "coordinates"
     value: "fieldname",      // omit for simple dots
-    title: "titlefield"
+    title: "titlefield",
+    timefield: "datefield"   // optional — enables time slider in legend (see below)
 })
 ```
 
@@ -186,6 +231,120 @@ Use these when not specified:
 - `FEATURE|CHOROPLETH|CATEGORICAL` - Category coloring
 
 **IMPORTANT**: Property names referenced directly (e.g., `"NAME_ENGL"`), NOT `"properties.NAME_ENGL"`
+
+### Time Slider — `timefield` in `.binding()`
+
+Adding `timefield` to `.binding()` **automatically creates an interactive time slider** in the ixMaps legend panel. The slider lets users scrub through time and filters visible features to a moving time window.
+
+**How to enable:**
+```javascript
+.binding({
+    geo: "lat|lon",          // or "geometry" for GeoJSON
+    value: "magnitude",
+    title: "place",
+    timefield: "time"        // ← field name containing date/time values
+})
+```
+
+**Works with any layer type:** CHART|BUBBLE, CHART|DOT, CHART|SYMBOL, FEATURE|CHOROPLETH, etc.
+
+**Accepted time value formats** (parsed via JavaScript `new Date()`):
+- Unix timestamp in **milliseconds** — `1707834000000` ✅ (best, most reliable)
+- ISO date string — `"2024-02-14"` ✅
+- ISO datetime string — `"2024-02-14T08:30:00Z"` ✅
+- English date string — `"February 14, 2024"` ✅
+
+**What ixMaps builds automatically:**
+- Reads `min` / `max` time across all features
+- Renders an HTML range slider in the legend panel
+- Shows adaptive **range buttons** based on total data span:
+
+| Data span | Range buttons shown | Window size |
+|-----------|--------------------|-|
+| < 1 day | (none) | single point |
+| 1–7 days | Hour | 1-hour window |
+| 7–55 days | Hour, Day | 1-hour or 1-day window |
+| 55–365 days | Day, Week | 1-day or 7-day window |
+| > 365 days | Week, Month | 7-day or 28-day window |
+
+**Requirements:**
+- `legend: 'open'` must be set in `ixmaps.Map()` options so the slider is visible on load
+- The time field must exist in the data — if missing, ixMaps logs: `ERROR: timefield 'fieldname' not found!`
+
+**Special values:**
+- `timefield: "$index$"` — uses sequential row index instead of a date field (frame-based animation)
+- `timefield: "$item$"` — similar index-based mode for window calculations
+
+**Full example — real-time earthquake map with USGS feed:**
+```javascript
+// USGS properties.time is already Unix ms — no preprocessing needed
+ixMap.layer('earthquakes')
+    .data({ obj: geojsonData, type: 'geojson' })
+    .binding({
+        geo: 'geometry',
+        value: 'mag',
+        title: 'place',
+        timefield: 'time'    // USGS Unix ms timestamp → instant time slider
+    })
+    .type('CHART|BUBBLE|SIZE|VALUES')
+    .style({
+        colorscheme: ['#ffffb2', '#fecc5c', '#fd8d3c', '#f03b20', '#bd0026'],
+        fillopacity: 0.80,
+        showdata: 'true',
+        units: ' M'
+    })
+    .meta({ name: 'earthquakes', tooltip: '{{place}} — M{{mag}}' })
+    .title('Earthquake Magnitude')
+    .define();
+
+// Map must have legend open to show the slider:
+ixmaps.Map('map', { mapType: 'CartoDB - Dark matter', mode: 'info', legend: 'open' })
+```
+
+### Programmatic Time Control — `ixmaps.setThemeTimeFrame()`
+
+Use `setThemeTimeFrame()` to **filter a theme's visible features to a time window from JavaScript** — without rebuilding or reloading the theme. This is the preferred approach when you are building your own custom time slider UI.
+
+```javascript
+ixmaps.setThemeTimeFrame(themeId, startTimeMs, endTimeMs);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `themeId` | string | The theme's stable ID — must match `meta.name` set in `.meta()` |
+| `startTimeMs` | number | Window start as Unix timestamp (ms) |
+| `endTimeMs` | number | Window end as Unix timestamp (ms) |
+
+**Requirements:**
+- The theme must have `timefield` set in `.binding()` so ixMaps knows which property to filter on
+- `themeId` must be the value set in `.meta({ name: '...' })` — NOT the layer name from `.layer('...')`
+- `legend: 'closed'` is recommended when using a custom slider (prevents duplicate built-in slider UI)
+
+**Typical pattern — load once, filter on slider move:**
+```javascript
+// On data load — call addLayer() ONCE with ALL features:
+ixMap.layer('earthquakes')
+    .data({ obj: { type: 'FeatureCollection', features: allFeatures }, type: 'geojson' })
+    .binding({ geo: 'geometry', value: 'mag', timefield: 'time' })
+    .meta({ name: 'Earthquake Magnitude' })
+    .define();
+
+// On every slider move — lightweight filter, no layer rebuild:
+slider.addEventListener('input', function () {
+    var endMs   = Number(this.value);
+    var startMs = endMs - windowMs;   // windowMs = moving window size in ms
+    ixmaps.setThemeTimeFrame('Earthquake Magnitude', startMs, endMs);
+});
+```
+
+**vs. built-in `timefield` slider:**
+
+| Approach | `legend` | When to use |
+|----------|----------|-------------|
+| `timefield` + `legend: 'open'` | open | Quick built-in slider, no custom UI needed |
+| `timefield` + `setThemeTimeFrame()` | closed | Custom slider UI, full programmatic control |
+
+**Key advantage:** `setThemeTimeFrame()` is a lightweight visibility-mask call — the full dataset stays loaded; only which points are shown changes. Scrubbing is near-instant even for thousands of points. **No debounce needed** — fire directly on every `input` event (vs 150 ms debounce required for full theme rebuild).
 
 ### Multi-Layer with External Data Join (CRITICAL PATTERN)
 
@@ -331,6 +490,7 @@ ixmaps.Map("map", {
     legend: "closed",   // Start with legend closed (clean view)
     tools: true         // Enable info/pan toolbar buttons (DEFAULT)
 })
+.view({ center: { lat: 42.5, lng: 12.5 }, zoom: 6 })   // ⚠️ ALWAYS object syntax — NOT positional args!
 .options({
     objectscaling: "dynamic",        // Enable dynamic scaling
     normalSizeScale: "1000000",      // REQUIRED with objectscaling
@@ -342,8 +502,30 @@ ixmaps.Map("map", {
 **Map initialization parameters (second parameter of ixmaps.Map()):**
 - `mapType`: Base map style (use `"VT_TONER_LITE"` as default)
 - `mode`: Set to `"info"` to enable tooltips on hover
-- `legend`: Initial legend state - `"closed"` (default, clean view) or `"open"` (visible on load)
+- `legend`: Initial state of the **built-in color legend** — `"closed"` (collapsed, default) or `"open"` (visible on load). ⚠️ Do NOT confuse with the `.legend("string")` method call, which replaces the color legend with custom text.
 - `tools`: Enable toolbar with info/pan buttons (default: `true` - always include)
+
+**`.view()` — sets initial map center and zoom (REQUIRED):**
+
+⚠️ **CRITICAL: ALWAYS use object syntax. Positional args `.view(lat, lng, zoom)` do NOT work.**
+
+```javascript
+// ✅ CORRECT
+.view({ center: { lat: 42.5, lng: 12.5 }, zoom: 6 })
+
+// ❌ WRONG — positional args are NOT supported
+.view(42.5, 12.5, 6)
+```
+
+Zoom level reference:
+- `1–3`: World / continent
+- `4–6`: Country
+- `7–10`: Region / state
+- `11–14`: City
+- `15–18`: Street / building
+
+**Map chain methods (called after `.view()`):**
+- `.attribution("text")` — displays a small attribution string in the bottom-left corner of the map; use for boundary/geometry source credits (e.g., `"Boundaries: Eurostat GISCO · NUTS 2021 · © European Union"`)
 
 **Map options (.options() method):**
 - `objectscaling`: Dynamic scaling mode
@@ -361,9 +543,51 @@ ixmaps.layer("layer_id")
     .filter("WHERE field == value")   // 3. Optional filter (MUST start with WHERE)
     .type()                           // 4. Visualization type
     .style()                          // 5. Visual styling (MUST include showdata: "true")
-    .meta()                           // 6. Tooltip config (REQUIRED)
-    .title()                          // 7. Layer title
+    .meta()                           // 6. Tooltip config (REQUIRED) — also sets theme name via meta.name
+    .title()                          // 7. Display title (NOT the theme ID)
     .define()                         // 8. Finalize
+```
+
+**⚠️ CRITICAL — Theme name vs. layer name vs. display title:**
+
+These are three **different** things:
+
+| What | Set by | Used for |
+|------|--------|----------|
+| Layer name | `.layer("my_layer")` | Geometry sharing between layers |
+| Theme ID (`szId`) | `meta: { name: "My Theme" }` | `removeTheme()`, `refreshTheme()`, etc. |
+| Display title | `.title("My Title")` | Legend label only — **NOT** the theme ID |
+
+**Rules:**
+- `meta: { name: "..." }` → sets the theme's internal ID used by all theme API calls
+- `.title("...")` → sets the display label in the legend; does **NOT** set the theme ID
+- `.layer("layer_id")` → the layer name is **never** the theme ID
+- If `meta.name` is omitted → the theme ID is **randomized** (`"theme0.8234…"`) → `removeTheme()` / `refreshTheme()` cannot find it
+
+**Always set `meta.name` when you need to reference the theme later:**
+```javascript
+// ✅ CORRECT — theme can be found by removeTheme / refreshTheme
+.meta({ name: "earthquakes", tooltip: "{{theme.item.chart}}{{theme.item.data}}" })
+.title("Earthquake Magnitude")   // display label — separate from name
+
+// ❌ WRONG — no meta.name → theme ID is random → removeTheme("earthquakes") will FAIL
+.meta({ tooltip: "{{theme.item.chart}}{{theme.item.data}}" })
+.title("earthquakes")            // .title() does NOT set the theme ID
+```
+
+**Swapping data without reinitializing the map (correct pattern):**
+```javascript
+// Remove old theme by its meta.name, then redefine with new data
+try { ixmaps.removeTheme('earthquakes'); } catch (e) {}
+
+ixMap.layer('earthquakes')
+    .data({ obj: newData, type: 'geojson' })
+    .binding({ ... })
+    .type('CHART|BUBBLE|SIZE|VALUES')
+    .style({ ... })
+    .meta({ name: 'earthquakes', tooltip: '...' })   // ← name matches removeTheme arg
+    .title('Earthquake Magnitude')
+    .define();
 ```
 
 **Filter syntax:**
@@ -371,10 +595,17 @@ ixmaps.layer("layer_id")
 - `.filter("WHERE field == value")` - Single string parameter with WHERE prefix + filter expression
 - Examples:
   - `.filter("WHERE year == 2024")`
-  - `.filter("WHERE category == 'Active'")`
+  - `.filter("WHERE category == \"Active\"")`
   - `.filter("WHERE value > 1000")`
+  - `.filter("WHERE CNTR_CODE == \"IT\"")`
 - Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`
 - Can use `&&` (AND) and `||` (OR): `.filter("WHERE year == 2024 && value > 1000")`
+
+**Filter string value quoting rules:**
+- ⚠️ **NEVER use single quotes `'` around filter values** — ixMaps does NOT recognise `'` as a string delimiter; they become part of the matched value and will never match
+- String values with no spaces: can be **unquoted** → `.filter("WHERE code == IT")`
+- String values that need to be explicit or contain spaces: use **escaped double quotes** → `.filter("WHERE name == \"Valle d Aosta\"")`
+- Since the filter argument is itself a JS double-quoted string, inner `"` must be escaped as `\"`
 
 ### Style Properties
 
@@ -387,10 +618,27 @@ ixmaps.layer("layer_id")
 })
 ```
 
+**Legend text fields (shown in the ixMaps legend panel):**
+- `snippet`: Short subtitle shown as `<h4>` below the title (e.g., units, method, year) — set via `.style({ snippet: "..." })`
+- `description`: Longer note shown as `<div>` below the color scale (e.g., source, caveats) — set via `.style({ description: "..." })`
+- The main title (`<h3>`) is set via the separate `.title("...")` method chain call
+
+```javascript
+// Full legend text example
+.title("Gender Employment Gap")          // → <h3> in legend
+.style({
+    snippet: "men − women · age 15–64",  // → <h4> in legend
+    description: "Source: ISTAT 2023 · 107 provinces",  // → <div> in legend
+    colorscheme: [...],
+    showdata: "true"
+})
+```
+
 **Common properties:**
 - `colorscheme`: Array of colors or `["count", "palette"]` for dynamic
-  - Static: `["#0066cc"]` or `["#ffffcc", "#ff0000"]`
-  - Dynamic: `["100", "tableau"]` (ixMaps calculates count)
+  - Static single/gradient: `["#0066cc"]` or `["#ffffcc", "#ff0000"]`
+  - Dynamic auto-palette: `["100", "tableau"]` (ixMaps calculates count)
+  - **Explicit CATEGORICAL (parallel arrays):** `colorscheme: ["#e74c3c", "#27ae60"]` + `values: ["RegionA", "RegionB"]` — pins specific colors to specific category values (see below)
   - Palettes: "tableau", "paired", "set1", "set2", "pastel1", "dark2"
 - `rangecentervalue`: Number - creates automatic diverging scale around this value (e.g., `65` for EU target). **Use EVEN number of colors** (4, 6, 8) for equal distribution above/below. DO NOT combine with QUANTILE/EQUIDISTANT classification
 - `ranges`: Array - explicitly defines class breaks (e.g., `[0, 50, 60, 65, 70, 80, 100]`). Array must have n+1 values for n colors. DO NOT combine with QUANTILE/EQUIDISTANT classification
@@ -943,8 +1191,21 @@ See `/Users/gjrichter/Work/Claude Code/mepa_forniture.html` for a complete imple
 
 ### Legend
 
+**Default ixMaps legend (color scale + layer title):**
+- Show open at start: pass `legend: "open"` in `ixmaps.Map()` options
+- Show closed (collapsed): pass `legend: "closed"` in `ixmaps.Map()` options (default)
+- Omit the option entirely = closed by default
+
 ```javascript
-.legend("Custom Legend Title")  // Call after .view(), before .layer()
+// ✅ Show built-in color legend open at start
+ixmaps.Map("map", { mapType: "VT_TONER_LITE", mode: "info", legend: "open" })
+```
+
+**Custom legend text (ONLY on explicit user request):**
+```javascript
+// ⚠️ WARNING: this REPLACES (disables) the default color-scale legend!
+// Only use when user explicitly provides a legend string or file to integrate.
+.legend("Custom legend text")  // Call after .view(), before .layer()
 ```
 
 ### Custom Symbols (Icons)
@@ -1108,6 +1369,84 @@ When you want **both categorical coloring AND size by numeric value**:
 - Cities colored by region, sized by population
 - Products colored by category, sized by sales
 
+### Explicit CATEGORICAL Color Binding (pin colors to values)
+
+When the auto-palette colors are not acceptable and you need **specific colors for specific category values**, use the **parallel `colorscheme` + `values` arrays** pattern:
+
+```javascript
+.style({
+    colorscheme: ["#e74c3c", "#27ae60", "#2980b9", "#8e44ad"],  // one color per value
+    values:      ["Lombardia", "Toscana", "Veneto", "Lazio"],   // matching category labels
+    colorfield:  "region",    // field in data that contains the category values
+    showdata:    "true"
+})
+```
+
+**Rules:**
+- `colorscheme` and `values` arrays **must be the same length**
+- Position i in `colorscheme` maps to position i in `values`
+- Values not listed fall back to the first color in `colorscheme`
+- Works for VECTOR, BUBBLE|CATEGORICAL, DOT|CATEGORICAL, and CHOROPLETH|CATEGORICAL layers
+
+**Alternative — function as colorscheme:**
+```javascript
+.style({
+    colorscheme: function(value) {
+        const c = { "Lombardia": "#e74c3c", "Toscana": "#27ae60", "Veneto": "#2980b9" };
+        return c[value] || "#aaaaaa";
+    },
+    colorfield: "region",
+    showdata: "true"
+})
+```
+
+**⚠️ What does NOT work:**
+```javascript
+// WRONG — embedding hex values directly in a data field is NOT supported:
+.style({ colorfield: "color" })   // where data has { color: "#e74c3c" } — NOT supported
+```
+
+### Cross-Visualization Color Consistency (ixMaps + D3/ECharts/Vega)
+
+When ixMaps is combined with an external chart library and both must show the **same colors per category**, build a shared lookup dictionary and derive ixMaps parallel arrays from it:
+
+```javascript
+// ── Shared color dictionary (outside both chart and map code) ─────────────
+const palette = ["#e74c3c", "#27ae60", "#2980b9", "#8e44ad", "#d35400" /*, ... */];
+const allNames = [...new Set(data.map(d => d.region))].sort();  // sort → stable order
+const regionColors = {};
+allNames.forEach((n, i) => { regionColors[n] = palette[i % palette.length]; });
+
+// ── D3 / ECharts / Vega: use regionColors directly ───────────────────────
+const colorFn = name => regionColors[name];
+
+// ── ixMaps: build parallel arrays from the same dictionary ───────────────
+// (translate names if data labels ≠ geometry labels)
+const nameMap = { "LOMBARDIA": "Lombardia", "EMILIA ROMAGNA": "Emilia-Romagna" /*, ...*/ };
+const ixColors = Object.keys(nameMap).filter(k => regionColors[k]).map(k => regionColors[k]);
+const ixNames  = Object.keys(nameMap).filter(k => regionColors[k]).map(k => nameMap[k]);
+
+// Apply to ixMaps layer:
+ixmaps.layer("regions")
+    .data({ obj: flowData, type: "json" })
+    .binding({ position: "origin", position2: "destination" })
+    .type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
+    .style({
+        colorscheme: ixColors,   // ← same colors as external chart
+        values:      ixNames,    // ← matching category names
+        colorfield:  "origin",
+        sizefield:   "value",
+        fillopacity: 0.67,
+        showdata:    "true"
+    })
+    .define();
+```
+
+**Key points:**
+- Alphabetical sort of category names → deterministic assignment across page reloads
+- Same `colorscheme` / `values` arrays reused across ALL ixMaps layers (VECTOR, BUBBLE, etc.)
+- Name translation map needed when data labels differ from TopoJSON/geometry labels
+
 ### Diverging Color Schemes
 
 For visualizations centered around a target value (e.g., EU 65% recycling target):
@@ -1173,12 +1512,12 @@ For visualizations centered around a target value (e.g., EU 65% recycling target
 - **ixMaps CANNOT load local files** - Due to browser CORS restrictions, ixMaps cannot use `file://` URLs or load data from the local filesystem via `.data({url: "local-file.json"})`
 - **MUST use one of these approaches:**
   - **Inline data** (recommended for local files): Embed JSON array directly in HTML: `const data = [{...}];`, then use `.data({ obj: data, type: "json" })`
-  - **External URL**: Host data on GitHub/CDN and use `.data({url: "https://...", type: "csv/json/geojson/topojson"})`
+  - **External URL**: Host data on GitHub/CDN and use `.data({url: "https://...", type: "csv"})` (any supported type — see format table above)
 - **When user provides local file**: Always embed the data inline in the HTML file, never try to load it with a file path
 
 **Data handling options:**
 - **Inline data**: Embed JSON array directly: `const data = [{...}];`
-- **External URL**: Use `.data({url: "...", type: "csv/json/geojson/topojson"})`
+- **External URL**: Use `.data({url: "...", type: "..."})` — any type from the supported formats table
 - **User describes data**: Create reasonable sample data
 - **Ensure required fields**: lat/lon for points, geometry for GeoJSON
 
@@ -1197,21 +1536,23 @@ You can transform data **after loading but before visualization** using the `pro
 ```
 
 **Preprocessing function:**
+
+⚠️ **CRITICAL:** `data` is a `data.js` Table object — NOT a plain array. Use `data.column()`, `data.addColumn()`, etc. Do NOT use `data.forEach()` or array methods on it directly.
+
 ```javascript
 // Define as var so you can use .toString()
-var preprocessFunction = function(data, options) {
-    // Modify data in place
-    data.forEach(record => {
-        // Standardize field values
-        if (record.region === "EMILIA ROMAGNA") {
-            record.region = "EMILIA-ROMAGNA";
-        }
+var preprocessFunction = function(data) {
+    // Standardize field values using data.js column API
+    data.column("REGION").map(function(v){ return (v || "").toUpperCase(); });
 
-        // Add computed fields
-        record.is_cross_region = (record.origin !== record.destination) ? "true" : "false";
+    // Add computed fields using index-based row access
+    var iFrom = data.column("FROM").index;
+    var iTo = data.column("TO").index;
+    data.addColumn({ destination: "is_cross" }, function(row){
+        return row[iFrom] === row[iTo] ? "false" : "true";
     });
 
-    return data;  // Return transformed data
+    return data;  // Return the data.js Table object
 };
 ```
 
@@ -1225,9 +1566,10 @@ var preprocessFunction = function(data, options) {
 - ✅ Works with CSV, JSON, GeoJSON, and TopoJSON
 - ✅ Function runs after data loads, before visualization
 - ✅ New fields are available in `.binding()`, `.filter()`, and tooltips
-- ✅ Modify data in place OR return new data object
+- ✅ `data` is a `data.js` Table object — use `data.column()`, `data.addColumn()`, `data.select()`, etc.
 - ✅ **CRITICAL:** Use `.toString()` to convert function: `process: myFunc.toString()`
-- ✅ Define as `var functionName = function(data, options) {...};`
+- ✅ Define as `var functionName = function(data) {...};`
+- ❌ **NEVER** use `data.forEach()` — `data` is not a plain array!
 
 **See API_REFERENCE.md** for detailed examples and advanced patterns.
 

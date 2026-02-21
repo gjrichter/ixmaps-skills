@@ -37,9 +37,9 @@ Creates a new map instance.
 **Valid mapType values:**
 - `"VT_TONER_LITE"` - Clean minimal base map (default)
 - `"white"` - Plain white background
-- `"OpenStreetMap"` - Standard OpenStreetMap
+- `"OpenStreetMap - Osmarenderer"` - Standard OpenStreetMap
 - `"CartoDB - Positron"` - Light CartoDB style (note spaces)
-- `"CartoDB - Dark_Matter"` - Dark CartoDB style (note spaces)
+- `"CartoDB - Dark matter"` - Dark CartoDB style (note spaces)
 - `"Stamen Terrain"` - Terrain with hill shading
 
 **Valid mode values:**
@@ -282,10 +282,18 @@ Map data fields to map properties.
 
 Filter data before visualization.
 
-**Example:**
+**Examples:**
 ```javascript
 .filter("WHERE value > 100")
+.filter("WHERE year == 2024")
+.filter("WHERE CNTR_CODE == \"IT\"")       // string value — escaped " inside JS string
+.filter("WHERE category == \"Active\"")    // NEVER use single quotes for string values!
 ```
+
+**String value quoting rules:**
+- ⚠️ **NEVER use single quotes `'`** — they are NOT string delimiters in ixMaps filters; they become part of the matched value and produce no matches
+- Unquoted (no spaces): `.filter("WHERE code == IT")`
+- Quoted (explicit / spaces): use escaped double quotes → `.filter("WHERE name == \"New York\"")`
 
 ### `.type(vizType)`
 
@@ -599,7 +607,7 @@ myMap.layer("flows")
         type: "csv",
         process: addDerivedFields.toString()  // ← String representation!
     })
-    .filter("is_interstate = 'true'")  // ← Use derived field in filter
+    .filter("WHERE is_interstate == \"true\"")  // ← Use derived field in filter (escape " for string values)
     .binding({
         position: "origin_state",
         position2: "dest_state",
@@ -1095,6 +1103,102 @@ colorscheme: ["100", "tableau"]
 - `"pastel2"` - ColorBrewer Pastel2 (8 colors)
 - `"dark2"` - ColorBrewer Dark2 (8 colors)
 - `"accent"` - ColorBrewer Accent (8 colors)
+
+### Explicit CATEGORICAL Color Binding (colorscheme + values)
+
+When you need to **pin specific colors to specific category values** (e.g., for cross-visualization color consistency), use **parallel `colorscheme` and `values` arrays** instead of a palette name.
+
+**Two valid approaches for explicit CATEGORICAL color binding:**
+
+**Option 1 — Parallel arrays (colorscheme + values):**
+```javascript
+.style({
+    colorscheme: ["#e74c3c", "#27ae60", "#2980b9"],  // one color per category
+    values:      ["Lombardia", "Toscana", "Veneto"],  // matching category labels
+    colorfield:  "origin",                            // field that holds category values
+    showdata:    "true"
+})
+```
+- `colorscheme` and `values` must be the same length
+- Position i in `colorscheme` is assigned to position i in `values`
+- Any category value not listed in `values` falls back to the first color
+
+**Option 2 — Function as colorscheme:**
+```javascript
+.style({
+    colorscheme: function(value) {
+        const map = { "Lombardia": "#e74c3c", "Toscana": "#27ae60", "Veneto": "#2980b9" };
+        return map[value] || "#aaaaaa";
+    },
+    colorfield: "origin",
+    showdata: "true"
+})
+```
+
+**⚠️ What does NOT work:**
+```javascript
+// WRONG — ixMaps does not support inline colorfield with embedded hex values:
+.style({
+    colorfield: "color",   // field that contains "#e74c3c" etc.  ← NOT supported
+    showdata: "true"
+})
+```
+
+### Cross-Visualization Color Consistency
+
+When a map is combined with an external chart (D3, ECharts, Vega, etc.) and both must use the **same colors per category**, build a shared color lookup and derive the ixMaps parallel arrays from it:
+
+```javascript
+// 1. Build shared color dictionary (sorted alphabetically → stable across renders)
+const palette = ["#e74c3c", "#27ae60", "#2980b9", "#8e44ad", "#d35400" /*, ... */];
+const allNames = [...new Set(data.map(d => d.region))].sort();
+const regionColors = {};
+allNames.forEach((name, i) => { regionColors[name] = palette[i % palette.length]; });
+
+// 2. Use regionColors in the external chart (D3 example)
+const color = name => regionColors[name];
+
+// 3. Build parallel arrays for ixMaps layers
+//    (nameMap translates data names → TopoJSON / ixMaps geometry names if needed)
+const ixNames  = Object.keys(nameMap).filter(k => regionColors[k]).map(k => nameMap[k]);
+const ixColors = Object.keys(nameMap).filter(k => regionColors[k]).map(k => regionColors[k]);
+
+// 4. Apply to VECTOR layer
+ixmaps.layer("regions")
+    .data({ obj: flowData, type: "json" })
+    .binding({ position: "origin", position2: "destination" })
+    .type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
+    .style({
+        colorscheme: ixColors,   // parallel array
+        values:      ixNames,    // parallel array
+        colorfield:  "origin",
+        sizefield:   "value",
+        fillopacity: 0.67,
+        showdata:    "true"
+    })
+    .define();
+
+// 5. Apply identically to BUBBLE layer — same colorscheme + values
+ixmaps.layer("regions")
+    .data({ obj: bubbleData, type: "json" })
+    .binding({ position: "region" })
+    .type("CHART|BUBBLE|SIZE|VALUES|CATEGORICAL")
+    .style({
+        colorscheme: ixColors,
+        values:      ixNames,
+        colorfield:  "region",
+        sizefield:   "total",
+        fillopacity: 0.8,
+        showdata:    "true"
+    })
+    .define();
+```
+
+**Key points:**
+- Alphabetical sort of category names → deterministic color assignment across renders
+- Same `colorscheme` / `values` arrays reused across all ixMaps layers → guaranteed consistency
+- Name translation map needed when data labels differ from geometry labels (e.g., `"EMILIA ROMAGNA"` → `"Emilia-Romagna"`)
+- Works for VECTOR, BUBBLE, DOT, and CHOROPLETH|CATEGORICAL layers
 
 ### Color Scheme Examples
 

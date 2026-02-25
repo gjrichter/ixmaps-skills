@@ -178,6 +178,50 @@ ixMaps delegates data loading to **data.js** (a separate module bundled with ixm
 .data({ url: "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", type: "topojson" })
 ```
 
+### ✅ Recommended World Country Geometry Sources
+
+For world maps, prefer the **Eurostat GISCO** TopoJSON over `world-atlas`. GISCO provides official EU geometry with multiple resolution levels — pick the scale that fits your zoom:
+
+| URL | Scale | Detail | Best for |
+|-----|-------|--------|----------|
+| `https://gisco-services.ec.europa.eu/distribution/v2/countries/topojson/CNTR_RG_60M_2020_4326.json` | 1:60M | very low | **World overview (default)** — tiny file, fast load |
+| `https://gisco-services.ec.europa.eu/distribution/v2/countries/topojson/CNTR_RG_20M_2020_4326.json` | 1:20M | low | World overview, slightly more detail |
+| `https://gisco-services.ec.europa.eu/distribution/v2/countries/topojson/CNTR_RG_10M_2020_4326.json` | 1:10M | medium | Continental or multi-country zoom |
+| `https://gisco-services.ec.europa.eu/distribution/v2/countries/topojson/CNTR_RG_03M_2020_4326.json` | 1:3M | high | Country-level zoom |
+| `https://gisco-services.ec.europa.eu/distribution/v2/countries/topojson/CNTR_RG_01M_2020_4326.json` | 1:1M | very high | Regional / city zoom |
+
+**GISCO country feature properties (verified from actual file):**
+| Field | Example | Description |
+|-------|---------|-------------|
+| `CNTR_ID` | `"DE"` | ISO 3166-1 alpha-2 country code — **use this for joins** |
+| `NAME_ENGL` | `"Germany"` | English country name |
+| `NAME_FREN` | `"Allemagne"` | French country name |
+| `NAME_GERM` | `"Deutschland"` | German country name |
+| `ISO3_CODE` | `"DEU"` | ISO 3166-1 alpha-3 code |
+| `EU_STAT` | `"T"` / `"F"` | EU member state flag |
+
+> ⚠️ The ISO-2 field is **`CNTR_ID`** — NOT `CNTR_CODE`. Using `CNTR_CODE` will cause *"itemfield not found"* errors.
+
+**Recommended default for world maps (Equal Earth, world overviews) — rendering only:**
+```javascript
+.data({
+    url:  "https://gisco-services.ec.europa.eu/distribution/v2/countries/topojson/CNTR_RG_60M_2020_4326.json",
+    type: "topojson"
+})
+// binding: { geo: "geometry" }  — no id/title needed if just rendering fill
+```
+
+**For CHOROPLETH joins (need to access CNTR_ID for lookup):**
+```javascript
+.data({
+    url:  "https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_60M_2020_4326.geojson",
+    type: "geojson"
+})
+// binding: { geo: "geometry", id: "CNTR_ID", title: "NAME_ENGL" }
+```
+
+All GISCO files: projection EPSG:4326 (WGS 84), reference year 2020, global coverage.
+
 **Inline object example:**
 ```javascript
 .data({ obj: myGeoJSON, type: "geojson" })
@@ -350,6 +394,14 @@ slider.addEventListener('input', function () {
 
 When joining external CSV data to geometry (e.g., TopoJSON provinces + CSV statistics):
 
+> ⚠️ **ALWAYS inspect both sources before writing a join binding.**
+> The `id` field on the geometry source and the `lookup` field on the data source must contain **matching values** — but field names vary between sources and cannot be assumed.
+> - **Fetch and examine the geometry source** (first few features) to find the actual ID field name and value format
+> - **Examine the data source** to find which field contains matching identifiers
+> - Only then write `id: "actual_geo_field"` and `lookup: "actual_data_field"`
+>
+> Example of wrong assumption: GISCO world boundaries use `CNTR_ID` (not `CNTR_CODE`) for ISO-2 codes. Assuming the name costs a failed join.
+
 **Pattern requires:**
 1. **FEATURE base layer** - Defines geometry with `id` field for join
 2. **Thematic layers** - Load CSV with `lookup` field for join
@@ -500,7 +552,8 @@ ixmaps.Map("map", {
 ```
 
 **Map initialization parameters (second parameter of ixmaps.Map()):**
-- `mapType`: Base map style (use `"VT_TONER_LITE"` as default)
+- `mapType`: Base map style (use `"VT_TONER_LITE"` as default). Use `"white"` for projection-based maps (Equal Earth, Winkel, etc.)
+- `mapProjection`: Optional SVG projection — overrides the default Mercator tile basemap. Supported values: `"equalearth"`, `"winkel"`, `"albers"`, `"lambert"`, `"orthographic"`, `"mercator"`. Requires `mapType: "white"` (no tiles).
 - `mode`: Set to `"info"` to enable tooltips on hover
 - `legend`: Initial state of the **built-in color legend** — `"closed"` (collapsed, default) or `"open"` (visible on load). ⚠️ Do NOT confuse with the `.legend("string")` method call, which replaces the color legend with custom text.
 - `tools`: Enable toolbar with info/pan buttons (default: `true` - always include)
@@ -523,6 +576,14 @@ Zoom level reference:
 - `7–10`: Region / state
 - `11–14`: City
 - `15–18`: Street / building
+
+**⚠️ Equal Earth (and other world projections) — special `.view()` setting:**
+
+When using `mapProjection: "equalearth"` (or `"winkel"`, `"orthographic"`, etc.), always set:
+```javascript
+.view({ center: { lat: 0, lng: 0 }, zoom: 0 })
+```
+unless the user explicitly requests a different center or zoom. Standard zoom levels (4–6) do not apply to whole-world SVG projections — `zoom: 0` shows the full world correctly.
 
 **Map chain methods (called after `.view()`):**
 - `.attribution("text")` — displays a small attribution string in the bottom-left corner of the map; use for boundary/geometry source credits (e.g., `"Boundaries: Eurostat GISCO · NUTS 2021 · © European Union"`)
@@ -650,7 +711,13 @@ ixMap.layer('earthquakes')
   - **To reduce size differences**: increase `sizepow` (2, 3, 4, etc.)
   - **To increase size differences**: use `sizepow < 1` (0.5, 0.7, etc.) - rarely needed
   - Works for CHART|BUBBLE and CHART|VECTOR types
-- `rangescale`: **For CHART|VECTOR layers only** - Controls bowing/curvature (`~1` = straight, `>1` = right bow, `<1` = left bow). **Do NOT use for sizing**
+- `rangescale`: **For CHART|VECTOR layers only** - Controls the **bow/curvature** of bezier arrows (named `rangescale` for historic reasons). **Do NOT use for sizing.**
+  - Range: roughly **-20 to +20**
+  - `0` = straight line
+  - `-7` = good starting bow (recommended default for curved flows)
+  - Negative values = curve one direction, positive = other direction
+  - Higher absolute value = more curvature
+  - Example: `rangescale: -7`
 - `normalsizevalue`: Data value that maps to 30px chart size. **Does NOT change the sizing curve**, only shifts the scale. Use with `sizepow` to control both scale and curve (avoid with AGGREGATE)
 - `fillopacity`: Fill opacity (0-1). **ALWAYS use `fillopacity`, NEVER use `opacity`**
 - `linecolor`: Border color (NOT strokecolor)
@@ -891,6 +958,43 @@ map.layer("regions")
     .define();
 ```
 
+### Glow Effect (GLOW type modifier)
+
+The `GLOW` modifier adds a soft radial glow/halo around CHART bubbles and dots — no extra layers needed.
+
+**Apply to any CHART layer:**
+```javascript
+.type("CHART|BUBBLE|SIZE|VALUES|GLOW")
+// also works with DOT, SYMBOL, etc.
+.type("CHART|DOT|GLOW")
+```
+
+**Key points:**
+- Works with `BUBBLE`, `DOT`, `SYMBOL`, and other `CHART` subtypes
+- No additional style properties required — glow inherits the layer's `colorscheme`
+- Combine freely with other modifiers: `SIZE`, `VALUES`, `CATEGORICAL`, `GLOW`
+- Especially effective on dark basemaps (`CartoDB - Dark matter`, `VT_TONER_LITE`)
+
+**Example — glowing incident bubbles:**
+```javascript
+ixMap.layer("incidents")
+    .data({ obj: incidentData, type: "json" })
+    .binding({ geo: "lat|lon", value: "ines", title: "name" })
+    .type("CHART|BUBBLE|SIZE|VALUES|GLOW")
+    .style({
+        colorscheme: ["#ff6d00", "#b71c1c"],
+        fillopacity: 0.92,
+        scale: 2.2,
+        sizepow: 1,
+        normalsizevalue: 7,
+        linecolor: "#ffffff",
+        linewidth: 1,
+        showdata: "true"
+    })
+    .meta({ tooltip: "{{name}} — INES {{ines}}" })
+    .define();
+```
+
 ### Flow Visualization (VECTOR)
 
 The `VECTOR` chart type creates directional arrows showing flows between geographic locations (origin → destination).
@@ -977,7 +1081,7 @@ ixmaps.layer("supply_flows")
         sizefield: "value",        // Arrow thickness by trade value
         opacity: 0.67,
         units: "€",
-        rangescale: 5,
+        rangescale: -7,            // Bow/curvature: 0=straight, ±7=good start, range ±20
         showdata: "true"
     })
     .meta({
@@ -1000,7 +1104,7 @@ ixmaps.layer("supply_flows")
     fillopacity: 0.65,  // Prefer fillopacity over opacity
     scale: 1.5,         // Overall vector size multiplier
     sizepow: 1,         // Linear size contrast (1=linear, <1=more contrast, >1=less contrast)
-    rangescale: 5       // Bowing/curvature (~1=straight, >1=right bow, <1=left bow) - NOT for sizing
+    rangescale: -7      // Bow/curvature: 0=straight, ±7=good start, range ±20 — NOT for sizing
 })
 ```
 
@@ -1148,9 +1252,13 @@ See `/Users/gjrichter/Work/Claude Code/mepa_forniture.html` for a complete imple
 - Filter data to show only significant flows (top N by value)
 
 **Issue:** Arrows too thick or too thin
-- Adjust `rangescale` (try values 3-10)
 - Use `scale` property to globally adjust thickness
 - For constant thickness: add `NOSCALE` flag
+
+**Issue:** Arrows too straight (need more curve/bow)
+- Adjust `rangescale` — start with `-7`, range is roughly -20 to +20
+- `0` = straight, higher absolute value = more curvature
+- Negative and positive values curve in opposite directions
 
 ### Meta (Tooltips)
 
@@ -1818,6 +1926,28 @@ When skill generates data files:
 - **template-points.html** - Optimized for point data
 - **template-geojson.html** - Optimized for GeoJSON/TopoJSON
 - **template-multi-layer.html** - Multiple layers with toggle controls
+- **template-world-flows.html** - ✅ World-scale flow map (Equal Earth, GISCO countries, bezier arrows + bubbles)
+  - Equal Earth projection (`mapType: "white"` + `mapProjection: "equalearth"`)
+  - World bounding box (dense GeoJSON polygon — NOT D3 Sphere) + graticule
+  - GISCO 60M countries TopoJSON
+  - Any number of flow series defined in `FLOW_SERIES` config array
+  - Each series: one destination + N origin points → auto-generates vector arrows, proportional bubbles, destination markers
+  - Direct lat|lon VECTOR binding (no FEATURE base layer needed)
+  - Auto-built legend and overlays from config
+  - All styling via `STYLE` config object
+
+- **template-change-choropleth.html** - ✅ World choropleth + signed change pointers (Equal Earth, GISCO countries)
+  - Equal Earth projection + world bbox + graticule
+  - GISCO 60M countries GeoJSON (GeoJSON required for CHOROPLETH property join)
+  - 3-layer stack on shared layer name `"countries"`:
+    1. `FEATURE` — geometry base with neutral fill for no-data countries
+    2. `CHOROPLETH` — diverging color fill joined from data by `id` ↔ `lookup`
+    3. `CHART|BAR|POINTER|ARROW|SIZE` — signed pointers at centroids (↑ growth, ↓ decline)
+  - `CHART|BAR|POINTER|ARROW|SIZE` handles positive **and** negative values natively — no splitting needed
+  - Key style params: `rangecentervalue: 0`, `fadenegative: 1`, `linecolor: "white"` for legibility
+  - Explicit `CLASS_BREAKS` + `COLORSCHEME` arrays (diverging, centred at 0)
+  - Config: `CHANGE_DATA`, `GEO_SOURCE` (url + idField + nameField), `DATA_*_FIELD`, `LEGEND_BANDS`, `TOOLTIP_TEMPLATE`
+  - Auto-built legend (color bands + pointer direction key) and overlays from config
 
 ## Additional Resources
 

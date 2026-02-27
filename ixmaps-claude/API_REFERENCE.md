@@ -86,6 +86,16 @@ Configure map behavior and rendering.
 - Common values: `"500000"`, `"1000000"`, `"2000000"`
 - Larger values = smaller symbols at given zoom
 
+**featurescaling** (string)
+- `"true"` - Scale individual features (points/symbols) relative to each other based on zoom
+- Works together with `objectscaling`
+
+**dynamicScalePow** (number/string)
+- Exponent controlling how aggressively symbols grow/shrink with zoom when `objectscaling: "dynamic"`
+- `"1.0"` - linear scaling
+- `"1.8"` - recommended for dense point datasets (symbols grow faster on zoom-in, preventing clutter at low zoom)
+- Higher values = more contrast between zoom levels
+
 **basemapopacity** (number)
 - Opacity of base map tiles: `0.0` (invisible) to `1.0` (opaque)
 - Default: `0.6`
@@ -98,8 +108,10 @@ Configure map behavior and rendering.
 **Example:**
 ```javascript
 .options({
+    featurescaling: "true",
     objectscaling: "dynamic",
-    normalSizeScale: "1000000",
+    normalSizeScale: "50000",     // lower value for city-scale maps
+    dynamicScalePow: "1.8",       // aggressive zoom scaling for dense data
     basemapopacity: 0.7,
     flushChartDraw: 1000000
 })
@@ -234,6 +246,105 @@ Define the data source.
 - `"geobuf"` - GeoBuf format
 - `"pbf"` - GeoBuf format
 
+**For programmatic multi-source loading (`query` + `ixmaps.setExternalData`):**
+
+Use this pattern when you need to load multiple files, merge them, and/or transform the combined result before handing it to the layer. The `query` property takes a function string (like `process`); the function receives a `themeObj` and an `options` object and must call `ixmaps.setExternalData(table, options)` to inject the final Data.Table.
+
+```javascript
+var loadData = function(themeObj, options) {
+    Data.provider()                // ✅ preferred form; Data.broker() / new Data.Broker() are deprecated
+        .addSource("https://example.com/data_2022.csv.gz", "csv")
+        .addSource("https://example.com/data_2023.csv.gz", "csv")
+        .addSource("https://example.com/data_2024.csv.gz", "csv")
+        .realize(function(dataA) {
+            // Keep only needed columns (saves memory with large datasets)
+            for (var i = 0; i < dataA.length; i++) {
+                dataA[i] = dataA[i].subtable({ fields: ['lat', 'lon', 'category', 'value'] });
+            }
+            // Merge all tables into dataA[0]
+            dataA[0].append(dataA[1]);
+            dataA[0].append(dataA[2]);
+
+            // Optionally transform columns in place
+            dataA[0].column("category").map(function(v) {
+                if (v == 1) return "Low";
+                if (v == 2) return "Medium";
+                if (v == 3) return "High";
+                return v;
+            });
+
+            // REQUIRED: inject the merged table into the layer
+            options.type = "dbtable";
+            ixmaps.setExternalData(dataA[0], options);
+        });
+};
+
+myMap.layer("accidents")
+    .data({
+        name: "themeDataObj",      // fixed name — tells ixmaps to expect external data
+        query: loadData.toString(), // serialized function string
+        cache: "true"              // cache so shared layers reuse the same load
+    })
+    .binding({ position: "lat|lon", value: "value", title: "category" })
+    .type("CHART|BUBBLE|SIZE|VALUES|CATEGORICAL|AGGREGATE|COUNT|RECT")
+    .style({ ... })
+    .define();
+```
+
+**Key points:**
+- `name: "themeDataObj"` — fixed sentinel name; tells ixmaps the data comes via `setExternalData`
+- `query: fn.toString()` — serialized function string; the function receives `(themeObj, options)` and must call `ixmaps.setExternalData(data, options)` when ready
+- **`options.type` must be set before calling `setExternalData`** — two valid values:
+  - `options.type = "dbtable"` — when passing a Data.js table (from `Data.provider().realize()`)
+  - `options.type = "json"` — when passing a plain JSON array of objects (e.g. from `fetch()` + manual CSV parse)
+- `ixmaps.setExternalData(data, options)` — injects the data into the waiting layer
+- `cache: "true"` — multiple layers sharing the same `name` reuse one load (efficient for overlays)
+- Use `subtable({ fields: [...] })` before `append()` to discard unneeded columns — critical for memory when merging millions of rows
+- `Data.Broker` is the right tool for Data.js tables; use `fetch()` + manual parse for multi-source CSV with custom transformations
+
+**Pattern: multi-CSV fetch with custom parsing (e.g. semicolon-delimited, European decimals):**
+```javascript
+var loadData = function(themeObj, options) {
+    var csvUrls = { "2020": "https://...", "2021": "https://..." };
+
+    function parseCSV(text, anno) {
+        var lines = text.split('\n');
+        var sep = lines[0].indexOf(';') >= 0 ? ';' : ',';
+        var header = lines[0].split(sep).map(function(h) { return h.trim(); });
+        var latIdx = header.findIndex(function(h) { return /^latitud/i.test(h); });
+        var lonIdx = header.findIndex(function(h) { return /^longitud/i.test(h); });
+        var records = [];
+        for (var i = 1; i < lines.length; i++) {
+            var cols = lines[i].split(sep);
+            var lat = parseFloat((cols[latIdx] || '').replace(',', '.'));  // fix EU decimals
+            var lon = parseFloat((cols[lonIdx] || '').replace(',', '.'));
+            if (!isNaN(lat) && !isNaN(lon)) records.push({ lat, lon, anno });
+        }
+        return records;
+    }
+
+    var annos = Object.keys(csvUrls), allRecords = [], loaded = 0;
+    annos.forEach(function(anno) {
+        fetch(csvUrls[anno]).then(function(r) { return r.text(); }).then(function(text) {
+            allRecords = allRecords.concat(parseCSV(text, anno));
+            if (++loaded === annos.length) {
+                options.type = "json";                   // ← plain JSON array
+                ixmaps.setExternalData(allRecords, options);
+            }
+        });
+    });
+};
+
+myMap.layer("sinistri")
+    .data({ name: "sinistriData", query: loadData.toString(), cache: "true" })
+    .binding({ position: "lat|lon", value: "anno" })
+    ...
+    .define();
+```
+⚠️ **The function must be entirely self-contained** (no closure variables) because `.toString()` serialises only the function body — any variables referenced from an outer scope will be `undefined` when ixmaps evaluates the serialised string.
+
+---
+
 ### `.binding(config)` ⚠️ REQUIRED
 
 Map data fields to map properties.
@@ -305,8 +416,8 @@ Specify visualization type.
 - `"CHART|BUBBLE|SIZE|VALUES"` - Sized bubbles
 - `"CHART|PIE"` - Pie charts
 - `"CHART|BAR|VALUES"` - Bar charts
-- `"CHART|BUBBLE|SIZE|AGGREGATE"` - Density grid
-- `"CHART|GRID|AGGREGATE"` - Square grid
+- `"CHART|BUBBLE|SIZE|AGGREGATE"` - Density grid (circles, sized by count)
+- `"CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE"` + `symbols:"square"` - Density grid (filled squares)
 - `"CHART|VECTOR|BEZIER|POINTER"` - Directional flow arrows (origin → destination)
 
 **GeoJSON/TopoJSON types:**
@@ -527,10 +638,10 @@ Milan,45.4642,9.1900,1378000
 ### Data Preprocessing with `process`
 
 The `process` property allows you to transform data **after loading but before visualization**. This is useful for:
-- Standardizing field values (e.g., region name variations)
-- Computing derived fields (e.g., "is_cross_region")
-- Converting data formats (e.g., string to number)
-- Filtering or enriching records
+- Adding computed columns (categories, derived values, parsed sub-fields)
+- Standardizing or transforming existing column values
+- Filtering records
+- Enriching data before binding
 
 **Syntax:**
 ```javascript
@@ -544,119 +655,127 @@ The `process` property allows you to transform data **after loading but before v
 
 **Preprocessing function signature:**
 ```javascript
-function preprocessData(data, options) {
-    // data: array of objects (one per CSV row or JSON record)
-    // options: data configuration object
+function preprocessData(data) {
+    // data: a Data.Table object — NOT a plain array
+    // Use data.addColumn(), data.column(), data.filter(), etc.
 
-    // Transform data in place or return modified data
-    data.forEach(record => {
-        // Modify each record
-        record.newField = computeValue(record);
+    data.addColumn({ source: 'existingField', destination: 'newField' }, function(value, row) {
+        return transformedValue(value);
     });
 
-    return data;  // Return transformed data
+    return data;  // Return the Data.Table
 }
 ```
 
-**Example 1: Standardize region names**
+> ❌ **Do NOT use** `data.forEach(record => {...})` — `data` is a **Data.Table**, not an array.
+> ✅ Use `data.addColumn()`, `data.column().map()`, `data.filter()`, `data.select()`.
+> See `DATA_JS_GUIDE.md` for the full Data.Table API reference.
+
+**Example 1: Extract fields from a nested JSON column**
+
+When the API returns nested objects (e.g. `{ "current": { "temperature": 25, "humidity": 60 } }`):
 ```javascript
-// Define preprocessing function as variable
-var standardizeRegions = function(data, options) {
-    data.forEach(record => {
-        // Fix naming inconsistencies
-        if (record.region === "EMILIA ROMAGNA") {
-            record.region = "EMILIA-ROMAGNA";
-        }
-        if (record.region === "TRENTINO ALTO ADIGE") {
-            record.region = "TRENTINO-ALTO ADIGE";
-        }
+var extractFields = function(data) {
+    data.addColumn({ source: 'current', destination: 'temperature' }, function(c, row) {
+        return c ? Math.round(c.temperature || 0) : 0;
+    });
+    data.addColumn({ source: 'current', destination: 'humidity' }, function(c, row) {
+        return (c && c.humidity != null) ? c.humidity.toFixed(1) : '-';
     });
     return data;
 };
 
-// Use in layer definition with .toString()
-myMap.layer("regions")
-    .data({
-        url: "https://example.com/data.csv",
-        type: "csv",
-        process: standardizeRegions.toString()  // ← String representation!
-    })
-    .binding({ geo: "lat|lon", value: "population" })
+myMap.layer("weather")
+    .data({ url: apiUrl, type: "json", process: extractFields.toString() })
+    .binding({ position: "latitude|longitude", value: "temperature", title: "city" })
     .type("CHART|BUBBLE|SIZE|VALUES")
     .define();
 ```
 
-**Example 2: Compute derived fields**
+**Example 2: Add a computed category column**
 ```javascript
-// Add computed "is_interstate" field
-var addDerivedFields = function(data, options) {
-    data.forEach(record => {
-        // Compute boolean field
-        record.is_interstate = (record.origin_state !== record.dest_state) ? "true" : "false";
+var addCategory = function(data) {
+    data.addColumn({ source: 'aqi', destination: 'category' }, function(v, row) {
+        if (v <= 20)  return 'Good';
+        if (v <= 40)  return 'Fair';
+        if (v <= 60)  return 'Moderate';
+        if (v <= 80)  return 'Poor';
+        if (v <= 100) return 'Very Poor';
+        return 'Extremely Poor';
+    });
+    return data;
+};
+```
 
-        // Compute numeric field
-        record.distance_km = calculateDistance(record.origin_lat, record.origin_lon,
-                                              record.dest_lat, record.dest_lon);
+**Example 3: Standardize an existing column in place**
+
+Use `data.column('name').map(fn)` to transform values in place (no new column added):
+```javascript
+var standardizeRegions = function(data) {
+    data.column('region').map(function(value, row, index) {
+        if (value === 'EMILIA ROMAGNA')     return 'EMILIA-ROMAGNA';
+        if (value === 'TRENTINO ALTO ADIGE') return 'TRENTINO-ALTO ADIGE';
+        return value;
     });
     return data;
 };
 
-myMap.layer("flows")
+myMap.layer("regions")
     .data({
-        url: "flows.csv",
+        url: "https://example.com/data.csv",
         type: "csv",
-        process: addDerivedFields.toString()  // ← String representation!
+        process: standardizeRegions.toString()
     })
-    .filter("WHERE is_interstate == \"true\"")  // ← Use derived field in filter (escape " for string values)
-    .binding({
-        position: "origin_state",
-        position2: "dest_state",
-        value: "distance_km"
-    })
-    .type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
+    .binding({ lookup: "region", value: "population" })
+    .type("CHOROPLETH")
     .define();
 ```
 
-**Example 3: Transform TopoJSON properties**
-```javascript
-// Convert region names to uppercase for consistent IDs
-var uppercaseRegions = function(topoData, options) {
-    topoData.objects.regions.geometries.forEach(region => {
-        if (region.properties && region.properties.reg_name) {
-            region.properties.reg_name = region.properties.reg_name.toUpperCase();
-        }
-    });
-    return topoData;
-};
+**Example 4: Add a row-index column (using closure counter)**
 
-myMap.layer("regions")
-    .data({
-        url: "regions.topojson",
-        type: "topojson",
-        name: "regions",
-        process: uppercaseRegions.toString()  // ← String representation!
-    })
-    .binding({ geo: "geometry", id: "reg_name", title: "reg_name" })
-    .type("FEATURE")
-    .define();
+`addColumn` callbacks do not receive row index — use a closure counter:
+```javascript
+var addNames = function(data) {
+    var names = ['Roma', 'Milano', 'Napoli', 'Torino'];
+    var i = 0;
+    data.addColumn({ destination: 'city' }, function(row) {
+        return names[i++] || '';
+    });
+    return data;
+};
+```
+
+**Example 5: Combine two source columns into one**
+```javascript
+var combineFields = function(data) {
+    data.addColumn({ source: ['first_name', 'last_name'], destination: 'full_name' },
+        function(first, last, row) {
+            return first + ' ' + last;
+        }
+    );
+    return data;
+};
 ```
 
 **Key Points:**
-- ✅ Function is called **after data loads, before visualization**
-- ✅ Modify data in place OR return new data object
-- ✅ Works with CSV, JSON, GeoJSON, and TopoJSON
-- ✅ Can add new fields, modify existing fields, or filter records
+- ✅ `data` is a **Data.Table** — use `data.addColumn()`, `data.column()`, `data.columnIndex()`
+- ✅ `addColumn({ source: 'field', destination: 'newField' }, fn)` — `fn(sourceValue, row)`
+- ✅ `addColumn({ source: ['f1','f2'], destination: 'out' }, fn)` — `fn(v1, v2, row)` for multi-source
+- ✅ `addColumn({ destination: 'out' }, fn)` — no source → `fn(row)` only (use closure counter for index)
+- ✅ `column('name').map(fn)` — `fn(value, row, index)`, transforms column in place
+- ✅ `data.filter(fn)` — keep rows where `fn(row)` is truthy
+- ✅ `data.select('WHERE "col" = "val"')` — SQL-like filtering
+- ✅ `data.json()` — convert to array of plain objects (useful for debugging)
 - ✅ **CRITICAL:** Use `.toString()` to convert function to string: `process: myFunc.toString()`
-- ✅ Define function as `var` or `function` declaration (both work with `.toString()`)
-- ⚠️ Process function runs synchronously - keep it fast
-- ⚠️ New fields are available in `.binding()`, `.filter()`, and tooltips
+- ❌ Do NOT use `data.forEach(...)` — Data.Table is not a plain array
+- ❌ Do NOT use `data.column('x').index` — use `data.columnIndex('x')` instead
 
 **Common Use Cases:**
-1. **Name standardization**: Fix spelling variations, add hyphens, change case
-2. **Derived fields**: Compute categories, booleans, or calculated values
-3. **Data enrichment**: Add lookup values or join with other data
-4. **Format conversion**: Parse dates, convert strings to numbers
-5. **Record filtering**: Remove invalid or incomplete records
+1. **Nested object extraction**: Unpack `current.temperature` into a top-level `temperature` column
+2. **Computed categories**: Map numeric ranges to string labels
+3. **Name standardization**: Fix spelling variations, change case
+4. **Derived fields**: Combine, calculate, or classify values
+5. **Record filtering**: Remove incomplete or out-of-range rows
 
 ---
 
@@ -978,13 +1097,274 @@ Complete visualization type reference.
 - Density grid with sized bubbles
 - Use with: `value: "$item$"` and `gridwidth` in style
 
-**CHART|GRID|AGGREGATE**
-- Density grid with square cells
-- Use with: `value: "$item$"` and `gridwidth` in style
+**CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE** (square cell density)
+- Density grid with filled square cells (heatmap style)
+- Use with: `value: "$item$"`, `gridwidth` in style, and **`symbols: "square"`** in style
+- ❌ `CHART|GRID|AGGREGATE` does NOT exist — always use `CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE` + `symbols:"square"` for square cells
 
 **CHART|DOT|AGGREGATE**
 - Density grid with dots
 - Use with: `value: "$item$"` and `gridwidth` in style
+
+---
+
+## Multi-Variable Charts
+
+Multi-variable charts display **more than one value** per location — either by breaking a categorical field into per-category counts, or by showing a multi-field value array. Each grid cell or point gets its own mini-chart (pie, bar, sequence of symbols, line curve, etc.).
+
+### How the value array is built
+
+There are three ways to feed a multi-variable chart:
+
+| Method | Binding | Style | Aggregation |
+|--------|---------|-------|-------------|
+| **Explicit fields** | `values: "f1\|f2\|f3"` | `label:[]` names the segments | No aggregation needed |
+| **Categorical count** | `value: "catField"` | `values:[...]` lists the categories | `CATEGORICAL\|AGGREGATE\|COUNT\|RECT` — counts rows per category per grid cell |
+| **Categorical sum** | `value: "catField"` + `sizefield: "numericField"` | `values:[...]` lists the categories | `CATEGORICAL\|AGGREGATE\|SUM\|RECT` — sums `sizefield` per category per grid cell |
+
+The `values:` + `label:` arrays in `.style()` always map the **category codes** → **display labels** (and implicitly define the segment order and colorscheme index).
+
+**Categorical sum detail:** `sizefield` in `.style()` names the numeric column to sum. The `value` binding still defines the categorical axis (which segment), while `sizefield` provides the magnitude to accumulate:
+
+```javascript
+.binding({ position: "lat|lon", value: "accident_type" })
+.type("CHART|SYMBOL|SEQUENCE|CATEGORICAL|AGGREGATE|SUM|RECT|...")
+.style({
+    sizefield:   "injured_count",  // ← numeric column to sum per category per cell
+    values:      ["rear-end", "side", "pedestrian"],
+    label:       ["Rear-end", "Side", "Pedestrian"],
+    colorscheme: ["#0066cc", "#ddbb22", "#ff0088"]
+})
+```
+
+Without `sizefield`, use `COUNT` instead of `SUM` (no numeric column needed — just tallies rows).
+
+### Available multi-variable chart types (partial list — more will be added)
+
+| Type | Description |
+|------|-------------|
+| `CHART\|PIE` | Pie / donut chart |
+| `CHART\|BAR` | Horizontal bar chart |
+| `CHART\|SYMBOL\|SEQUENCE` | Stack of colored symbols (circles/squares), one per category |
+| `CHART\|SYMBOL\|PLOT\|LINES` | Line / area curve chart (time series per cell) |
+
+---
+
+## CHART|SYMBOL|SEQUENCE — Categorical Symbol Stack
+
+Renders a **stacked column of proportionally-sized colored symbols** (one symbol per category), sized by count or sum. The overall chart height represents the total, and each segment's height represents its category share. Used for spatial aggregation of categorical point data.
+
+**Typical use:** show the breakdown of accident types, land-use categories, incident categories, etc. per grid cell.
+
+### Full type string
+
+```
+GLOW|CHART|SYMBOL|VALUES|SEQUENCE|STAR|SORT|DOWN|SIZEP1|CATEGORICAL|AGGREGATE|COUNT|RELOCATE|TEXTLEGEND|RECT|CLIPTOGEOBOUNDS
+```
+
+### Key flags explained
+
+| Flag | Role |
+|------|------|
+| `CHART\|SYMBOL` | Base: render a chart made of symbols (circles by default) |
+| `SEQUENCE` | Stack symbols vertically, one per active category |
+| `STAR` | **Radial/star layout** — symbols radiate outward from the center like flower petals instead of stacking in a vertical column. Each category gets its own petal, sized by its share. Preferred over the default linear stack when there are many categories (5+), since no single direction is overloaded and the overall shape stays compact and readable at small sizes. |
+| `SORT\|DOWN` | Sort segments largest-first, descending |
+| `SIZEP1` | Size the first (dominant) segment proportionally to the total |
+| `CATEGORICAL` | Treat the value field as categorical (not numeric) |
+| `AGGREGATE\|COUNT` | Spatial aggregation: count rows per category per grid cell |
+| `RECT` | Rectangular grid cell aggregation (vs hexagonal) |
+| `RELOCATE` | Shift chart position to avoid symbol overlap at edges |
+| `TEXTLEGEND` | Show text-based legend (category names as labels) |
+| `VALUES` | Render numeric count labels on segments |
+| `CLIPTOGEOBOUNDS` | Clip charts to the map geographic bounds |
+| `GLOW` | Add a soft glow/halo behind each symbol for legibility |
+| `NOLEGEND` | Suppress the layer from the legend panel (use when a companion legend exists) |
+
+### Binding
+
+```javascript
+.binding({
+    position: "lat|lon",   // point positions
+    value: "UART",         // categorical field — unique values become segments
+    title: "UART"
+})
+```
+
+### Style
+
+```javascript
+.style({
+    // Explicit category → color mapping (parallel arrays)
+    colorscheme: ["none", "#0066cc", "#ddbb22", "#ff0088", "#88dd88"],
+    values:      ["0",    "1",       "3",       "6",       "4"],   // category codes
+    label:       ["other","rear-end","side",    "pedestrian","head-on"], // display names
+
+    fillopacity:    0.9,
+    scale:          1,             // overall chart scale factor
+    normalsizevalue: 20,           // cell count where chart appears at "normal" size
+    valuescale:     1,
+    valuedecimals:  0,
+    clipparts:      10,            // max segments to render per chart
+    maxcharts:      100000,        // cap on total charts rendered
+
+    // Zoom-dependent aggregation cell size
+    aggregation: ["1:1", "3px", "1:500000", "2px"],  // [scale, px, scale, px, ...]
+
+    // Scale-dependent visibility
+    clipupper:   "1:1000000",  // hide charts above this map scale
+    valuesupper: "1:10000",    // hide value labels above this map scale
+
+    showdata: "true",
+    name: "chart"              // theme name for changeThemeStyle() targeting
+})
+```
+
+### Complete example
+
+```javascript
+myMap.layer("accidents")
+    .data({ url: "accidents.csv", type: "csv" })
+    .binding({
+        position: "lat|lon",
+        value: "accident_type",
+        title: "accident_type"
+    })
+    .type("GLOW|CHART|SYMBOL|VALUES|SEQUENCE|STAR|SORT|DOWN|SIZEP1|CATEGORICAL|AGGREGATE|COUNT|RECT|CLIPTOGEOBOUNDS")
+    .style({
+        colorscheme:     ["#0066cc", "#ddbb22", "#ff0088", "#88dd88", "#aaaaaa"],
+        values:          ["rear-end", "side", "pedestrian", "head-on", "other"],
+        label:           ["Rear-end", "Side impact", "Pedestrian", "Head-on", "Other"],
+        fillopacity:     0.9,
+        scale:           1,
+        normalsizevalue: 20,
+        clipparts:       5,
+        maxcharts:       100000,
+        aggregation:     ["1:1", "3px", "1:500000", "2px"],
+        clipupper:       "1:1000000",
+        showdata:        "true"
+    })
+    .meta({ title: "Accident Types" })
+    .define();
+```
+
+---
+
+## CHART|SYMBOL|PLOT|LINES — Time-Series Curve Chart
+
+Renders a **line/area curve chart** per grid cell, showing how a value changes across an ordered set of categories (typically years or time steps). Each cell shows its own mini sparkline. Used for trend analysis across time within spatial grid cells.
+
+**Typical use:** show how accident counts, case numbers, or measurements evolved year-by-year per area.
+
+### Full type string
+
+```
+CHART|SYMBOL|PLOT|LINES|AREA|LASTARROW|SMOOTH|CATEGORICAL|BOX|XAXIS|FIXSIZE|GRIDSIZE|ZEROISNOTVALUE|AGGREGATE|RECT|SUM|NOSORT|NOLEGEND|CLIPTOGEOBOUNDS
+```
+
+### Key flags explained
+
+| Flag | Role |
+|------|------|
+| `CHART\|SYMBOL\|PLOT` | Base: render a plot/chart as a symbol per location |
+| `LINES` | Draw lines connecting data points |
+| `AREA` | Fill area under the line |
+| `SMOOTH` | Smooth/interpolate the curve between points |
+| `LASTARROW` | Draw a directional arrow at the last data point (shows trend direction) |
+| `BOX` | Draw a background box behind the chart |
+| `XAXIS` | Show x-axis labels (from `xaxis:` style array) |
+| `FIXSIZE` | Chart has a fixed size regardless of data values |
+| `GRIDSIZE` | Chart size matches the grid cell size |
+| `CATEGORICAL` | Treat value field as categorical (here: year values as categories) |
+| `AGGREGATE\|SUM` | Spatial aggregation: **sum** the numeric value per category per cell |
+| `AGGREGATE\|COUNT` | Alternative: count occurrences per category per cell |
+| `RECT` | Rectangular grid cell aggregation |
+| `NOSORT` | Keep categories in declared order (crucial for time series — do NOT sort years) |
+| `ZEROISNOTVALUE` | Do not plot zero values (gaps in line where data is absent) |
+| `NOLEGEND` | Suppress the layer from the legend panel |
+| `CLIPTOGEOBOUNDS` | Clip charts to geographic bounds |
+
+### Binding
+
+```javascript
+.binding({
+    position: "lat|lon",
+    value: "UJAHR"    // The field whose unique values form the X-axis (e.g. year)
+})
+```
+
+### Style
+
+```javascript
+.style({
+    colorscheme:     ["#666666"],  // single color for the line/area
+    fillopacity:     "0.05",       // area fill opacity (low = subtle)
+    shadow:          "true",
+
+    // Define the ordered X-axis categories
+    values:  ["2020", "2021", "2022", "2023", "2024"],  // category codes (must match data values)
+    label:   ["2020", "2021", "2022", "2023", "2024"],  // X-axis labels
+    xaxis:   ["2020", "2021", "2022", "2023", "2024"],  // which labels to show on X-axis
+
+    normalsizevalue: "20",    // cell count where chart appears at normal size
+    scale:           "0.9",   // overall scale factor
+    rangescale:      "1",     // Y-axis scale factor
+    linewidth:       "2",     // line stroke width
+    markersize:      "3",     // data point marker size
+    offsetx:         "-18",   // horizontal offset from grid cell center
+    offsety:         "0",     // vertical offset
+    boxopacity:      "0.001", // background box opacity
+    bordercolor:     "none",  // background box border
+    valuescale:      "1",
+    gridwidthpx:     "100",   // grid cell width in pixels
+    name:            "curves" // theme name for changeThemeStyle() targeting
+})
+```
+
+### Complete example
+
+```javascript
+myMap.layer("yearly_trends")
+    .data({ url: "events.csv", type: "csv" })
+    .binding({
+        position: "lat|lon",
+        value: "year"          // categorical year field
+    })
+    .type("CHART|SYMBOL|PLOT|LINES|AREA|SMOOTH|LASTARROW|CATEGORICAL|BOX|XAXIS|FIXSIZE|GRIDSIZE|ZEROISNOTVALUE|AGGREGATE|RECT|COUNT|NOSORT|NOLEGEND|CLIPTOGEOBOUNDS")
+    .style({
+        colorscheme:     ["#0066cc"],
+        fillopacity:     "0.1",
+        values:          ["2020", "2021", "2022", "2023", "2024"],
+        label:           ["2020", "2021", "2022", "2023", "2024"],
+        xaxis:           ["2020", "2021", "2022", "2023", "2024"],
+        normalsizevalue: "20",
+        scale:           "1",
+        rangescale:      "1",
+        linewidth:       "2",
+        markersize:      "3",
+        gridwidthpx:     "100",
+        name:            "curves"
+    })
+    .meta({ title: "Events per Year" })
+    .define();
+```
+
+### Pairing SEQUENCE + PLOT on the same data
+
+A powerful pattern is to show SEQUENCE charts as the primary layer and toggle PLOT curves as an overlay, both sharing the same `Data.provider()` load via `cache: "true"`. The curves layer is added/removed dynamically:
+
+```javascript
+// Toggle curves on/off
+var toggleCurves = function(show) {
+    if (show) {
+        myMap.add(curvesLayer);   // layer pre-defined as variable
+    } else {
+        myMap.remove('curves');   // remove by style.name
+    }
+};
+```
+
+---
 
 ### GeoJSON/TopoJSON Types
 

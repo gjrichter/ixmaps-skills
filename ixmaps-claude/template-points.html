@@ -32,7 +32,8 @@
         // See DATA_HOSTING_GUIDE.md for setup
 
         try {
-            ixmaps.Map("map", {
+            // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
+            const myMap = ixmaps.Map("map", {
                 mapType: "{{MAPTYPE}}",
                 mode: "info"
             })
@@ -45,30 +46,28 @@
             .view({
                 center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
                 zoom: {{ZOOM}}
-            })
-            .legend("{{LEGEND_TITLE}}")
-            .layer(
-                ixmaps.layer("points")
-                    .data({ obj: pointData, type: "json" })
-                    .binding({
-                        geo: "{{GEO_FIELD}}",
-                        {{VALUE_BINDING}}
-                        title: "{{TITLE_FIELD}}"
-                    })
-                    .type("{{VIZ_TYPE}}")
-                    .style({
-                        colorscheme: {{COLORSCHEME}},
-                        {{SCALE_PROPERTY}}
-                        {{GRID_WIDTH}}
-                        opacity: {{OPACITY}},
-                        showdata: "true"
-                    })
-                    .meta({
-                        tooltip: "{{TOOLTIP_TEMPLATE}}"
-                    })
-                    .title("{{LAYER_TITLE}}")
-                    .define()
-            );
+            });
+
+            myMap.layer("points")
+                .data({ obj: pointData, type: "json" })
+                .binding({
+                    geo: "{{GEO_FIELD}}",
+                    {{VALUE_BINDING}}
+                    title: "{{TITLE_FIELD}}"
+                })
+                .type("{{VIZ_TYPE}}")
+                .style({
+                    colorscheme: {{COLORSCHEME}},
+                    {{SCALE_PROPERTY}}
+                    {{GRID_WIDTH}}
+                    opacity: {{OPACITY}},
+                    showdata: "true"
+                })
+                .meta({
+                    tooltip: "{{TOOLTIP_TEMPLATE}}"
+                })
+                .title("{{LAYER_TITLE}}")
+                .define();
 
             setTimeout(() => document.getElementById('loading').style.display = 'none', 1000);
 

@@ -27,7 +27,19 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 8. **`CHART` and `CHOROPLETH` are mutually exclusive** — NEVER combine them (e.g., `CHART|CHOROPLETH` is invalid). Polygon/fill layers use `FEATURE` or `FEATURE|CHOROPLETH`; bubble/symbol layers use `CHART|BUBBLE|…`. Use `FEATURE` (not `CHART`) for all geometry-based themes
 9. **NEVER use `|EXACT` classification** - It's a deprecated classification method from older ixmaps versions (use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL` instead)
 10. **For diverging scales**: `rangecentervalue` requires EVEN number of colors (4, 6, 8). `ranges` requires n+1 values for n colors. DO NOT combine either with QUANTILE/EQUIDISTANT
-11. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"
+11. **🚨 ALWAYS store the map instance — NEVER call `ixmaps.layer()` standalone:**
+    ```javascript
+    // ✅ CORRECT — store map, call .layer() on it
+    const myMap = ixmaps.Map("map", { ... }).options({ ... }).view({ ... });
+    myMap.layer("layerName").data(...).binding(...).type(...).style(...).define();
+
+    // ❌ WRONG — map instance discarded, layer not attached to any map
+    ixmaps.Map("map", { ... }).options({ ... }).view({ ... });
+    ixmaps.layer("layerName")...define();   // ← silently never renders
+    ```
+    - `ixmaps.Map()` returns the map instance — **always assign it to `const myMap`**
+    - All `.layer()` calls must be on `myMap`, not on the global `ixmaps` object
+12. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"
 12. **NEVER** include ixmaps npn
 13. **NEVER** use information from https://ixmaps.ca
 14. **NEVER** use information from https://ixmaps.com
@@ -69,7 +81,8 @@ Is your data...
 │  ├─ Just showing locations? → CHART|DOT
 │  ├─ Sized by values? → CHART|BUBBLE|SIZE|VALUES
 │  ├─ Colored by categories? → CHART|DOT|CATEGORICAL
-│  ├─ Need density heatmap? → CHART|BUBBLE|SIZE|AGGREGATE
+│  ├─ Need density heatmap (circles)? → CHART|BUBBLE|SIZE|AGGREGATE
+│  ├─ Need density heatmap (squares)? → CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE + symbols:"square"
 │  └─ Directional flows (origin→destination)? → CHART|VECTOR|BEZIER|POINTER
 │
 └─ Polygons (GeoJSON/TopoJSON)?
@@ -248,12 +261,15 @@ All GISCO files: projection EPSG:4326 (WGS 84), reference year 2020, global cove
 - `CHART|DOT` - Uniform dots
 - `CHART|DOT|CATEGORICAL` - Dots colored by category
 - `CHART|BUBBLE|SIZE|VALUES` - Sized by values
-- `CHART|SYMBOL` - Custom SVG icons poossible (see SYMBOLS_GUIDE.md)
-- `CHART|SYMBOL|CATEGORICAL` - Custom icons cìpossible colored by category
-- `CHART|SYMBOL|SIZE` - Custom icons possible sized by values
+- `CHART|SYMBOL` - Custom SVG icons possible (see SYMBOLS_GUIDE.md)
+- `CHART|SYMBOL|CATEGORICAL` - Custom icons colored by category
+- `CHART|SYMBOL|SIZE` - Custom icons sized by values
 - `CHART|PIE` - Pie charts
 - `CHART|BAR|VALUES` - Bar charts
-- `CHART|BUBBLE|SIZE|AGGREGATE` - Density grid (add `gridwidth: "5px"` to style)
+- `CHART|BUBBLE|SIZE|AGGREGATE` - Density grid (circles, sized by count; add `gridwidth: "5px"` to style)
+- `CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE` - Density grid (**filled squares**; add `gridwidth: "50px"` + `symbols: "square"` to style) — ❌ `CHART|GRID|AGGREGATE` does NOT exist
+- `CHART|SYMBOL|SEQUENCE` - **Multi-variable**: stacked categorical symbol chart; add `STAR` modifier for radial/flower layout — preferred for 5+ categories (see API_REFERENCE.md)
+- `CHART|SYMBOL|PLOT|LINES` - **Multi-variable**: time-series curve/sparkline per cell (see API_REFERENCE.md)
 
 ### GeoJSON/TopoJSON Geometry Data
 
@@ -410,7 +426,7 @@ When joining external CSV data to geometry (e.g., TopoJSON provinces + CSV stati
 **Example - Provinces with CSV data:**
 ```javascript
 // Layer 1: FEATURE base (geometry only)
-ixmaps.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "provinces.topojson",
         type: "topojson",
@@ -430,7 +446,7 @@ ixmaps.layer("provinces")
     .define();
 
 // Layer 2: CHOROPLETH (same name "provinces", CSV only)
-ixmaps.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "data.csv",
         type: "csv"
@@ -451,7 +467,7 @@ ixmaps.layer("provinces")
     .define();
 
 // Layer 3: BUBBLE (same name "provinces", CSV only)
-ixmaps.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "data.csv",
         type: "csv"
@@ -598,7 +614,7 @@ unless the user explicitly requests a different center or zoom. Standard zoom le
 ### Layer Methods (Order Matters)
 
 ```javascript
-ixmaps.layer("layer_id")
+myMap.layer("layer_id")
     .data()                           // 1. Define data source
     .binding()                        // 2. Map fields (REQUIRED)
     .filter("WHERE field == value")   // 3. Optional filter (MUST start with WHERE)
@@ -1061,7 +1077,7 @@ myMap.layer("migration_flows").type("CHART|VECTOR|...").define();  // FAILS! Dif
 // Piemonte,Campania,95000,Agriculture
 // ...
 
-ixmaps.layer("supply_flows")
+myMap.layer("supply_flows")
     .data({
         url: "https://cdn.jsdelivr.net/gh/user/repo@main/supply-flows.csv",
         type: "csv"
@@ -1259,6 +1275,205 @@ See `/Users/gjrichter/Work/Claude Code/mepa_forniture.html` for a complete imple
 - Adjust `rangescale` — start with `-7`, range is roughly -20 to +20
 - `0` = straight, higher absolute value = more curvature
 - Negative and positive values curve in opposite directions
+
+---
+
+### User-Defined Charts (CHART|USER)
+
+`CHART|USER` lets you draw fully custom SVG shapes at each feature centroid using D3.
+Use it when the built-in chart types (BUBBLE, BAR, VECTOR…) can't express what you need —
+e.g. weather station symbols, wind barbs, thermometers, composite multi-variable icons.
+
+#### Required script dependencies
+
+Load D3 v3 **after** `ixmaps.js`, plus the chart script(s) you need:
+
+```html
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<!-- choose one or more: -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/usercharts/d3/chart.js"></script>       <!-- pinnacleChart -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/usercharts/d3/arrow_chart.js"></script> <!-- arrowChart -->
+<!-- or define your own inline (see below) -->
+```
+
+#### Layer definition
+
+```javascript
+ixMap.layer("myLayer")
+    .data({ obj: data, type: "json" })
+    .binding({ lookup: "joinField", value: "mainValue", title: "nameField" })
+    .type("CHART|USER|SIZE|VALUES")   // USER activates userdraw; add SIZE, VALUES, TITLE as needed
+    .style({
+        userdraw:         "myChart",       // must match window.ixmaps.myChart function name
+        colorscheme:      ["#c62828","#1b5e20"],
+        rangecentervalue: 0,               // optional: split color at this value
+        fillopacity:      0.85,
+        rangescale:       0.2,             // ← controls chart SIZE (NOT scale:)
+        scale:            1,               // scale: does NOT affect size in USER charts
+        units:            "%",
+        linecolor:        "white",
+        linewidth:        1,
+        fadenegative:     0.05,
+        showdata:         "true"
+    })
+    .define();
+```
+
+**⚠️ `rangescale` controls size, NOT `scale`**
+- `args.theme.nRangeScale` ← set by `rangescale` style property
+- `scale` is ignored for sizing in USER charts
+- Formula inside your draw function: `nHeight = args.maxSize * 20 * (args.theme.nRangeScale || 1)`
+
+#### Passing multiple data fields — `values:` binding
+
+`args.item.szLabel` is **always null** in CHART|USER layers. Do NOT use it as a lookup key.
+
+To pass multiple fields to the draw function use `values:` instead of `value:`:
+
+```javascript
+.binding({ lookup: "name", values: "wind_speed|wind_dir|precip", title: "name" })
+// args.value  === args.values[0]  (ixMaps sets primary value from first field)
+// args.values[1] === wind_dir
+// args.values[2] === precip
+```
+
+Inside the draw function:
+```javascript
+var wind_speed = (args.values && args.values[0] != null) ? Number(args.values[0]) : (args.value || 0);
+var wind_dir   = (args.values && args.values[1] != null) ? Number(args.values[1]) : 0;
+var precip     = (args.values && args.values[2] != null) ? Number(args.values[2]) : 0;
+```
+
+**Rule:** put the "main" value first in the `values:` list — it becomes `args.value` and drives
+SIZE scaling, legend range, and tooltip.
+
+#### Writing a custom draw function
+
+```javascript
+window.ixmaps = window.ixmaps || {};
+(function () {
+
+    // _init — called ONCE before the first draw; set up shared SVG defs (gradients, etc.)
+    ixmaps.myChart_init = function (SVGDocument, args) {
+        var svg = d3.select(args.target);
+        if (!ixmaps.d3svgDefs) {
+            ixmaps.d3svgDefs = svg.append('defs');
+        }
+    };
+
+    // draw function — called PER data item / feature centroid
+    ixmaps.myChart = function (SVGDocument, args) {
+
+        // ── Decode values ─────────────────────────────────────────────
+        var val  = args.value || 0;                 // primary value (args.values[0])
+        // var val2 = Number(args.values[1] || 0);  // additional fields if using values:
+
+        if (!args.item) return false;
+
+        // ── Compute chart size ────────────────────────────────────────
+        var REF_H   = 900;   // reference height matching rangescale calibration
+        var nHeight = args.maxSize * 20 * (args.theme.nRangeScale || 1);
+        if (nHeight === 0) return false;
+        var sc = nHeight / REF_H;  // scale factor: internal units → SVG screen units
+
+        // ── Style helpers ─────────────────────────────────────────────
+        var szColor  = args.color
+                     || (args.item && args.item.szColor)
+                     || args.theme.colorScheme[args.class || 0];
+        var szFillOp = args.theme.fillOpacity || 0.85;
+        var szOp     = args.theme.nOpacity    || 1;
+
+        // ── Draw ──────────────────────────────────────────────────────
+        var svg = d3.select(args.target);
+        var g   = svg.append("g").attr("transform", "scale(" + sc + ")");
+
+        var nMax    = Math.max(args.theme.nMax, Math.abs(args.theme.nMin));
+        var nHeight = val / nMax * 900;   // height proportional to value in ref space
+        nHeight    *= (args.theme.nRangeScale || 1);
+
+        g.append("rect")
+            .attr("x", -30).attr("y", -nHeight)
+            .attr("width", 60).attr("height", nHeight)
+            .attr("style", "fill:" + szColor + ";fill-opacity:" + szFillOp + ";opacity:" + szOp);
+
+        // ── Optional value label ──────────────────────────────────────
+        if (args.flag && args.flag.match(/VALUES/)) {
+            var nFontSize = Math.max(nHeight / 5.5, 7);
+            var szText    = ixmaps.formatValue(val, 0) + (args.theme.szUnits || "");
+            svg.append("text")
+                .attr("x", 0).attr("y", -(nHeight * sc + nFontSize * 0.6))
+                .attr("style", "font-size:" + nFontSize + "px;text-anchor:middle;fill:" + szColor)
+                .text(szText);
+        }
+
+        return { x: 0, y: 0 };   // return {x,y} offset — always {0,0} for per-feature charts
+    };
+
+})();
+```
+
+#### Key `args` properties
+
+| Property | Set by |
+|---|---|
+| `args.value` | first field in `value:` or `values:` binding |
+| `args.values[]` | all fields in `values:` binding (pipe-separated) |
+| `args.theme.colorScheme` | `colorscheme` style array |
+| `args.theme.nMax` / `nMin` | auto-computed from data range |
+| `args.theme.nRangeScale` | `rangescale` style property |
+| `args.theme.fillOpacity` | `fillopacity` |
+| `args.theme.nOpacity` | `opacity` |
+| `args.theme.nLineWidth` | `linewidth` |
+| `args.theme.szLineColor` | `linecolor` |
+| `args.theme.szUnits` | `units` |
+| `args.theme.nFadeNegative` | `fadenegative` |
+| `args.theme.szFlag` | type flags string (e.g. `"SHADOW\|GRADIENT"`) |
+| `args.flag` | rendering flags (e.g. `"VALUES\|ZOOM"`) |
+| `args.maxSize` | computed max display size (~300 at Italy zoom 4) |
+| `args.class` | color-class index into colorScheme |
+| `args.item.szLabel` | **always null** in CHART\|USER — do not use |
+| `args.item.szTitle` | title field from binding |
+| `args.item.szColor` | per-feature override color |
+| `args.target` | CSS selector for the SVG element |
+| `args.color` | resolved color for this item |
+| `ixmaps.d3svgDefs` | shared `<defs>` element set in `_init` |
+
+#### Type flags for `CHART|USER`
+
+| Flag | Effect |
+|---|---|
+| `USER` | activates `userdraw` function lookup — required |
+| `SIZE` | scales chart height by value magnitude |
+| `VALUES` | render numeric labels on charts |
+| `TITLE` | render title/name text |
+| `ZOOM` | re-create gradients on zoom (quality, slower) |
+| `SILENT` | suppress hover tooltips on this layer |
+
+#### Pre-built user chart functions
+
+| Script | Function (`userdraw`) | Shape |
+|---|---|---|
+| `chart.js` | `pinnacleChart` | triangle/peak with gradient |
+| `arrow_chart.js` | `arrowChart` | up/down arrows for signed values |
+
+#### Wind direction convention inside draw functions
+
+```javascript
+// staff/arrow points toward wind SOURCE ("comes from" = meteorological convention)
+// Draw unrotated symbol pointing UP (−y), then rotate by wind_dir:
+var gaWind = g.append("g").attr("transform", "rotate(" + wind_dir + ")");
+// rotate(0)   → staff up   → wind from north ✓
+// rotate(90)  → staff right → wind from east ✓
+// rotate(180) → staff down  → wind from south ✓
+```
+
+#### Suppressing tooltips on background FEATURE layers
+
+```javascript
+.type("FEATURE|SILENT")   // disables hover interaction; .meta({tooltip:""}) alone is NOT enough
+```
+
+---
 
 ### Meta (Tooltips)
 
@@ -1535,7 +1750,7 @@ const ixColors = Object.keys(nameMap).filter(k => regionColors[k]).map(k => regi
 const ixNames  = Object.keys(nameMap).filter(k => regionColors[k]).map(k => nameMap[k]);
 
 // Apply to ixMaps layer:
-ixmaps.layer("regions")
+myMap.layer("regions")
     .data({ obj: flowData, type: "json" })
     .binding({ position: "origin", position2: "destination" })
     .type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
@@ -1626,6 +1841,7 @@ For visualizations centered around a target value (e.g., EU 65% recycling target
 **Data handling options:**
 - **Inline data**: Embed JSON array directly: `const data = [{...}];`
 - **External URL**: Use `.data({url: "...", type: "..."})` — any type from the supported formats table
+- **Multi-source programmatic loading**: Use `query` + `ixmaps.setExternalData()` to load multiple files, merge, and inject — see `API_REFERENCE.md` → `.data()` → "programmatic multi-source loading"
 - **User describes data**: Create reasonable sample data
 - **Ensure required fields**: lat/lon for points, geometry for GeoJSON
 
@@ -1650,14 +1866,17 @@ You can transform data **after loading but before visualization** using the `pro
 ```javascript
 // Define as var so you can use .toString()
 var preprocessFunction = function(data) {
-    // Standardize field values using data.js column API
-    data.column("REGION").map(function(v){ return (v || "").toUpperCase(); });
+    // Standardize an existing column in place
+    data.column("REGION").map(function(v) { return (v || "").toUpperCase(); });
 
-    // Add computed fields using index-based row access
-    var iFrom = data.column("FROM").index;
-    var iTo = data.column("TO").index;
-    data.addColumn({ destination: "is_cross" }, function(row){
-        return row[iFrom] === row[iTo] ? "false" : "true";
+    // Add a computed column — pass source column(s) directly to the callback
+    data.addColumn({ source: ['FROM', 'TO'], destination: 'is_cross' }, function(from, to, row) {
+        return from === to ? "false" : "true";
+    });
+
+    // Extract a sub-field from a nested JSON column
+    data.addColumn({ source: 'current', destination: 'aqi' }, function(c, row) {
+        return c ? Math.round(c.european_aqi || 0) : 0;
     });
 
     return data;  // Return the data.js Table object
@@ -1678,8 +1897,10 @@ var preprocessFunction = function(data) {
 - ✅ **CRITICAL:** Use `.toString()` to convert function: `process: myFunc.toString()`
 - ✅ Define as `var functionName = function(data) {...};`
 - ❌ **NEVER** use `data.forEach()` — `data` is not a plain array!
+- ❌ **NEVER** reference outer-scope variables inside the function body — `.toString()` only serialises the function body; outer closures are `undefined` at evaluation time. Make functions fully self-contained.
 
-**See API_REFERENCE.md** for detailed examples and advanced patterns.
+**See `API_REFERENCE.md`** for detailed examples and advanced patterns.
+**See `DATA_JS_GUIDE.md`** for the full `Data.Table` / `Data.Column` API reference.
 
 ## Centralized Data Hosting
 
@@ -1776,7 +1997,7 @@ url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@v1.0.0/by-date/2026-02/citi
 
 ```javascript
 // External hosted data (recommended for production)
-ixmaps.layer("cities")
+myMap.layer("cities")
     .data({
         url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/by-date/2026-02/cities.csv",
         type: "csv"
@@ -1956,6 +2177,7 @@ When skill generates data files:
 - **DATA_HOSTING_GUIDE.md** - ⚠️ IMPORTANT: Complete guide to hosting data on GitHub + CDN
 - **EXAMPLES.md** - Complete working examples
 - **API_REFERENCE.md** - Full API documentation
+- **DATA_JS_GUIDE.md** - ⚠️ CRITICAL: data.js Data.Table API (use this for all `process` functions)
 - **TROUBLESHOOTING.md** - Common issues and solutions
 
 ## Notes

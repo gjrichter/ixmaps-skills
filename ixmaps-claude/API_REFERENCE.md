@@ -1366,6 +1366,128 @@ var toggleCurves = function(show) {
 
 ---
 
+## CHART|SYMBOL|PLOT|LINES — Curves Anchored to Geo-Points (no grid)
+
+A **variant** of the grid-based curve chart where each chart is pinned to the **exact geographic position** of a data point rather than a grid cell. Use this when your data is **already aggregated** (one row per location-year) and you want one curve per named location.
+
+**Key difference from the GRIDSIZE variant:**
+
+| | Grid-based (`GRIDSIZE`) | Point-anchored (`SIZE`, no `GRIDSIZE`) |
+|---|---|---|
+| Data format | Raw events (one row per event) | Pre-aggregated (one row per location-year) |
+| Chart position | Grid cell centroid | Exact point lat/lon |
+| Chart size | Matches cell size | Scaled by `SIZE` flag + `normalsizevalue` |
+| Y-axis | COUNT or SUM of events per cell-year | SUM of `size:` field per location-year |
+| `RECT` flag | Required | Not used |
+| `GRIDSIZE` flag | Required | **Not used** |
+
+### Binding
+
+```javascript
+.binding({
+    position: "lat|lon",
+    value:    "year",       // categorical field → X-axis grouper; string or ["year"]
+    size:     "prestiti",  // numeric field → aggregated (SUM) per X-axis category
+    title:    "name"
+})
+```
+
+- **`value:`** — the categorical field whose distinct values map to X-axis positions; accepts a string `"year"` or array `["year"]`
+- **`size:`** — the numeric field to SUM per category; drives chart height and the `SIZE` scaling
+- **`values:` in style** — **defines the X-axis sequence**: order, count, and which categories appear; data field values are matched against this array
+
+### Type flags (working set)
+
+```
+CHART|SYMBOL|PLOT|LINES|AREA|SMOOTH|FADE|BOX|TITLE|XAXIS|SIZE|NOSORT|ZEROISNOTVALUE|CATEGORICAL|AGGREGATE|SUM
+```
+
+| Flag | Role |
+|------|------|
+| `SIZE` | Scale chart by total aggregated value — replaces `GRIDSIZE` for point-anchored charts |
+| `FADE` | Fade effect on chart |
+| `TITLE` | Show title text from `.meta({ title: "…" })` in the legend panel |
+| `XAXIS` | Show X-axis labels (from `label:` style array) |
+| `NOSORT` | Keep categories in declared `values:` order — **critical for time series** |
+| `ZEROISNOTVALUE` | Skip zero/null values (leaves gaps in the curve) |
+| `CATEGORICAL\|AGGREGATE\|SUM` | Group rows by `value:` category, SUM the `size:` field per group |
+| `LINES` / `AREA` / `SMOOTH` | Line, area fill, interpolation |
+| `BOX` | Background box behind the chart |
+
+### Style
+
+```javascript
+.style({
+    colorscheme:     ["#1565C0"],
+    fillopacity:     "0.12",           // area fill opacity
+    values:          ["2016","2017","2018","2019","2020","2021","2022","2023"],
+    label:           ["'16","'17","'18","'19","'20","'21","'22","'23"],
+    xaxis:           ["'16","","","'19","'20","","","'23"],  // sparse labels
+    normalsizevalue: "5000000",        // reference value: chart at 100% when size=this
+    scale:           "0.05",           // overall chart scale
+    rangescale:      "0.6",            // Y-axis zoom factor
+    linewidth:       "2",
+    markersize:      "1",
+    valuescale:      "0.5",
+    textscale:       "3",
+    boxopacity:      "0.5",
+    bordercolor:     "#cccccc",
+    borderradius:    "10",
+    boxmargin:       "5",
+    showdata:        "true"
+})
+```
+
+### Tooltip with inline chart preview
+
+```javascript
+.meta({
+    tooltip: "{{theme.item.chart}}{{name}}",  // {{theme.item.chart}} = mini chart in tooltip
+    title:   "label shown in legend panel"
+})
+```
+
+### Complete example — library loans 2016–2023
+
+```javascript
+// Data: one row per library-year  { name, lat, lon, year: "2016", prestiti: 35000 }
+myMap.layer("biblioteche")
+    .data({ obj: libData, type: "json" })
+    .binding({
+        position: "lat|lon",
+        value:    "year",
+        size:     "prestiti",
+        title:    "name"
+    })
+    .type("CHART|SYMBOL|PLOT|LINES|AREA|SMOOTH|FADE|BOX|TITLE|XAXIS|SIZE|NOSORT|ZEROISNOTVALUE|CATEGORICAL|AGGREGATE|SUM")
+    .style({
+        colorscheme:     ["#1565C0"],
+        fillopacity:     "0.12",
+        values:          ["2016","2017","2018","2019","2020","2021","2022","2023"],
+        label:           ["'16","'17","'18","'19","'20","'21","'22","'23"],
+        xaxis:           ["'16","","","'19","'20","","","'23"],
+        normalsizevalue: "5000000",
+        scale:           "0.05",
+        rangescale:      "0.6",
+        linewidth:       "2",
+        markersize:      "1",
+        valuescale:      "0.5",
+        textscale:       "3",
+        boxopacity:      "0.5",
+        bordercolor:     "#cccccc",
+        borderradius:    "10",
+        boxmargin:       "5",
+        showdata:        "true"
+    })
+    .meta({
+        tooltip: "{{theme.item.chart}}{{name}}",
+        title:   "prestiti per anno per biblioteca"
+    })
+    .define();
+```
+
+---
+
 ### GeoJSON/TopoJSON Types
 
 **FEATURE**

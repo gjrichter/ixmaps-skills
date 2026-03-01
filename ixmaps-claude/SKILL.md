@@ -269,7 +269,8 @@ All GISCO files: projection EPSG:4326 (WGS 84), reference year 2020, global cove
 - `CHART|BUBBLE|SIZE|AGGREGATE` - Density grid (circles, sized by count; add `gridwidth: "5px"` to style)
 - `CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE` - Density grid (**filled squares**; add `gridwidth: "50px"` + `symbols: "square"` to style) — ❌ `CHART|GRID|AGGREGATE` does NOT exist
 - `CHART|SYMBOL|SEQUENCE` - **Multi-variable**: stacked categorical symbol chart; add `STAR` modifier for radial/flower layout — preferred for 5+ categories (see API_REFERENCE.md)
-- `CHART|SYMBOL|PLOT|LINES` - **Multi-variable**: time-series curve/sparkline per cell (see API_REFERENCE.md)
+- `CHART|SYMBOL|PLOT|LINES` + `GRIDSIZE` - **Multi-variable**: time-series curve per **grid cell** — chart size = cell size; data is raw events aggregated by grid (see API_REFERENCE.md)
+- `CHART|SYMBOL|PLOT|LINES` + `SIZE` (no GRIDSIZE) - **Multi-variable**: time-series curve **anchored to each geo-point** — for pre-aggregated data (one row per point-year); uses `size:` binding for numeric Y, `value:` for categorical X (see API_REFERENCE.md)
 
 ### GeoJSON/TopoJSON Geometry Data
 

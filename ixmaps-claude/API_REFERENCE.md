@@ -82,9 +82,19 @@ Configure map behavior and rendering.
 - `undefined` - Fixed size symbols
 
 **normalSizeScale** (string) ⚠️ REQUIRED with objectscaling
-- Map scale where symbols appear at normal size
-- Common values: `"500000"`, `"1000000"`, `"2000000"`
-- Larger values = smaller symbols at given zoom
+- The **map scale denominator** at which charts render at their normal/default size — i.e. the scale part after "1:" in "1:n"
+- This is the **starting scale** for zoom-dependent chart sizing: charts grow when zooming in past this scale, shrink when zooming out
+- **Set it to match the initial zoom level of the map** so charts appear correctly sized on first load
+- Rough zoom → scale reference (web Mercator, mid-latitudes):
+  - zoom 4 (continent): `"30000000"`
+  - zoom 5 (large country): `"15000000"`
+  - zoom 6 (country, e.g. Italy): `"8000000"`
+  - zoom 8 (region): `"2000000"`
+  - zoom 10 (province/county): `"500000"`
+  - zoom 12 (city): `"100000"`
+  - zoom 14 (district): `"25000"`
+- Larger denominator = charts appear smaller at that zoom; smaller = larger
+- ⛔ **NEVER set to `"1"` or any value below ~`"10000"`** — this tilts the entire scaling mechanism and produces wildly oversized or invisible charts at all zoom levels. Always use a geographically meaningful scale denominator.
 
 **featurescaling** (string)
 - `"true"` - Scale individual features (points/symbols) relative to each other based on zoom
@@ -902,6 +912,25 @@ Complete style property reference.
 - Useful for consistent sizing across datasets
 - Avoid with `|AGGREGATE` (unknown max values)
 
+### Position / Alignment Properties
+
+**align** (string, optional)
+- Controls where the chart is positioned relative to its anchor point
+- Default: `"center"` (chart centered on its geographic position)
+- **Basic values:** `"center"` `"left"` `"right"` `"top"` `"bottom"` `"above"` `"below"`
+- **Combined values** (space-separated): `"top left"`, `"above right"`, `"below left"`, etc.
+- **Pixel offset syntax:** `"23right"` / `"23left"` — shift by fixed pixel amount
+- **Percentage offset syntax:** `"10%right"` / `"10%left"` — shift by % of chart width
+- Only add on user request; default `"center"` is correct for most use cases
+- Examples:
+  ```javascript
+  align: "right"         // anchor left edge of chart to the geo point
+  align: "above"         // chart sits above its geo point
+  align: "top left"      // chart above and to the left
+  align: "23right"       // shift 23px to the right
+  align: "10%left"       // shift 10% of chart width to the left
+  ```
+
 ### Opacity Properties
 
 **opacity** (number)
@@ -1174,7 +1203,7 @@ GLOW|CHART|SYMBOL|VALUES|SEQUENCE|STAR|SORT|DOWN|SIZEP1|CATEGORICAL|AGGREGATE|CO
 | `CATEGORICAL` | Treat the value field as categorical (not numeric) |
 | `AGGREGATE\|COUNT` | Spatial aggregation: count rows per category per grid cell |
 | `RECT` | Rectangular grid cell aggregation (vs hexagonal) |
-| `RELOCATE` | Shift chart position to avoid symbol overlap at edges |
+| `RELOCATE` | Used with `AGGREGATE`: repositions the aggregated chart to the geographic center of the aggregated point positions (instead of the fixed grid cell center) |
 | `TEXTLEGEND` | Show text-based legend (category names as labels) |
 | `VALUES` | Render numeric count labels on segments |
 | `CLIPTOGEOBOUNDS` | Clip charts to the map geographic bounds |

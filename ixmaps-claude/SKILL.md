@@ -266,7 +266,7 @@ All GISCO files: projection EPSG:4326 (WGS 84), reference year 2020, global cove
 - `CHART|SYMBOL|SIZE` - Custom icons sized by values
 - `CHART|PIE` - Pie charts
 - `CHART|BAR|VALUES` - Bar charts
-- `CHART|BUBBLE|SIZE|AGGREGATE` - Density grid (circles, sized by count; add `gridwidth: "5px"` to style)
+- `CHART|BUBBLE|SIZE|AGGREGATE` - Density grid (circles, sized by count; add `gridwidth: "5px"` to style); optionally add `|RELOCATE` on user request (see below)
 - `CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE` - Density grid (**filled squares**; add `gridwidth: "50px"` + `symbols: "square"` to style) — ❌ `CHART|GRID|AGGREGATE` does NOT exist
 - `CHART|SYMBOL|SEQUENCE` - **Multi-variable**: stacked categorical symbol chart; add `STAR` modifier for radial/flower layout — preferred for 5+ categories (see API_REFERENCE.md)
 - `CHART|SYMBOL|PLOT|LINES` + `GRIDSIZE` - **Multi-variable**: time-series curve per **grid cell** — chart size = cell size; data is raw events aggregated by grid (see API_REFERENCE.md)
@@ -562,7 +562,7 @@ ixmaps.Map("map", {
 .view({ center: { lat: 42.5, lng: 12.5 }, zoom: 6 })   // ⚠️ ALWAYS object syntax — NOT positional args!
 .options({
     objectscaling: "dynamic",        // Enable dynamic scaling
-    normalSizeScale: "1000000",      // REQUIRED with objectscaling
+    normalSizeScale: "8000000",      // REQUIRED with objectscaling — match to initial zoom (zoom 6 ≈ 8000000)
     basemapopacity: 0.6,             // Base map transparency
     flushChartDraw: 1000000          // Animation (1000000=instant, 1=slow)
 })
@@ -607,7 +607,7 @@ unless the user explicitly requests a different center or zoom. Standard zoom le
 
 **Map options (.options() method):**
 - `objectscaling`: Dynamic scaling mode
-- `normalSizeScale`: Size scaling reference value
+- `normalSizeScale`: **Map scale denominator** at which charts render at normal size — set to match the initial zoom. Rough guide: zoom 4→`"30000000"`, zoom 5→`"15000000"`, zoom 6→`"8000000"`, zoom 8→`"2000000"`, zoom 10→`"500000"`, zoom 12→`"100000"`, zoom 14→`"25000"`. ⛔ **NEVER `"1"` or tiny values** — breaks the entire scaling mechanism.
 - `basemapopacity`: Base map transparency
 - `flushChartDraw`: Animation speed
 
@@ -741,6 +741,7 @@ ixMap.layer('earthquakes')
 - `linewidth`: Border width (NOT strokewidth)
 - `aggregationfield`: String - field name to group/aggregate by (e.g., "comune", "region")
 - `gridwidth`: String - spatial grid cell size for density heatmaps (e.g., "5px", "10px")
+- `align`: String (optional) - chart alignment relative to its anchor point. Default `"center"`. Basic values: `"center"` `"left"` `"right"` `"top"` `"bottom"` `"above"` `"below"`. Combinable: `"top left"`, `"above right"`. Special: `"23right"` / `"23left"` (pixel offset), `"10%right"` / `"10%left"` (% of chart width). **Only add on user request.**
 - `dopacitypow`: Number - interpolation curve power for DOPACITYMAX/DOPACITYMINMAX (default: 1). For DOPACITYMAX: higher = gentler curve, lower = steeper curve. For DOPACITYMINMAX: controls U-curve steepness. Only used with `DOPACITYMAX` or `DOPACITYMINMAX` type modifiers
 - `dopacityscale`: Number - opacity intensity multiplier for DOPACITYMAX/DOPACITYMINMAX (default: 1). Higher = more opaque, lower = more transparent. Only used with `DOPACITYMAX` or `DOPACITYMINMAX` type modifiers
 
@@ -1606,6 +1607,14 @@ Aggregates items into spatial grid cells for density visualization:
 ```
 
 **Use when:** You want a spatial density heatmap showing where items cluster geographically
+
+**Optional `RELOCATE` modifier (suggest, don't add by default):** When grid cells are large, charts are placed at the fixed cell center, which may not reflect where points actually cluster. You can suggest adding `|RELOCATE` to place each chart at the **geographic center of its aggregated points** instead:
+
+> "The charts are positioned at grid cell centers. If you'd like them repositioned to where the actual points cluster, I can add `RELOCATE` to the type."
+
+```javascript
+.type("CHART|BUBBLE|SIZE|AGGREGATE|RELOCATE")  // only on user request
+```
 
 **Key points:**
 - Use `aggregationfield` to group by data field (comune, region, category)

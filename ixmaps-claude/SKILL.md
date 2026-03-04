@@ -39,6 +39,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
     ```
     - `ixmaps.Map()` returns the map instance — **always assign it to `const myMap`**
     - All `.layer()` calls must be on `myMap`, not on the global `ixmaps` object
+    - **EXCEPTION — animated/timeseries maps:** Use `ixmaps.layer(...)...define()` (global) to **build a theme object** without rendering it, then render with `myMap.layer(theme, "direct")` or `mapInstance.addTheme()`/`replaceTheme()`. See "Animated / Timeseries Maps" section.
 12. **ALWAYS** use CDN "https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"
 12. **NEVER** include ixmaps npn
 13. **NEVER** use information from https://ixmaps.ca
@@ -80,7 +81,7 @@ Is your data...
 ├─ Points (lat/lon)?
 │  ├─ Just showing locations? → CHART|DOT
 │  ├─ Sized by values? → CHART|BUBBLE|SIZE|VALUES
-│  ├─ Colored by categories? → CHART|DOT|CATEGORICAL
+│  ├─ Colored by categories? → CHART|BUBBLE|CATEGORICAL  ⚠️ NOT DOT|CATEGORICAL (legend items non-selectable)
 │  ├─ Need density heatmap (circles)? → CHART|BUBBLE|SIZE|AGGREGATE
 │  ├─ Need density heatmap (squares)? → CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE + symbols:"square"
 │  └─ Directional flows (origin→destination)? → CHART|VECTOR|BEZIER|POINTER
@@ -258,8 +259,9 @@ All GISCO files: projection EPSG:4326 (WGS 84), reference year 2020, global cove
 ```
 
 **Visualization types:**
-- `CHART|DOT` - Uniform dots
-- `CHART|DOT|CATEGORICAL` - Dots colored by category
+- `CHART|DOT` - Uniform dots (non-selectable in legend). ⚠️ Does **NOT** support `VALUES` modifier — use `CHART|BUBBLE|VALUES` or `CHART|SYMBOL|VALUES` for value labels
+- `CHART|DOT|CATEGORICAL` - ⚠️ DEPRECATED for categorical use — legend items non-selectable; use `CHART|BUBBLE|CATEGORICAL` instead
+- `CHART|BUBBLE|CATEGORICAL` - Bubbles colored by category (uniform size, legend items selectable/filterable) ✅ preferred
 - `CHART|BUBBLE|SIZE|VALUES` - Sized by values
 - `CHART|SYMBOL` - Custom SVG icons possible (see SYMBOLS_GUIDE.md)
 - `CHART|SYMBOL|CATEGORICAL` - Custom icons colored by category
@@ -668,6 +670,86 @@ ixMap.layer('earthquakes')
     .define();
 ```
 
+### Animated / Timeseries Maps — Two Patterns
+
+For maps that update data on user interaction (year slider, play button, etc.), there are two approaches. Both require a theme name set in `.meta({ name: "..." })`.
+
+**⚠️ KEY RULE:** Always use global `ixmaps.layer(...)` (NOT `myMap.layer(...)`) to **build** a theme definition without immediately rendering it. Then use one of the two methods below to add/replace it on the map.
+
+#### Method A — `myMap.layer(theme, "direct")` (simpler, preferred)
+
+`myMap.layer(theme, "direct")` is a **smart upsert**: on the first call it adds the theme, on subsequent calls it replaces it atomically (no flicker). Uses the theme's `meta.name` as the key.
+
+```javascript
+function showYear(year) {
+    const yearData = allData.filter(r => r.year === String(year));
+
+    const theme = ixmaps.layer("countries")         // ← global ixmaps, NOT myMap
+        .data({ obj: yearData, type: "json" })
+        .binding({ lookup: "geo", value: "value" })
+        .type("CHOROPLETH|EQUIDISTANT")
+        .style({ colorscheme: ["#f7fbff","#08306b"], fillopacity: 0.85, showdata: "true" })
+        .meta({ name: "defence", tooltip: "<b>{{NAME_ENGL}}</b>: {{value}}%" })
+        .title("Defence spending " + year)
+        .define();                                   // returns theme object, does NOT render
+
+    myMap.layer(theme, "direct");                    // smart upsert — add OR replace
+}
+
+showYear("2023");                                    // no .then() needed
+```
+
+**Advantages:** No `activeTheme` flag, no `.then()` / `mapInstance` needed, simpler code.
+
+#### Method B — explicit `addTheme` / `replaceTheme` via Promise API
+
+`addTheme` and `replaceTheme` are **not** available on the fluent chaining API. They must be called on the resolved map instance obtained from `myMap.then()`.
+
+```javascript
+let activeTheme = null;
+let mapInstance = null;
+
+myMap.then(function(map) {
+    mapInstance = map;
+    showYear("2023");          // init after map is ready
+});
+
+function showYear(year) {
+    if (!mapInstance) return;
+    const yearData = allData.filter(r => r.year === String(year));
+
+    const theme = ixmaps.layer("countries")         // ← global ixmaps, NOT myMap
+        .data({ obj: yearData, type: "json" })
+        .binding({ lookup: "geo", value: "value" })
+        .type("CHOROPLETH|EQUIDISTANT")
+        .style({ colorscheme: ["#f7fbff","#08306b"], fillopacity: 0.85, showdata: "true" })
+        .meta({ name: "defence", tooltip: "<b>{{NAME_ENGL}}</b>: {{value}}%" })
+        .title("Defence spending " + year)
+        .define();
+
+    if (activeTheme) {
+        mapInstance.replaceTheme("defence", theme, "direct");  // atomic swap, no flicker
+    } else {
+        mapInstance.addTheme("defence", theme, "direct");      // first render only
+    }
+    activeTheme = theme;
+}
+```
+
+**Use when:** You need explicit control over add vs replace, or other `mapInstance` methods.
+
+#### Comparison
+
+| | Method A (`myMap.layer`) | Method B (explicit) |
+|---|---|---|
+| Code simplicity | ✅ Simpler | More boilerplate |
+| `.then()` required | ❌ No | ✅ Yes |
+| `activeTheme` flag | ❌ No | ✅ Yes |
+| First call | Auto-add | `addTheme` |
+| Subsequent calls | Auto-replace | `replaceTheme` |
+| Flicker-free | ✅ Yes | ✅ Yes |
+| **Prefer when** | Default choice | Need mapInstance for other calls |
+
 **Filter syntax:**
 - ⚠️ **CRITICAL: ALL filters MUST start with "WHERE"**
 - `.filter("WHERE field == value")` - Single string parameter with WHERE prefix + filter expression
@@ -677,7 +759,8 @@ ixMap.layer('earthquakes')
   - `.filter("WHERE value > 1000")`
   - `.filter("WHERE CNTR_CODE == \"IT\"")`
 - Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`
-- Can use `&&` (AND) and `||` (OR): `.filter("WHERE year == 2024 && value > 1000")`
+- ⚠️ **Use `AND` / `OR` keywords** (NOT `&&` / `||`): `.filter("WHERE year == 2024 AND value > 1000")`
+- Multi-condition example: `.filter("WHERE CNTR_CODE == \"DE\" AND LEVL_CODE == 1")`
 
 **Filter string value quoting rules:**
 - ⚠️ **NEVER use single quotes `'` around filter values** — ixMaps does NOT recognise `'` as a string delimiter; they become part of the matched value and will never match
@@ -736,11 +819,13 @@ ixMap.layer('earthquakes')
   - Higher absolute value = more curvature
   - Example: `rangescale: -7`
 - `normalsizevalue`: Data value that maps to 30px chart size. **Does NOT change the sizing curve**, only shifts the scale. Use with `sizepow` to control both scale and curve (avoid with AGGREGATE)
-- `fillopacity`: Fill opacity (0-1). **ALWAYS use `fillopacity`, NEVER use `opacity`**
+- `fillopacity`: Fill opacity (0-1). **ALWAYS use `fillopacity`, NEVER use `opacity`**. ⚠️ Setting `fillopacity: 0` causes errors in ixMaps — to make a fill completely invisible use `colorscheme: ["none"]` instead
 - `linecolor`: Border color (NOT strokecolor)
 - `linewidth`: Border width (NOT strokewidth)
 - `aggregationfield`: String - field name to group/aggregate by (e.g., "comune", "region")
 - `gridwidth`: String - spatial grid cell size for density heatmaps (e.g., "5px", "10px")
+- `valuedecimals`: Number of decimal places shown by the `VALUES` type modifier (default: `0`; use `1`, `2`, `3`… for precision). Example: `valuedecimals: 1` shows "1.8 %" instead of "2 %"
+- `textcolor`: Text colour for value/title labels rendered by `VALUES` and `TITLE` modifiers (e.g., `"#ffffff"` for white on dark maps)
 - `align`: String (optional) - chart alignment relative to its anchor point. Default `"center"`. Basic values: `"center"` `"left"` `"right"` `"top"` `"bottom"` `"above"` `"below"`. Combinable: `"top left"`, `"above right"`. Special: `"23right"` / `"23left"` (pixel offset), `"10%right"` / `"10%left"` (% of chart width). **Only add on user request.**
 - `dopacitypow`: Number - interpolation curve power for DOPACITYMAX/DOPACITYMINMAX (default: 1). For DOPACITYMAX: higher = gentler curve, lower = steeper curve. For DOPACITYMINMAX: controls U-curve steepness. Only used with `DOPACITYMAX` or `DOPACITYMINMAX` type modifiers
 - `dopacityscale`: Number - opacity intensity multiplier for DOPACITYMAX/DOPACITYMINMAX (default: 1). Higher = more opaque, lower = more transparent. Only used with `DOPACITYMAX` or `DOPACITYMINMAX` type modifiers
@@ -749,6 +834,15 @@ ixMap.layer('earthquakes')
 - ❌ `fillcolor` - Use `colorscheme` instead
 - ❌ `symbolsize` - Use `scale` or `normalsizevalue`
 - ❌ `strokecolor/strokewidth` - Use `linecolor/linewidth`
+
+**Invisible fill — correct pattern:**
+```javascript
+// ✅ CORRECT — colorscheme: ["none"] makes fill transparent
+.style({ colorscheme: ["none"], linewidth: 0, showdata: "true" })
+
+// ❌ WRONG — fillopacity: 0 causes errors in ixMaps
+.style({ colorscheme: ["#fff"], fillopacity: 0 })  // DO NOT USE
+```
 
 ### Dynamic Opacity (DOPACITYMAX)
 
@@ -1140,9 +1234,21 @@ myMap.layer("supply_flows")
 })
 ```
 
-**For minimal visual weight:**
+**For animated flowing arrows (DASH):**
 ```javascript
-.type("CHART|VECTOR|DASH|NOSCALE")  // Dashed lines, constant thickness
+.type("CHART|VECTOR|BEZIER|POINTER|FADEIN|DASH")  // Animated dashes flow along the arrow path
+.style({
+    fillopacity: 1,
+    scale: 0.6
+})
+```
+- `DASH` renders the vector as animated dashes that move in the direction of flow — great for conveying movement/migration
+- Can combine with `BEZIER`, `POINTER`, `FADEIN` freely
+- For static dashed lines (no animation) use `DASH|NOSCALE` without BEZIER
+
+**For minimal visual weight (static dashes):**
+```javascript
+.type("CHART|VECTOR|DASH|NOSCALE")  // Dashed lines, constant thickness, no animation
 .style({
     fillopacity: 0.4    // Prefer fillopacity over opacity
 })
@@ -1630,9 +1736,10 @@ Aggregates items into spatial grid cells for density visualization:
 **Point data:**
 ```javascript
 .binding({ value: "category_field" })  // Field to colorize by
-.type("CHART|DOT|CATEGORICAL")
+.type("CHART|BUBBLE|CATEGORICAL")      // ✅ legend items are selectable/filterable
 .style({ colorscheme: ["100", "tableau"] })  // Dynamic colors
 ```
+⚠️ **Do NOT use `CHART|DOT|CATEGORICAL`** — legend category items are non-selectable (cannot click to filter/highlight). Always prefer `CHART|BUBBLE|CATEGORICAL` for categorical point data.
 
 **GeoJSON data:**
 ```javascript

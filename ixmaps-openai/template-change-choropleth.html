@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{MAP_TITLE}}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: "Helvetica Neue", Arial, sans-serif; background: #e8f2f8; }
+        #map { width: 100%; height: 100vh; }
+
+        /* ── Overlay panels ─────────────────────────────────────────────── */
+        .panel {
+            position: absolute;
+            background: rgba(255,255,255,0.93);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.14);
+            z-index: 1000;
+        }
+
+        /* Title bar */
+        #title-bar {
+            top: 12px; left: 50%; transform: translateX(-50%);
+            padding: 10px 24px;
+            text-align: center;
+            pointer-events: none;
+        }
+        #title-bar h2 { font-size: 15px; font-weight: 700; color: #1a2a3a; letter-spacing: 0.01em; }
+        #title-bar p  { font-size: 11px; color: #667788; margin-top: 3px; }
+
+        /* Legend */
+        #legend { top: 12px; right: 12px; padding: 13px 16px; min-width: 205px; }
+        #legend h4 {
+            font-size: 12px; font-weight: 700; color: #334;
+            margin-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .leg-band  { display: flex; align-items: center; margin-bottom: 5px; gap: 8px; }
+        .leg-swatch {
+            width: 22px; height: 14px; border-radius: 3px;
+            flex-shrink: 0; border: 1px solid rgba(0,0,0,0.12);
+        }
+        .leg-range { font-size: 11px; color: #334; }
+        .leg-note  { font-size: 9px;  color: #8899aa; margin-top: 1px; }
+        .leg-div   { border-top: 1px solid #e0e6ec; margin: 7px 0; }
+
+        /* Pointer direction key */
+        .leg-ptr-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .leg-ptr-arrow { font-size: 14px; font-weight: 700; width: 22px; text-align: center; }
+        .leg-ptr-label { font-size: 10px; color: #556; }
+
+        /* Source bar */
+        #source-bar {
+            bottom: 6px; left: 50%; transform: translateX(-50%);
+            padding: 4px 13px;
+            font-size: 10px; color: #778899;
+            pointer-events: none; white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="title-bar" class="panel">
+    <h2 id="map-title"></h2>
+    <p  id="map-subtitle"></p>
+</div>
+
+<div id="legend" class="panel">
+    <h4 id="legend-header"></h4>
+    <div id="legend-bands"></div>
+    <div id="legend-pointer-key"></div>
+    <div id="legend-no-data"
+         style="font-size:9px;color:#aabbcc;text-align:center;margin-top:4px;"></div>
+</div>
+
+<div id="source-bar" class="panel">
+    <span id="source-text"></span>
+</div>
+
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
+<script>
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ██████████████████  CONFIGURATION — edit this block  ██████████████████████
+// ═══════════════════════════════════════════════════════════════════════════
+
+var MAP_TITLE    = "Change Map Title";          // TODO
+var MAP_SUBTITLE = "% change between two periods · hover for detail";  // TODO
+var MAP_SOURCE   = "Source: …";                  // TODO
+
+var LEGEND_HEADER  = "Change";                  // TODO: top label of legend
+var NO_DATA_LABEL  = "Grey = no data";           // label for countries without data
+
+// ── Geometry source ──────────────────────────────────────────────────────
+// ⚠️ ALWAYS verify field names by fetching the actual source — never assume.
+// For CHOROPLETH joins, use GeoJSON (not TopoJSON): properties must be accessible.
+// GISCO world 60M: idField = "CNTR_ID" (ISO-2), nameField = "NAME_ENGL"
+var GEO_SOURCE = {
+    url:       "https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_60M_2020_4326.geojson",
+    type:      "geojson",   // GeoJSON required for property joins
+    idField:   "CNTR_ID",   // ← verified join field (ISO 3166-1 alpha-2)
+    nameField: "NAME_ENGL"  // ← verified display name field
+};
+
+// ── Data field names ─────────────────────────────────────────────────────
+var DATA_ID_FIELD    = "code";    // must match GEO_SOURCE.idField values (e.g. "DE", "FR")
+var DATA_VALUE_FIELD = "value";   // numeric: positive = growth, negative = decline
+var DATA_TITLE_FIELD = "name";    // display label for tooltips
+
+// ── Change data ──────────────────────────────────────────────────────────
+// Required fields: DATA_ID_FIELD, DATA_VALUE_FIELD, DATA_TITLE_FIELD
+// Add any extra fields you want accessible in tooltips (e.g. period1, period2)
+var CHANGE_DATA = [
+    // TODO: replace with your data
+    { code: "CN", name: "China",       value:  60, period1:  300, period2:  480 },
+    { code: "IN", name: "India",       value:  15, period1:  200, period2:  230 },
+    { code: "US", name: "USA",         value:  -5, period1: 1000, period2:  950 },
+    { code: "DE", name: "Germany",     value: -20, period1:  400, period2:  320 },
+    { code: "RU", name: "Russia",      value: -45, period1:  250, period2:  138 },
+    { code: "GB", name: "UK",          value: -30, period1:  180, period2:  126 },
+    { code: "MX", name: "Mexico",      value:   3, period1:  300, period2:  309 },
+    { code: "TR", name: "Turkey",      value:  12, period1:  100, period2:  112 }
+];
+
+// ── Diverging color scheme (negative → zero → positive) ──────────────────
+// COLORSCHEME must have exactly (CLASS_BREAKS.length - 1) colors.
+// Order: [most_negative, ..., least_negative, least_positive, ..., most_positive]
+// CLASS_BREAKS: n+1 values defining n color classes.
+var COLORSCHEME  = ["#c62828", "#ef5350", "#ffcdd2", "#c8e6c9", "#43a047", "#1b5e20"];
+var CLASS_BREAKS = [-100, -30, -10, 0, 15, 60, 200];  // TODO: adjust to your data range
+
+// ── Pointer chart style ───────────────────────────────────────────────────
+// CHART|BAR|POINTER|ARROW|SIZE: upward arrow = positive, downward = negative
+// Both direction and size encode magnitude — no data pre-processing needed.
+var POINTER_SCALE    = 10;       // overall pointer size (10 works well at world scale)
+var POINTER_SIZEPOW  = 3;        // size power: >1 exaggerates contrast between large/small values
+var POINTER_OPACITY  = 0.85;
+var POINTER_LINECOLOR = "white"; // outline color — improves legibility on choropleth fill
+var POINTER_LINEWIDTH = 1;       // outline width
+var POINTER_FADENEGATIVE = 1;    // 1 = fade downward (negative) arrows slightly vs upward
+var COLOR_NEGATIVE   = "#c62828";  // downward arrow color
+var COLOR_POSITIVE   = "#1b5e20";  // upward arrow color
+
+// ── Legend bands ─────────────────────────────────────────────────────────
+// Describe each color class; use null for a divider line between neg/pos groups.
+// { color, range, note } — note is optional small text below range label.
+var LEGEND_BANDS = [
+    { color: "#1b5e20", range: "> +60%",       note: "" },  // TODO: adjust labels
+    { color: "#43a047", range: "+15 to +60%",  note: "" },
+    { color: "#c8e6c9", range: "0 to +15%",    note: "" },
+    null,                                                     // divider
+    { color: "#ffcdd2", range: "-10 to 0%",    note: "" },
+    { color: "#ef5350", range: "-30 to -10%",  note: "" },
+    { color: "#c62828", range: "< -30%",       note: "" }
+];
+
+// ── Tooltip template ──────────────────────────────────────────────────────
+// Use {{fieldName}} for any field in CHANGE_DATA.
+// HTML is supported.
+var TOOLTIP_TEMPLATE =
+    "<div style='padding:9px;min-width:170px'>" +
+    "<b style='font-size:13px'>{{" + DATA_TITLE_FIELD + "}}</b><br>" +
+    "<table style='margin-top:6px;font-size:11px;width:100%'>" +
+    "<tr><td style='color:#667788'>Period 1</td>" +
+    "    <td align='right'><b>{{period1}}</b></td></tr>" +
+    "<tr><td style='color:#667788'>Period 2</td>" +
+    "    <td align='right'><b>{{period2}}</b></td></tr>" +
+    "<tr><td style='color:#667788;padding-top:4px'>Change</td>" +
+    "    <td align='right' style='padding-top:4px'><b>{{" + DATA_VALUE_FIELD + "}}%</b></td></tr>" +
+    "</table></div>";
+
+// ── Map background colors ─────────────────────────────────────────────────
+var STYLE = {
+    ocean:    "#d6eaf5",
+    oceanLine:"#99bbcc",
+    graticule:"#bbccdd",
+    landFill: "#c8dde8",   // neutral fill for countries without data
+    landLine: "#8aa8bc"
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// END OF CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+
+// ── Populate HTML overlays ────────────────────────────────────────────────
+document.getElementById("map-title").textContent     = MAP_TITLE;
+document.getElementById("map-subtitle").textContent  = MAP_SUBTITLE;
+document.getElementById("source-text").textContent   = MAP_SOURCE;
+document.getElementById("legend-header").textContent = LEGEND_HEADER;
+document.getElementById("legend-no-data").textContent = NO_DATA_LABEL;
+
+// Build legend color bands
+var bandsEl = document.getElementById("legend-bands");
+LEGEND_BANDS.forEach(function(b) {
+    if (!b) {
+        bandsEl.innerHTML += '<div class="leg-div"></div>';
+        return;
+    }
+    bandsEl.innerHTML +=
+        '<div class="leg-band">' +
+        '<div class="leg-swatch" style="background:' + b.color + ';"></div>' +
+        '<div>' +
+        '<div class="leg-range"><b>' + b.range + '</b></div>' +
+        (b.note ? '<div class="leg-note">' + b.note + '</div>' : '') +
+        '</div></div>';
+});
+
+// Build pointer direction key
+document.getElementById("legend-pointer-key").innerHTML =
+    '<div class="leg-div"></div>' +
+    '<div class="leg-ptr-row">' +
+    '<span class="leg-ptr-arrow" style="color:' + COLOR_POSITIVE + '">▲</span>' +
+    '<span class="leg-ptr-label">Growth &nbsp;·&nbsp; arrow size = magnitude</span>' +
+    '</div>' +
+    '<div class="leg-ptr-row">' +
+    '<span class="leg-ptr-arrow" style="color:' + COLOR_NEGATIVE + '">▼</span>' +
+    '<span class="leg-ptr-label">Decline</span>' +
+    '</div>';
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BACKGROUND GEOMETRY  (fixed — no changes needed below)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// World bounding box: dense polygon around geographic extent.
+// NOTE: { type: "Sphere" } is D3-only — NOT valid GeoJSON. Always use this polygon.
+var _bboxPts = (function() {
+    var n = 90, p = [];
+    for (var i = 0; i <= n; i++) p.push([-180 + 360*i/n,  89.99]);
+    for (var i = 1; i <= n; i++) p.push([ 179.99,  89.99 - 179.98*i/n]);
+    for (var i = 1; i <= n; i++) p.push([ 180 - 360*i/n, -89.99]);
+    for (var i = 1; i <  n; i++) p.push([-179.99, -89.99 + 179.98*i/n]);
+    p.push(p[0]);
+    return p;
+})();
+var worldBBox = {
+    type: "FeatureCollection",
+    features: [{ type: "Feature",
+                 geometry: { type: "Polygon", coordinates: [_bboxPts] },
+                 properties: {} }]
+};
+
+// Graticule: meridians + parallels every 30°
+var _graticuleLines = (function() {
+    var lines = [], n = 90;
+    for (var lon = -180; lon <= 180; lon += 30) {
+        var pts = [];
+        for (var i = 0; i <= n; i++) pts.push([lon, -90 + 180*i/n]);
+        lines.push(pts);
+    }
+    for (var lat = -90; lat <= 90; lat += 30) {
+        var pts = [];
+        for (var i = 0; i <= n; i++) pts.push([-180 + 360*i/n, lat]);
+        lines.push(pts);
+    }
+    return lines;
+})();
+var graticuleGeoJSON = {
+    type: "FeatureCollection",
+    features: [{ type: "Feature",
+                 geometry: { type: "MultiLineString", coordinates: _graticuleLines },
+                 properties: {} }]
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAP INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+var ixMap = ixmaps.Map("map", {
+    mapType:       "white",        // SVG projection — no tile basemap
+    mapProjection: "equalearth",   // Equal Earth projection
+    mode:          "info",
+    legend:        "closed",
+    tools:         true
+})
+.view({ center: { lat: 0, lng: 0 }, zoom: 0 })
+.options({
+    objectscaling:   "dynamic",
+    normalSizeScale: "1000000",
+    basemapopacity:  0.75,
+    flushChartDraw:  1000000
+});
+
+
+// ── Layer 0: ocean / bounding box ─────────────────────────────────────────
+ixMap.layer("bbox")
+    .data({ obj: worldBBox, type: "geojson" })
+    .binding({ geo: "geometry" })
+    .type("FEATURE")
+    .style({ colorscheme: [STYLE.ocean], fillopacity: 1.0,
+             linecolor: STYLE.oceanLine, linewidth: 0.8, showdata: "true" })
+    .meta({ tooltip: "" })
+    .define();
+
+// ── Layer 0b: graticule ───────────────────────────────────────────────────
+ixMap.layer("graticule")
+    .data({ obj: graticuleGeoJSON, type: "geojson" })
+    .binding({ geo: "geometry" })
+    .type("FEATURE")
+    .style({ colorscheme: [STYLE.graticule], fillopacity: 0,
+             linecolor: STYLE.graticule, linewidth: 0.4, showdata: "true" })
+    .meta({ tooltip: "" })
+    .define();
+
+
+// ── Layers 1–3: geometry + choropleth fill + signed pointer chart ─────────
+//
+// All three share layer name "countries" so CHOROPLETH and CHART resolve
+// geometry (and centroid positions) from the FEATURE base.
+//
+// Join chain: GEO_SOURCE[GEO_SOURCE.idField] ↔ CHANGE_DATA[DATA_ID_FIELD]
+
+// Layer 1: FEATURE base — loads geometry, registers join key
+ixMap.layer("countries")
+    .data({ url: GEO_SOURCE.url, type: GEO_SOURCE.type })
+    .binding({ geo: "geometry", id: GEO_SOURCE.idField, title: GEO_SOURCE.nameField })
+    .type("FEATURE")
+    .style({
+        colorscheme: [STYLE.landFill],  // neutral fill for features without data
+        fillopacity:  0.55,
+        linecolor:    STYLE.landLine,
+        linewidth:    0.5,
+        showdata:    "true"
+    })
+    .meta({ tooltip: "" })
+    .define();
+
+// Layer 2: CHOROPLETH — joins CHANGE_DATA to geometry by id, fills by value
+ixMap.layer("countries")
+    .data({ obj: CHANGE_DATA, type: "json" })
+    .binding({ lookup: DATA_ID_FIELD, value: DATA_VALUE_FIELD })
+    .type("CHOROPLETH")
+    .style({
+        colorscheme:  COLORSCHEME,
+        ranges:       CLASS_BREAKS,     // explicit breaks — n+1 values for n colors
+        fillopacity:  0.88,
+        linecolor:    STYLE.landLine,
+        linewidth:    0.4,
+        showdata:    "true",
+        units:       "%"
+    })
+    .meta({
+        name:    "change_choropleth",
+        tooltip: TOOLTIP_TEMPLATE
+    })
+    .title(MAP_TITLE)
+    .define();
+
+// Layer 3: CHART|BAR|POINTER|ARROW|SIZE — signed change pointers at centroids
+//
+// Handles positive AND negative values natively — no data splitting needed:
+//   positive value → upward   arrow, sized by magnitude (COLOR_POSITIVE)
+//   negative value → downward arrow, sized by magnitude (COLOR_NEGATIVE)
+//
+// rangecentervalue: 0 splits the two-color scheme at zero.
+ixMap.layer("countries")
+    .data({ obj: CHANGE_DATA, type: "json" })
+    .binding({ lookup: DATA_ID_FIELD, value: DATA_VALUE_FIELD, title: DATA_TITLE_FIELD })
+    .type("CHART|BAR|POINTER|ARROW|SIZE")
+    .style({
+        colorscheme:      [COLOR_NEGATIVE, COLOR_POSITIVE],
+        rangecentervalue: 0,
+        fillopacity:      POINTER_OPACITY,
+        scale:            POINTER_SCALE,
+        sizepow:          POINTER_SIZEPOW,
+        linecolor:        POINTER_LINECOLOR,  // white outline aids legibility on choropleth fill
+        linewidth:        POINTER_LINEWIDTH,
+        fadenegative:     POINTER_FADENEGATIVE, // slightly fades downward arrows vs upward
+        showdata:        "true"
+    })
+    .meta({ tooltip: TOOLTIP_TEMPLATE })
+    .define();
+
+</script>
+</body>
+</html>

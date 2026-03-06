@@ -150,17 +150,17 @@
                 options.objectscaling = "dynamic";
                 options.normalSizeScale = config.normalSizeScale;
             }
-            map.options(options);
+            myMap.options(options);
 
             // Set view
-            map.view({
+            myMap.view({
                 center: config.center,
                 zoom: config.zoom
             });
 
             // Add legend if title provided
             if (config.legendTitle && config.legendTitle !== "") {
-                map.legend(config.legendTitle);
+                myMap.legend(config.legendTitle);
             }
 
             // Add layers

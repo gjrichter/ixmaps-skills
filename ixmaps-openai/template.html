@@ -92,8 +92,8 @@
         // Error handling wrapper
         try {
 
-        // Create and configure the map
-        ixmaps.Map("map", {
+        // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
+        const myMap = ixmaps.Map("map", {
             mapType: "{{MAPTYPE}}",
             mode: "info"  // Enable tooltips on mouseover
         })
@@ -106,18 +106,16 @@
         .view({
             center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
             zoom: {{ZOOM}}
-        })
-        .legend("{{LEGEND_TITLE}}")  // Custom legend title
-        .layer(
-            ixmaps.layer("{{LAYER_ID}}")
-                .data({{DATA_CONFIG}})
-                .binding({{BINDING}})
-                .type("{{VIZ_TYPE}}")
-                .style({{STYLE}})
-                .meta({{META}})
-                .title("{{LAYER_TITLE}}")
-                .define()
-        );
+        });
+
+        myMap.layer("{{LAYER_ID}}")
+            .data({{DATA_CONFIG}})
+            .binding({{BINDING}})
+            .type("{{VIZ_TYPE}}")
+            .style({{STYLE}})
+            .meta({{META}})
+            .title("{{LAYER_TITLE}}")
+            .define();
 
         // Hide loading indicator when map is ready
         setTimeout(function() {

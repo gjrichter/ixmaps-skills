@@ -17,7 +17,8 @@
 
     <script>
         try {
-            ixmaps.Map("map", {
+            // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
+            const myMap = ixmaps.Map("map", {
                 mapType: "{{MAPTYPE}}",
                 mode: "info"
             })
@@ -28,33 +29,31 @@
             .view({
                 center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
                 zoom: {{ZOOM}}
-            })
-            .legend("{{LEGEND_TITLE}}")
-            .layer(
-                ixmaps.layer("features")
-                    .data({
-                        url: "{{DATA_URL}}",
-                        type: "{{DATA_TYPE}}"
-                    })
-                    .binding({
-                        geo: "geometry",
-                        value: "{{VALUE_FIELD}}",
-                        title: "{{TITLE_FIELD}}"
-                    })
-                    .type("{{VIZ_TYPE}}")
-                    .style({
-                        colorscheme: {{COLORSCHEME}},
-                        fillopacity: {{FILL_OPACITY}},
-                        linecolor: "{{LINE_COLOR}}",
-                        linewidth: {{LINE_WIDTH}},
-                        showdata: "true"
-                    })
-                    .meta({
-                        tooltip: "{{TOOLTIP_TEMPLATE}}"
-                    })
-                    .title("{{LAYER_TITLE}}")
-                    .define()
-            );
+            });
+
+            myMap.layer("features")
+                .data({
+                    url: "{{DATA_URL}}",
+                    type: "{{DATA_TYPE}}"
+                })
+                .binding({
+                    geo: "geometry",
+                    value: "{{VALUE_FIELD}}",
+                    title: "{{TITLE_FIELD}}"
+                })
+                .type("{{VIZ_TYPE}}")
+                .style({
+                    colorscheme: {{COLORSCHEME}},
+                    fillopacity: {{FILL_OPACITY}},
+                    linecolor: "{{LINE_COLOR}}",
+                    linewidth: {{LINE_WIDTH}},
+                    showdata: "true"
+                })
+                .meta({
+                    tooltip: "{{TOOLTIP_TEMPLATE}}"
+                })
+                .title("{{LAYER_TITLE}}")
+                .define();
 
             setTimeout(() => document.getElementById('loading').style.display = 'none', 1000);
 

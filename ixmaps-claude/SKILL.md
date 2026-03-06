@@ -269,8 +269,14 @@ All GISCO files: projection EPSG:4326 (WGS 84), reference year 2020, global cove
 - `CHART|PIE` - Pie charts
 - `CHART|BAR|VALUES` - Bar charts
 - `CHART|BUBBLE|SIZE|AGGREGATE` - Density grid (circles, sized by count; add `gridwidth: "5px"` to style); optionally add `|RELOCATE` on user request (see below)
+  - Add `|SUM` to sum a real value field per cell (e.g. total severity) — use `value: "fieldname"` in binding
+  - Add `|MEAN` to average a real value field per cell (e.g. mean severity) — shows intrinsic intensity, removes density bias
+  - Add `|HEADTAIL` for classification suited to heavy-tailed distributions (accidents, income, population) — makes outliers visually distinct
+  - 🌟 **Road-tracing pattern**: `gridwidth: "2px"` + `GLOW` + dark basemap → each point renders as its own glowing dot; glow radii of adjacent points fuse into a continuous luminous thread tracing the route network
 - `CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE` - Density grid (**filled squares**; add `gridwidth: "50px"` + `symbols: "square"` to style) — ❌ `CHART|GRID|AGGREGATE` does NOT exist
 - `CHART|SYMBOL|SEQUENCE` - **Multi-variable**: stacked categorical symbol chart; add `STAR` modifier for radial/flower layout — preferred for 5+ categories (see API_REFERENCE.md)
+  - Add `|CENTER` to stack circles all centered at the anchor point (concentric rather than radial)
+  - Add `|SORT|DOWN` to render larger circles first (behind smaller ones), so small categories stay visible on top
 - `CHART|SYMBOL|PLOT|LINES` + `GRIDSIZE` - **Multi-variable**: time-series curve per **grid cell** — chart size = cell size; data is raw events aggregated by grid (see API_REFERENCE.md)
 - `CHART|SYMBOL|PLOT|LINES` + `SIZE` (no GRIDSIZE) - **Multi-variable**: time-series curve **anchored to each geo-point** — for pre-aggregated data (one row per point-year); uses `size:` binding for numeric Y, `value:` for categorical X (see API_REFERENCE.md)
 
@@ -1725,9 +1731,20 @@ Aggregates items into spatial grid cells for density visualization:
 **Key points:**
 - Use `aggregationfield` to group by data field (comune, region, category)
 - Use `gridwidth` for spatial density grid
-- Both use `value: "$item$"` to count items
-- Avoid `normalsizevalue` (max count unknown)
+- Use `value: "$item$"` to **count** items per cell (default density)
+- Use `value: "fieldname"` + `|SUM` to **sum** a numeric field per cell (e.g. total severity, total revenue)
+- Use `value: "fieldname"` + `|MEAN` to **average** a numeric field per cell — shows intrinsic intensity independent of density (e.g. mean accident severity regardless of how many accidents occurred)
+- Use `|HEADTAIL` classification for heavy-tailed data where most values are small but a few are extreme — produces better color contrast than QUANTILE/EQUIDISTANT for such distributions
+- Avoid `normalsizevalue` when using `$item$` count (max count unknown); it can be used with `SUM`/`MEAN` if you have a reference value
 - These are complementary - choose based on your aggregation goal
+
+**SUM vs MEAN — when to use each:**
+| | `|SUM` | `|MEAN` |
+|---|---|---|
+| **Question answered** | Where is total impact highest? | Where are individual events most severe? |
+| **Bias** | Favours dense corridors (many accidents) | Removes density bias |
+| **Best for** | Cumulative hotspots, budget allocation | Intrinsic danger, quality analysis |
+| **Example** | Total severity per road segment | Average severity when an accident does occur |
 
 ### Categorical Coloring
 

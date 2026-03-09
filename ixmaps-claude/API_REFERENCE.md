@@ -1517,6 +1517,72 @@ myMap.layer("biblioteche")
 
 ---
 
+## CHART|SYMBOL|PLOT|LINES — Pattern A vs Pattern B (choosing the right shape)
+
+The two grid-based sparkline patterns differ in **how the data is shaped**, which determines which type modifiers to use.
+
+### Choosing which pattern to use
+
+| | Pattern A — single column, categorical year | Pattern B — multiple pre-aggregated columns |
+|---|---|---|
+| **Data shape** | One row per event; year stored in a single field (e.g. `year: 2021`) | One row per location; each time step has its own column (e.g. `val2020`, `val2021`) |
+| **`value:` binding** | Name of the year/category field: `value: "year"` | Pipe-chained column names: `value: "val2020\|val2021\|val2022"` |
+| **Required aggregation flags** | `CATEGORICAL\|AGGREGATE\|RECT\|SUM` | ❌ None — data is already aggregated |
+| **Style modifiers** | `AREA\|FADE\|LASTARROW\|FIXSIZE\|NOCLIP` (same) | `AREA\|FADE\|LASTARROW\|FIXSIZE\|NOCLIP` (same) |
+
+### Role of aggregation flags (Pattern A only)
+
+These flags are **aggregation semantics**, not visual style:
+- `CATEGORICAL` — the `value:` field contains discrete category labels (year strings like `"2020"`, `"2021"`), not a numeric measure to plot directly
+- `AGGREGATE` + `RECT` — partition the map into rectangular grid cells and aggregate records that fall inside each cell
+- `SUM` — within each cell, sum counts per category to get the Y-axis value for each time step
+
+### FIXSIZE and normalsizevalue
+
+`FIXSIZE` makes all sparklines render at the **same physical size**, independent of data magnitude:
+- **With `FIXSIZE`**: spark size is constant; controlled by `normalsizevalue` — a **larger value makes sparks smaller** (it is the reference data value that maps to the standard 30 px size, so higher = each unit is worth fewer pixels)
+- **Without `FIXSIZE`**: spark height scales with the data — cells with more events get taller charts
+
+### Pattern A — minimal example
+
+```javascript
+// Data: { lat, lon, year: 2021, ... }  — one row per incident
+myMap.layer("sparks")
+    .data({ obj: events, type: "json" })
+    .binding({ geo: "lat|lon", value: "year" })
+    .type("CHART|SYMBOL|PLOT|LINES|AREA|FADE|LASTARROW|NOCLIP|GRIDSIZE|CATEGORICAL|AGGREGATE|RECT|SUM|FIXSIZE")
+    .style({
+        colorscheme:     ["#00e5ff"],
+        fillopacity:     0.3,
+        gridwidth:       "100px",
+        normalsizevalue: "100",   // tune this: larger = smaller sparks
+        showdata:        "true"
+    })
+    .meta({ tooltip: "{{theme.item.chart}}{{theme.item.data}}" })
+    .define();
+```
+
+### Pattern B — minimal example
+
+```javascript
+// Data: { lat, lon, val2020: 12, val2021: 18, val2022: 9, val2023: 21 }
+myMap.layer("sparks")
+    .data({ obj: preAgg, type: "json" })
+    .binding({ geo: "lat|lon", value: "val2020|val2021|val2022|val2023" })
+    .type("CHART|SYMBOL|PLOT|LINES|AREA|FADE|LASTARROW|NOCLIP|GRIDSIZE|FIXSIZE")
+    .style({
+        colorscheme:     ["#00e5ff"],
+        fillopacity:     0.3,
+        gridwidth:       "100px",
+        normalsizevalue: "100",
+        showdata:        "true"
+    })
+    .meta({ tooltip: "{{theme.item.chart}}{{theme.item.data}}" })
+    .define();
+```
+
+---
+
 ### GeoJSON/TopoJSON Types
 
 **FEATURE**
@@ -1947,7 +2013,189 @@ ixmaps.layer(id)
 
 ---
 
+## Time Slider — `timefield` in `.binding()`
+
+Adding `timefield` to `.binding()` **automatically creates an interactive time slider** in the ixMaps legend panel.
+
+```javascript
+.binding({
+    geo: "lat|lon",    // or "geometry" for GeoJSON
+    value: "magnitude",
+    title: "place",
+    timefield: "time"  // ← field containing date/time values
+})
+```
+
+Works with any layer type: CHART|BUBBLE, CHART|DOT, CHART|SYMBOL, FEATURE|CHOROPLETH, etc.
+
+**Accepted time formats** (via JavaScript `new Date()`):
+- Unix timestamp in **milliseconds** — `1707834000000` ✅ (best)
+- ISO date string — `"2024-02-14"` ✅
+- ISO datetime string — `"2024-02-14T08:30:00Z"` ✅
+
+**Adaptive range buttons** (auto-shown based on total data span):
+
+| Data span | Range buttons | Window size |
+|-----------|--------------|-------------|
+| < 1 day | (none) | single point |
+| 1–7 days | Hour | 1-hour window |
+| 7–55 days | Hour, Day | 1-hour or 1-day window |
+| 55–365 days | Day, Week | 1-day or 7-day window |
+| > 365 days | Week, Month | 7-day or 28-day window |
+
+**Requirements:**
+- `legend: 'open'` in `ixmaps.Map()` so slider is visible on load
+- Time field must exist in data; if missing: `ERROR: timefield 'fieldname' not found!`
+
+**Special values:** `timefield: "$index$"` — frame-based animation using row index
+
+**Full example — USGS earthquake map:**
+```javascript
+const myMap = ixmaps.Map('map', { mapType: 'CartoDB - Dark matter', mode: 'info', legend: 'open' })
+    .view({ center: { lat: 35, lng: -100 }, zoom: 4 });
+
+myMap.layer('earthquakes')
+    .data({ obj: geojsonData, type: 'geojson' })
+    .binding({ geo: 'geometry', value: 'mag', title: 'place', timefield: 'time' })
+    .type('CHART|BUBBLE|SIZE|VALUES')
+    .style({ colorscheme: ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'],
+             fillopacity: 0.80, showdata: 'true', units: ' M' })
+    .meta({ name: 'earthquakes', tooltip: '{{place}} — M{{mag}}' })
+    .define();
+```
+
+---
+
+## Programmatic Time Control — `ixmaps.setThemeTimeFrame()`
+
+Filters a theme's visible features to a time window from JavaScript — without rebuilding the theme. Use when building a custom slider UI.
+
+```javascript
+ixmaps.setThemeTimeFrame(themeId, startTimeMs, endTimeMs);
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `themeId` | string | Must match `name` in `.meta({ name: '...' })` — NOT the layer name |
+| `startTimeMs` | number | Window start as Unix timestamp (ms) |
+| `endTimeMs` | number | Window end as Unix timestamp (ms) |
+
+**Requirements:** theme must have `timefield` in `.binding()`; use `legend: 'closed'` to hide built-in slider.
+
+**Pattern — load once, filter on slider move:**
+```javascript
+myMap.layer('quakes')
+    .data({ obj: allFeatures, type: 'geojson' })
+    .binding({ geo: 'geometry', value: 'mag', timefield: 'time' })
+    .meta({ name: 'quakes' })
+    .define();
+
+slider.addEventListener('input', function () {
+    var endMs   = Number(this.value);
+    var startMs = endMs - windowMs;
+    ixmaps.setThemeTimeFrame('quakes', startMs, endMs);  // lightweight — no debounce needed
+});
+```
+
+| Approach | `legend` | When to use |
+|----------|----------|-------------|
+| `timefield` + `legend: 'open'` | open | Quick built-in slider |
+| `timefield` + `setThemeTimeFrame()` | closed | Custom slider UI, full programmatic control |
+
+---
+
+## CHART|USER — Custom Draw Functions
+
+Lets you draw fully custom SVG shapes at each feature centroid using D3.
+
+**Required dependencies** (load after ixmaps.js):
+```html
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<!-- pre-built options: -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/usercharts/d3/chart.js"></script>       <!-- pinnacleChart -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/usercharts/d3/arrow_chart.js"></script> <!-- arrowChart -->
+```
+Note: `ixmaps_flat` with **underscore** (not hyphen).
+
+**Layer definition:**
+```javascript
+myMap.layer("myLayer")
+    .data({ obj: data, type: "json" })
+    .binding({ lookup: "joinField", value: "mainValue", title: "nameField" })
+    .type("CHART|USER|SIZE|VALUES")
+    .style({
+        userdraw:         "myChart",   // must match window.ixmaps.myChart function name
+        colorscheme:      ["#c62828","#1b5e20"],
+        rangecentervalue: 0,
+        fillopacity:      0.85,
+        rangescale:       0.2,         // ← controls SIZE (NOT scale:)
+        showdata:         "true"
+    })
+    .define();
+```
+
+**⚠️ `rangescale` controls chart size, NOT `scale:`**
+
+**Multiple data fields** — use `values:` (pipe-separated):
+```javascript
+.binding({ lookup: "name", values: "wind_speed|wind_dir|precip", title: "name" })
+// args.value  === args.values[0]
+// args.values[1] === wind_dir, args.values[2] === precip
+// ⚠️ args.item.szLabel is ALWAYS null in CHART|USER — do not use as lookup key
+```
+
+**Key `args` properties in draw function:**
+
+| Property | Source |
+|----------|--------|
+| `args.value` | first field in `value:` / `values:` |
+| `args.values[]` | all pipe-separated fields |
+| `args.theme.colorScheme` | `colorscheme` array |
+| `args.theme.nMax` / `nMin` | auto-computed range |
+| `args.theme.nRangeScale` | `rangescale` property |
+| `args.theme.fillOpacity` | `fillopacity` |
+| `args.theme.szUnits` | `units` |
+| `args.maxSize` | computed max display size |
+| `args.item.szTitle` | title from binding |
+| `args.target` | CSS selector for SVG element |
+
+**Minimal draw function skeleton:**
+```javascript
+window.ixmaps = window.ixmaps || {};
+ixmaps.myChart_init = function (SVGDocument, args) { /* shared SVG defs once */ };
+ixmaps.myChart = function (SVGDocument, args) {
+    var val     = args.value || 0;
+    var nHeight = args.maxSize * 20 * (args.theme.nRangeScale || 1);
+    if (!args.item || nHeight === 0) return false;
+    var sc      = nHeight / 900;
+    var szColor = args.color || args.theme.colorScheme[args.class || 0];
+    var svg = d3.select(args.target);
+    var g   = svg.append("g").attr("transform", "scale(" + sc + ")");
+    g.append("rect")
+        .attr("x", -30).attr("y", -900).attr("width", 60).attr("height", 900 * (val / args.theme.nMax))
+        .attr("style", "fill:" + szColor + ";fill-opacity:" + args.theme.fillOpacity);
+    return { x: 0, y: 0 };
+};
+```
+
+**Type flags for CHART|USER:**
+`USER` (required) · `SIZE` · `VALUES` · `TITLE` · `ZOOM` · `SILENT`
+
+**Pre-built functions:**
+
+| Script | `userdraw` value | Shape |
+|--------|-----------------|-------|
+| `chart.js` | `"pinnacleChart"` | triangle/peak with gradient |
+| `arrow_chart.js` | `"arrowChart"` | up/down arrows for signed values |
+
+**Suppressing tooltips on FEATURE layers:**
+```javascript
+.type("FEATURE|SILENT")   // .meta({tooltip:""}) alone is NOT enough
+```
+
+---
+
 For more information:
-- **SKILL.md** - Skill documentation
-- **EXAMPLES.md** - Working examples
-- **TROUBLESHOOTING.md** - Common issues
+- **SKILL.md** - Skill decision guide and critical rules
+- **EXAMPLES.md** - Complete working examples
+- **TROUBLESHOOTING.md** - Common issues and fixes

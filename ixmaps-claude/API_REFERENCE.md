@@ -1241,7 +1241,8 @@ GLOW|CHART|SYMBOL|VALUES|SEQUENCE|STAR|SORT|DOWN|SIZEP1|CATEGORICAL|AGGREGATE|CO
     aggregation: ["1:1", "3px", "1:500000", "2px"],  // [scale, px, scale, px, ...]
 
     // Scale-dependent visibility
-    clipupper:   "1:1000000",  // hide charts above this map scale
+    chartupper:  "1:1000000",  // hide charts when zoomed out beyond this scale (denominator > N)
+    chartlower:  "1:1000",     // hide charts when zoomed in beyond this scale (denominator < N)
     valuesupper: "1:10000",    // hide value labels above this map scale
 
     showdata: "true",
@@ -1270,7 +1271,7 @@ myMap.layer("accidents")
         clipparts:       5,
         maxcharts:       100000,
         aggregation:     ["1:1", "3px", "1:500000", "2px"],
-        clipupper:       "1:1000000",
+        chartupper:      "1:1000000",
         showdata:        "true"
     })
     .meta({ title: "Accident Types" })

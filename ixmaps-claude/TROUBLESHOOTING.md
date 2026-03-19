@@ -14,6 +14,26 @@ Solutions to common issues when creating ixMaps visualizations.
 8. [Coordinate Problems](#coordinate-problems)
 9. [Browser Issues](#browser-issues)
 10. [Runtime API Issues (Filters & Layer Toggles)](#runtime-api-issues-filters--layer-toggles) ⭐ NEW
+11. [Scale-Dependent Visibility](#scale-dependent-visibility) ⭐ NEW
+
+---
+
+## Scale-Dependent Visibility
+
+**Gotcha: use `chartupper` / `chartlower`, NOT `clipupper` / `cliplower`**
+
+The style properties for hiding a layer outside a scale range are:
+
+```javascript
+.style({
+  chartupper: "1:5000",    // hide when zoomed OUT beyond 1:5000 (denominator > 5000)
+  chartlower: "1:500",     // hide when zoomed IN beyond 1:500  (denominator < 500)
+})
+```
+
+- `chartupper` — hides the layer when the map scale denominator is **larger** than the value (more zoomed out).
+- `chartlower` — hides the layer when the map scale denominator is **smaller** than the value (more zoomed in).
+- `clipupper` / `cliplower` are **not valid** style properties and will be silently ignored.
 
 ---
 
@@ -542,6 +562,30 @@ npx http-server
 ```
 
 Then open: http://localhost:8000/map.html
+
+---
+
+## Reserved HTML Element IDs
+
+ixMaps internally creates and manages several DOM elements by fixed ID. **Never use these IDs for your own elements** — ixMaps will hijack them, leaving visible artifacts (e.g. a white rectangle stuck on the map).
+
+| Reserved ID | What ixMaps uses it for |
+|---|---|
+| `loading-div` | Internal loading indicator — ixMaps overrides its classes and display state |
+| `tooltip` | Hover tooltip panel |
+| `contextmenu` | Right-click context menu |
+
+**Symptom:** A white or semi-transparent box persists on the map after data has loaded, sometimes partially shrunk, with ixMaps-added classes like `pointer-events-none z-index-9999`.
+
+**Fix:** Rename your overlay div to a non-conflicting ID such as `app-loading`, `my-spinner`, etc.
+
+```html
+<!-- ❌ WRONG — conflicts with ixMaps internal element -->
+<div id="loading-div">…</div>
+
+<!-- ✅ CORRECT -->
+<div id="app-loading">…</div>
+```
 
 ---
 

@@ -6,13 +6,14 @@ Solutions to common issues when creating ixMaps visualizations.
 
 1. [Map Not Displaying](#map-not-displaying)
 2. [Data Not Showing](#data-not-showing)
-3. [Data Hosting Issues](#data-hosting-issues) ⭐ NEW
+3. [Data Hosting Issues](#data-hosting-issues)
 4. [Tooltips Not Working](#tooltips-not-working)
 5. [Performance Issues](#performance-issues)
 6. [Styling Issues](#styling-issues)
 7. [GeoJSON Issues](#geojson-issues)
 8. [Coordinate Problems](#coordinate-problems)
 9. [Browser Issues](#browser-issues)
+10. [Runtime API Issues (Filters & Layer Toggles)](#runtime-api-issues-filters--layer-toggles) ⭐ NEW
 
 ---
 
@@ -937,3 +938,116 @@ For more information:
 - **SKILL.md** - Core skill documentation
 - **EXAMPLES.md** - Working code examples
 - **API_REFERENCE.md** - Complete API reference
+
+---
+
+## Runtime API Issues (Filters & Layer Toggles)
+
+### Problem: `changeThemeStyle` has no effect — filter does nothing
+
+**Symptom:** Calling `changeThemeStyle` returns `{szMap: null}` or doesn't update the map.
+
+**Cause:** Using the wrong API form. `ixmaps.map()` (global accessor) cannot find the live map instance — it returns `{szMap: null}`. `changeThemeStyle` is also not available on the fluent chain (calling it there throws "Method is not supported by the fluent chaining API").
+
+**Fix:** Always use the Promise API:
+```javascript
+// ❌ WRONG — returns {szMap: null}, silently no-ops:
+ixmaps.map().changeThemeStyle("punti", "filter:WHERE ...", "set");
+
+// ❌ WRONG — not on fluent chain:
+myMap.changeThemeStyle("punti", "filter:WHERE ...", "set");
+
+// ✅ CORRECT — Promise API:
+myMap.then(function(map) {
+  map.changeThemeStyle("punti", "filter:WHERE tipo in (M,F)", "set");
+});
+
+// To remove the filter:
+myMap.then(function(map) {
+  map.changeThemeStyle("punti", "filter", "remove");
+});
+```
+
+---
+
+### Problem: `changeThemeStyle` silently does nothing even with Promise API
+
+**Symptom:** `myMap.then(map => map.changeThemeStyle(...))` runs without error but the map doesn't update.
+
+**Cause:** The theme can't be found. `changeThemeStyle` finds themes by `name` in `.meta({ name: "..." })` — **not** by the string passed to `myMap.layer("name")`. If `name` is absent from `.meta()`, the call silently no-ops.
+
+**Fix:** Add `name` to every layer's `.meta()` that you plan to filter at runtime:
+```javascript
+// ❌ WRONG — layer string doesn't become the theme name:
+myMap.layer("punti")
+  .meta({ tooltip: "..." })   // no name → changeThemeStyle("punti", ...) won't find it
+  .define();
+
+// ✅ CORRECT:
+myMap.layer("punti")
+  .meta({ name: "punti", tooltip: "..." })   // name matches what changeThemeStyle looks up
+  .define();
+```
+
+This applies to ALL layer types including aggregate/gridsize layers.
+
+**Filter syntax:**
+```javascript
+// Single value:
+map.changeThemeStyle("myLayer", "filter:WHERE tipo == M", "set");
+
+// Multiple values (IN list):
+map.changeThemeStyle("myLayer", "filter:WHERE tipo in (M,F)", "set");
+
+// Remove filter entirely:
+map.changeThemeStyle("myLayer", "filter", "remove");
+```
+
+**Re-aggregation bonus:** When you apply a filter to a `AGGREGATE|GRIDSIZE` layer (grid counts, sparklines), it properly re-aggregates — cell counts and sparkline trends update to reflect only the filtered rows.
+
+---
+
+### Problem: `hideTheme` / `showTheme` has no effect on a layer
+
+**Symptom:** Calling `ixmaps.hideTheme("grid")` does nothing — the layer stays visible.
+
+**Cause:** `hideTheme` and `showTheme` resolve themes by `name` in `.meta()`, exactly like `changeThemeStyle`. If `name` is absent from `.meta()`, the theme can't be found and the call silently no-ops.
+
+**Fix:** Add `name` to the layer's `.meta()` (same fix as for `changeThemeStyle`):
+```javascript
+// ❌ WRONG — no name → hideTheme/showTheme can't find this theme:
+myMap.layer("grid").meta({ }).define();
+
+// ✅ CORRECT:
+myMap.layer("grid").meta({ name: "grid" }).define();
+```
+
+Then the standard calls work for all layer types:
+```javascript
+ixmaps.hideTheme("grid");    // hide
+ixmaps.showTheme("grid");    // show
+
+// Checkbox wiring:
+// <input type="checkbox" checked
+//   onchange="this.checked ? ixmaps.showTheme('grid') : ixmaps.hideTheme('grid')">
+```
+
+**CSS injection alternative** — if `hideTheme` still behaves unexpectedly for a particular layer type, inject/remove a style rule instead:
+
+```javascript
+function toggleLayer(id, show) {
+  const styleId = 'hide-' + id;
+  if (!show) {
+    if (!document.getElementById(styleId)) {
+      const s = document.createElement('style');
+      s.id = styleId;
+      s.textContent = '[id*=":' + id + ':"] { display: none !important; }';
+      document.head.appendChild(s);
+    }
+  } else {
+    document.getElementById(styleId)?.remove();
+  }
+}
+```
+
+The layer-visibility toggle and the `changeThemeStyle` filter work independently and can be freely combined — you can hide a layer while a type filter is active, then show it again and it will re-render with the filter still applied.

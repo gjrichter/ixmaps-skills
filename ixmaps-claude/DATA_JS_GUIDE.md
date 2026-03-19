@@ -1,7 +1,74 @@
 # data.js API Reference
 
-**Version:** 1.62  
+**CDN:** `https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js`
+**Version:** 1.62
 **Overview:** JavaScript library for loading, parsing, selection, transforming, and caching data tables. Loaded data is stored in a **Data.Table** (jsonDB format). Supports CSV, JSON, GeoJSON, KML, GML, RSS, Parquet, GeoPackage, FlatGeobuf, Geobuf, TopoJSON, JSON-stat, and jsonDB.
+
+> **data.js is already loaded by the ixmaps framework.** `Data.*` functions are available inside `query:` and `process:` callbacks without any extra `<script>` tag.
+> Only include the CDN explicitly when you need `Data.*` **outside** ixmaps theme realization (e.g. pre-processing data in your own `<script>` block before defining layers).
+
+---
+
+## ixmaps Integration
+
+### When to include data.js explicitly
+
+```html
+<!-- ixmaps only — data.js is bundled, no extra script needed -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
+
+<!-- Add data.js ONLY if you use Data.* in your own script outside ixmaps callbacks -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js"></script>
+```
+
+### Inside `query:` / `process:` — Data.* available automatically
+
+`Data` is globally available inside `query:` and `process:` functions because ixmaps has already loaded data.js:
+
+```javascript
+var myQueryFn = function(themeObj, options) {
+  Data.provider()
+    .addSource("https://example.com/2022.csv", "csv")
+    .addSource("https://example.com/2023.csv", "csv")
+    .realize(function(tables) {
+      var combined = tables[0].append(tables[1]);
+      options.type = "jsondb";
+      ixmaps.setExternalData(combined, options);
+    });
+};
+
+myMap.layer("points")
+  .data({ name: "myData", query: myQueryFn.toString(), cache: "true" })
+  .binding({ geo: "lat|lon", value: "metric" })
+  .type("CHART|BUBBLE|SIZE|VALUES")
+  .style({ colorscheme: ["#0066cc"], showdata: "true" })
+  .meta({ tooltip: "{{metric}}" })
+  .define();
+```
+
+### Outside ixmaps — include CDN, then use Data.*
+
+When pre-processing data in your own `<script>` block (before or alongside layer definitions), include the CDN:
+
+```html
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js"></script>
+<script>
+Data.feed({ source: "https://example.com/data.csv", type: "csv" })
+  .load(function(table) {
+    table.addColumn({ source: "value", destination: "scaled" }, v => parseFloat(v) * 1000);
+    myMap.layer("points")
+      .data({ obj: table, type: "jsondb" })
+      .binding({ geo: "lat|lon", value: "scaled" })
+      .type("CHART|BUBBLE|SIZE|VALUES")
+      .style({ colorscheme: ["#0066cc"], fillopacity: 0.7, showdata: "true" })
+      .meta({ tooltip: "{{label}}: {{scaled}}" })
+      .define();
+  });
+</script>
+```
+
+---
 
 ---
 

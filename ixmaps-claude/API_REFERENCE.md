@@ -423,7 +423,8 @@ Specify visualization type.
 **Point data types:**
 - `"CHART|DOT"` - Uniform dots
 - `"CHART|DOT|CATEGORICAL"` - Categorical dots
-- `"CHART|BUBBLE|SIZE|VALUES"` - Sized bubbles
+- `"CHART|BUBBLE|SIZE"` - Sized bubbles, **no labels** (preferred default)
+- `"CHART|BUBBLE|SIZE|VALUES"` - Sized bubbles **with numeric value labels** rendered inside each circle (`VALUES` activates the text)
 - `"CHART|PIE"` - Pie charts
 - `"CHART|BAR|VALUES"` - Bar charts
 - `"CHART|BUBBLE|SIZE|AGGREGATE"` - Density grid (circles, sized by count)
@@ -1108,10 +1109,15 @@ Complete visualization type reference.
 - Different color per category value
 - Use with: dynamic colorscheme `["100", "tableau"]`
 
-**CHART|BUBBLE|SIZE|VALUES**
-- Bubbles sized by data values
+**CHART|BUBBLE|SIZE**
+- Bubbles sized by data values, **no text labels** — preferred default for clean maps
 - Larger values = larger circles
 - Use with: `value` binding and `normalsizevalue` or `scale`
+
+**CHART|BUBBLE|SIZE|VALUES**
+- Same as above but **renders the numeric value as a text label inside each circle**
+- The `VALUES` modifier is what activates the text — omit it to suppress labels
+- Use only when the number inside the bubble adds meaningful information
 
 **CHART|PIE**
 - Pie charts at locations

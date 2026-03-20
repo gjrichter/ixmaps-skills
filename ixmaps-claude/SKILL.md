@@ -339,6 +339,14 @@ function showYear(year) {
 | `values` | Category list for CATEGORICAL (must be **strings**) |
 | `align` | Chart anchor: `"left"` `"right"` `"top"` `"bottom"` `"above"` `"below"` |
 
+**Trees (street-level) sizing baseline with `|GLOW`:**
+- Use this as a reliable starting point for urban tree inventories (diameter in cm):
+  - `objectscaling: "dynamic"`
+  - `normalSizeScale: "5000"` (street-detail zoom reference)
+  - `normalsizevalue: "220"` (higher value keeps bubbles controlled)
+  - `scale: 0.32` (reduce apparent size added by `|GLOW`)
+- Rule of thumb: with `|GLOW`, start with a **smaller `scale`** than non-glow bubbles.
+
 > Complete style properties, dynamic opacity, diverging scales, categorical color binding → **API_REFERENCE.md § Style Properties**
 
 ---
@@ -572,6 +580,21 @@ setTimeout(function()  { hookUrlUpdate(); updateUrlFromView(); }, 1000);
 .style({ colorscheme: ["#4fc3f7","#ffb300","#ef5350"], values: ["C","F","R"], normalsizevalue: "80", showdata: "true" })
 ```
 > Add `size: "numericField"` to `.binding()` to drive bubble radius from a numeric column independently from the category `value` field. This avoids needing a separate `SIZE|VALUES` layer when you want both category color and numeric sizing.
+
+**Urban trees preset (species color + diameter size + GLOW):**
+```javascript
+.binding({ geo: "lat|lon", value: "SPECIE", size: "DIAMETRO", title: "LUOGO" })
+.type("CHART|BUBBLE|CATEGORICAL|GLOW")
+.style({
+  colorscheme: [...],
+  values: [...],               // species list, fixed order
+  normalsizevalue: "220",
+  scale: 0.32,
+  fillopacity: 0.8,
+  showdata: "true"
+})
+// map options: objectscaling:"dynamic", normalSizeScale:"5000"
+```
 
 **Dynamic opacity from a field:**
 ```javascript

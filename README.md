@@ -18,7 +18,7 @@ Pick one method:
 1. Paste this message into your chat:
 ```
 Please read and follow the ixmaps skill specifications from:
-https://raw.githubusercontent.com/gjrichter/ixmaps-skills/main/SKILL.md
+https://raw.githubusercontent.com/gjrichter/ixmaps-skills/refs/heads/main/create-ixmap/SKILL.md
 ```
 2. Wait for confirmation that the skill is loaded.
 

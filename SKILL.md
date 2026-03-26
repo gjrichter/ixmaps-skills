@@ -22,7 +22,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
    - **Also include `name`** whenever you plan to use `changeThemeStyle` at runtime (see rule 21)
 5. **NEVER use `.tooltip()`** — doesn't exist
 6. **NEVER combine `CHART` and `CHOROPLETH`** in one type string — mutually exclusive
-7. **NEVER use `|EXACT` classification** — deprecated; use `QUANTILE`, `EQUIDISTANT`, or `CATEGORICAL`
+7. **NEVER use `|EXACT` classification** — deprecated; use `CATEGORICAL`
 8. **NEVER use `map` as variable name** — conflicts with internals; use `myMap`
 8a. **NEVER use reserved HTML element IDs** — ixMaps owns `loading-div`, `tooltip`, `contextmenu`. Using them causes visible artifacts (a white box stuck on the map). Use `app-loading` or any other non-conflicting name for your own overlays.
 9. **NEVER use `opacity`** in `.style()` — use `fillopacity`
@@ -78,8 +78,18 @@ Is your data...
 - `|GLOW` — glow effect on any CHART type
 - `|DOPACITYMAX` — dynamic opacity (high values prominent); add `alpha: "field"` to `.binding()`
 - `|DOPACITYMINMAX` — dynamic opacity (extremes prominent)
-- `|AGGREGATE|SUM` / `|MEAN` / `|HEADTAIL` — aggregation method for density layers
+- `|AGGREGATE|SUM` / `|MEAN` — aggregation method for density layers
 - `|CATEGORICAL` — discrete category coloring; `values:` array in style maps to `colorscheme` in order
+
+**Classification methods** (used with `CHOROPLETH` and `CHART`):
+
+| Method | Description |
+|---|---|
+| `EQUIDISTANT` | Equal-width intervals across the data range |
+| `QUANTILE` | Equal-count intervals — each class has the same number of features |
+| `HEADTAIL` | Head/tail breaks — iteratively splits at the mean; best for heavy-tailed distributions |
+| `NATURAL` | Jenks natural breaks — minimises within-class variance |
+| `LOG` | Logarithmic intervals — useful when values span several orders of magnitude |
 
 **VECTOR sub-modifiers:**
 - `|DASH` — animated flowing dashes along flow direction (combine freely with BEZIER|POINTER|FADEIN)
@@ -120,6 +130,7 @@ Is your data...
 | colorscheme | `["#0066cc"]` |
 | basemapopacity | 0.6 |
 | flushChartDraw | 1000000 |
+| flushPaintShape | *(not set)* — set to `1000000` when rendering large polygon datasets (municipalities, communes) to avoid rendering hangs |
 | tools | true |
 
 **Valid basemaps** (case-sensitive): `"VT_TONER_LITE"` · `"white"` · `"CartoDB - Dark matter"` · `"CartoDB - Positron"` · `"Stamen Terrain"` · `"OpenStreetMap - Osmarenderer"`
@@ -338,6 +349,17 @@ function showYear(year) {
 | `ranges` | Explicit class breaks (n+1 values for n colors) |
 | `values` | Category list for CATEGORICAL (must be **strings**) |
 | `align` | Chart anchor: `"left"` `"right"` `"top"` `"bottom"` `"above"` `"below"` |
+| `sizepow` | Power curve for size scaling — `2` = quadratic, exaggerates contrast between small and large values |
+| `rotation` | Rotate chart symbol in degrees (e.g. `35` for a tilted arrow) |
+| `rangescale` | Scale factor applied after range computation |
+| `aggregationfield` | Field used as aggregation key when `AGGREGATE` is set |
+| `titlefield` | Field used as chart title label (overrides binding `title`) |
+| `datafields` | Array of extra fields carried through to tooltip: `["field1","field2"]` — access as `{{raw.field1}}` |
+| `textscale` | Scale factor for label text rendered on the chart |
+| `boxupper` / `boxlower` | Scale-dependent box visibility threshold, e.g. `"1:250000"` — box shown only when map scale ≤ 1:250k |
+| `valuesupper` / `valueslower` | Scale-dependent value label visibility threshold |
+| `valuedecimals` | Decimal places for rendered value labels |
+| `minvaluesize` | Minimum pixel size below which no chart symbol is drawn |
 
 **Trees (street-level) sizing baseline with `|GLOW`:**
 - Use this as a reliable starting point for urban tree inventories (diameter in cm):
@@ -383,6 +405,89 @@ function applyFilter(activeValues) {
 ```
 
 > ⚠️ `ixmaps.map().changeThemeStyle()` returns `{szMap: null}` and silently does nothing — that form cannot find the live map instance.
+
+### Region selector with zoom navigation
+
+Use a `<select>` dropdown to filter all theme layers to a single geographic region **and** pan/zoom to it. The map needs to be declared as `var myMap` (not `const`) in outer scope so both `buildMap()` and `changeRegion()` can access it.
+
+**Key facts:**
+- Filter uses single-value equality: `WHERE field = value`
+- Empty `<option value="">` is the "show all" sentinel — triggers filter removal
+- Navigation uses `myMap.view()` called **outside** `.then()` — it is safe to call on the fluent chain after init
+- `myMap.view()` only pans/zooms; it does not reset layers
+
+**REGION_VIEWS lookup table:**
+```javascript
+const REGION_VIEWS = {
+    "":  { lat: 42.5, lng: 12.5, zoom: 6 },   // full extent
+    "1": { lat: 44.9, lng:  7.9, zoom: 8 },
+    // ... one entry per region code
+};
+```
+
+**changeRegion function:**
+```javascript
+var myMap;   // outer scope — shared by buildMap() and changeRegion()
+
+function changeRegion(code) {
+    var THEME_NAMES = ["themeA", "themeB", "themeC"];  // all named themes that should filter
+    var filterStr = code ? "WHERE regionField = " + code : null;
+    var v = REGION_VIEWS[code] || REGION_VIEWS[""];
+
+    myMap.then(function(m) {
+        THEME_NAMES.forEach(function(name) {
+            if (filterStr) {
+                m.changeThemeStyle(name, "filter:" + filterStr, "set");
+            } else {
+                m.changeThemeStyle(name, "filter", "remove");
+            }
+        });
+    });
+
+    myMap.view({ center: { lat: v.lat, lng: v.lng }, zoom: v.zoom });
+}
+
+function buildMap() {
+    myMap = ixmaps.Map("map", { ... });
+    // ...layers...
+}
+```
+
+**Overlay selector UI** — centered over the map, no background bar, map interaction passes through the wrapper:
+```html
+<!-- CSS -->
+#region-bar {
+    position: absolute;
+    top: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 1001;
+    display: flex; align-items: center; gap: 8px;
+    pointer-events: none;        /* wrapper is click-through */
+}
+#region-bar label {
+    color: #333; font-size: 0.78rem;
+    pointer-events: none;
+}
+#region-select {
+    background: rgba(20,20,20,0.72);
+    border: 1px solid rgba(255,255,255,0.22);
+    border-radius: 6px; color: #f0f0f0;
+    padding: 5px 10px; cursor: pointer;
+    pointer-events: all;         /* select itself is interactive */
+}
+#region-select option { background: #1e1e1e; color: #f0f0f0; }
+
+<!-- HTML (inside the 1024px container div, above the map div) -->
+<div id="region-bar">
+    <label for="region-select">Regione:</label>
+    <select id="region-select" onchange="changeRegion(this.value)">
+        <option value="">— Tutta Italia —</option>
+        <option value="1">Piemonte</option>
+        <!-- ... -->
+    </select>
+</div>
+```
+
+> ⚠️ Always include `<option value="">` as the first option — it is the "show all" state that triggers `filter remove`. Presetting a region on load via `selected` means removing the initial `.filter()` from layer definitions; conversely, if a region is pre-filtered in `.filter()`, set `selected` on the matching option so the UI and the data stay in sync.
 
 ### Toggling layer visibility — `hideTheme` / `showTheme`
 
@@ -606,7 +711,78 @@ setTimeout(function()  { hookUrlUpdate(); updateUrlFromView(); }, 1000);
 
 **Flows with animated dashes:**  `CHART|VECTOR|BEZIER|POINTER|DASH`
 
-**CHART|USER (custom draw functions):** requires D3 v3 + arrow_chart.js → **API_REFERENCE.md § CHART|USER**
+**CHART|USER — custom draw functions (pinnacleChart, arrowChart):**
+
+Requires three extra CDN scripts **before** `ixmaps.js`:
+```html
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/arrow_chart.js"></script>
+```
+
+The `userdraw` style property names the draw function (`"pinnacleChart"` or `"arrowChart"`).
+Key type modifiers used with USER charts:
+
+| Modifier | Role |
+|---|---|
+| `DIFFERENCE` | computes `value[1] − value[0]` from a `"a\|b"` binding |
+| `NONEGATIVE` | **render flag** — suppresses drawing the chart symbol where the computed value ≤ 0 (data row is still processed; only rendering is skipped) |
+| `RELOCATE` | relocates the chart symbol to the geometry centroid |
+| `BOX` | adds a background box behind the label |
+| `BOTTOMTITLE` | places title below the chart symbol |
+| `NOLEGEND` | excludes this layer from the map legend |
+
+**Split-winner pattern** — two layers from one dataset, no pre-filtering needed:
+```javascript
+// Layer A — shows only communes where Sì wins (voti_si − voti_no > 0)
+myMap.layer("comuni")
+    .data({ url: DATA_URL, type: "csv" })
+    .binding({ lookup: "cod_istat", value: "voti_no|voti_si", title: "desc_com" })
+    .type("CHART|USER|3D|DIFFERENCE|AGGREGATE|RECT|RELOCATE|SUM|VALUES|NONEGATIVE|BOX|BOTTOMTITLE|NOLEGEND")
+    .style({
+        name:             "chart_si",
+        userdraw:         "pinnacleChart",
+        colorscheme:      SI_COLORS,
+        sizepow:          2,
+        normalsizevalue:  1000000,
+        aggregationfield: "desc_com",
+        titlefield:       "desc_com",
+        datafields:       ["desc_com","desc_prov","margin_f"],
+        showdata:         "true"
+    })
+    .meta({ name: "chart_si", tooltip: "{{desc_com}}<br>voti in più Sì: {{raw.margin_f}}" })
+    .define();
+
+// Layer B — shows only communes where No wins: swap binding order, NONEGATIVE drops the rest
+myMap.layer("comuni")
+    .data({ url: DATA_URL, type: "csv" })
+    .binding({ lookup: "cod_istat", value: "voti_si|voti_no", title: "desc_com" })  // ← swapped
+    .type("CHART|USER|3D|DIFFERENCE|HEADTAIL|AGGREGATE|RECT|RELOCATE|SUM|VALUES|NONEGATIVE|NOLEGEND")
+    .style({ name: "chart_no", userdraw: "pinnacleChart", /* ... */ showdata: "true" })
+    .meta({ name: "chart_no", tooltip: "..." })
+    .define();
+```
+> Binding order determines sign: `"a|b"` → `b − a`. With `NONEGATIVE`, only locations where the result > 0 get a chart drawn. Swapping `a` and `b` between two layers gives "A wins" vs "B wins" without any data pre-processing.
+> `{{raw.fieldname}}` in tooltip accesses fields listed in `datafields` — useful for pre-formatted strings (e.g. `"12.345"` from `.toLocaleString()`).
+
+**Invisible point anchor layer** — load centroid geometry without rendering anything:
+```javascript
+// Required when CHART|USER layers need to snap to precise urban centroids
+// For POINT geometry, fillopacity:0 alone still renders a dot — scale:0 suppresses it completely
+myMap.layer("centroids")
+    .data({ url: CENTROIDS_URL, type: "geojson" })
+    .binding({ geo: "geometry", id: "PRO_COM", title: "PRO_COM" })
+    .type("FEATURE|NOLEGEND")
+    .style({
+        colorscheme: ["none"],
+        scale:       0,         // ← required for point geometry
+        fillopacity: 0,
+        linecolor:   "none",
+        linewidth:   0,
+        showdata:    "true"
+    })
+    .define();
+```
 
 > Diverging scales, density patterns, road-tracing, SEQUENCE charts → **API_REFERENCE.md § Special Cases**
 > Complete working examples → **EXAMPLES.md**

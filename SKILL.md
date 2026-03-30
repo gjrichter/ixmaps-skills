@@ -78,8 +78,29 @@ Is your data...
 - `|GLOW` — glow effect on any CHART type
 - `|DOPACITYMAX` — dynamic opacity (high values prominent); add `alpha: "field"` to `.binding()`
 - `|DOPACITYMINMAX` — dynamic opacity (extremes prominent)
-- `|AGGREGATE|SUM` / `|MEAN` — aggregation method for density layers
 - `|CATEGORICAL` — discrete category coloring; `values:` array in style maps to `colorscheme` in order
+- `|SILENT` — excludes layer from legend, statistics **and** suppresses tooltips on its items
+- `|NOLEGEND` — excludes layer from legend only (tooltips still work)
+- `|NOOUTLIER` — removes extreme outliers from classification calculations
+- `|ZEROISNOTVALUE` — suppresses rendering where value ≤ 0 (useful for sparse/incomplete time series)
+- `|NOSCALE` — disables dynamic zoom scaling; flows/symbols stay constant size regardless of zoom
+- `|GRADIENT` — gradient color along flow lines (origin color → destination color); use with `CHART|VECTOR|BEZIER`
+- `|CLIPTOGEOBOUNDS` — clips chart rendering to the containing polygon boundary
+- `|DOMINANT|PERCENTOFMEAN` — colors by which of multiple piped fields is above-mean dominant; useful for showing "winner" category per region
+- `|SMOOTH` — smoothing interpolation on sparkline curves
+- `|SORT` / `|SORT|DOWN` — sort sparkline categories ascending / descending
+- `|TEXTLEGEND` — renders category labels directly on chart symbols instead of in the legend box
+- `|TEXTONLY` — text labels only, no chart symbol (combine with `CHART|LABEL|VALUES|FIXSIZE|NOLEGEND`)
+
+**Aggregation modifiers** (replace the value of each cell with the aggregate):
+
+| Modifier | Computes |
+|---|---|
+| `SUM` | Sum of all values in cell |
+| `COUNT` | Count of rows in cell |
+| `MEAN` | Arithmetic mean |
+| `MIN` | Minimum value |
+| `MAX` | Maximum value |
 
 **Classification methods** (used with `CHOROPLETH` and `CHART`):
 
@@ -93,6 +114,11 @@ Is your data...
 
 **VECTOR sub-modifiers:**
 - `|DASH` — animated flowing dashes along flow direction (combine freely with BEZIER|POINTER|FADEIN)
+- `|GRADIENT` — gradient color from origin to destination along each flow line
+
+**Deprecated modifiers — do NOT use:**
+- ~~`SIZEP1`~~ → use `SIZE` + `sizepow: 1` in `.style()` instead
+- ~~`EXACT`~~ → use `CATEGORICAL` instead
 
 > For full type-string reference and all modifiers → **API_REFERENCE.md § Visualization Types**
 
@@ -131,6 +157,7 @@ Is your data...
 | basemapopacity | 0.6 |
 | flushChartDraw | 1000000 |
 | flushPaintShape | *(not set)* — set to `1000000` when rendering large polygon datasets (municipalities, communes) to avoid rendering hangs |
+| zoomAnimation | `true` — smooth zoom transitions; set `false` to disable |
 | tools | true |
 
 **Valid basemaps** (case-sensitive): `"VT_TONER_LITE"` · `"white"` · `"CartoDB - Dark matter"` · `"CartoDB - Positron"` · `"Stamen Terrain"` · `"OpenStreetMap - Osmarenderer"`
@@ -210,6 +237,17 @@ Scales: `60M` (default/world) · `20M` · `10M` · `3M` · `1M` (country zoom)
 // NUTS_ID examples: "DE1", "DEA"  (CNTR_CODE works for NUTS, unlike country data which uses CNTR_ID)
 ```
 
+### Italy geometry sources (gjrichter/geo)
+
+**Municipalities (comuni) — ISTAT, ~8 000 polygons, 500m simplified:**
+```javascript
+.data({ url: "https://raw.githubusercontent.com/gjrichter/geo/main/italy/boundaries/italy_istat_municipalities_4326_500m.topojson", type: "topojson" })
+.binding({ geo: "geometry", id: "com_istat_code", title: "name" })
+// Join field: com_istat_code (numeric) — matches cod_istat in ISTAT/ondata CSVs
+// Useful properties: com_istat_code, name, prov_istat_code, reg_istat_code (cod_reg for region filter)
+```
+⚠️ Use `flushPaintShape: 1000000` in `.options()` when rendering all 8 000 polygons to avoid hangs.
+
 > ⚠️ Local `file://` URLs are blocked by browser CORS — always use CDN or inline `obj:`
 > Full geometry sources list → **API_REFERENCE.md § Data Configuration**
 
@@ -262,6 +300,8 @@ Two distinct patterns depending on data shape:
 // FIXSIZE: all sparks same size; normalsizevalue controls chart scale (larger = smaller sparks)
 // markersize: controls LASTARROW arrow head size (default ~8; use 1–3 for smaller arrows)
 // ⚠️ normalsizevalue does NOT control arrow size — use markersize for that
+// LASTARROW = arrow marker on last point  |  LASTPOP = dot/pop marker on last point (use one or the other)
+// MAX/MIN/MEAN/COUNT/SUM = aggregation modifiers — compute cell aggregate value; NOT sparkline visual markers
 ```
 
 **BOX|GRID and XAXIS — only add on explicit user request:**
@@ -360,6 +400,11 @@ function showYear(year) {
 | `valuesupper` / `valueslower` | Scale-dependent value label visibility threshold |
 | `valuedecimals` | Decimal places for rendered value labels |
 | `minvaluesize` | Minimum pixel size below which no chart symbol is drawn |
+| `units` | String appended to rendered value labels, e.g. `"%"`, `"€"`, `"km"` |
+| `sizefield` | Data column that drives symbol SIZE independently from the `value` (color) field — use with `CATEGORICAL` to combine category color + numeric size on one layer |
+| `dopacitypow` | Power curve exponent for `DOPACITY` opacity mapping (default ≈ 1; `2` = quadratic, exaggerates contrast) |
+| `dopacityscale` | Multiplier applied after opacity calculation — stretches the opacity range |
+| `gridwidthpx` | Grid cell width in pixels; supports `"factor"` mode in `changeThemeStyle` for runtime zoom-scaling |
 
 **Trees (street-level) sizing baseline with `|GLOW`:**
 - Use this as a reliable starting point for urban tree inventories (diameter in cm):
@@ -379,7 +424,16 @@ Use these patterns when you need interactive UI controls (checkboxes, dropdowns)
 
 ### Filtering data across all layers — `changeThemeStyle`
 
-`changeThemeStyle` triggers a re-render with a new data filter. For aggregate layers (grid counts, sparklines) it also **re-aggregates** — cells recount correctly with only the filtered rows.
+`changeThemeStyle(themeName, styleString, mode)` modifies a live layer property and triggers a re-render. For aggregate layers (grid counts, sparklines) it also **re-aggregates** — cells recount correctly with only the filtered rows.
+
+**Mode values:**
+
+| Mode | Behaviour |
+|------|-----------|
+| `"set"` | Replace property with the given value (default) |
+| `"remove"` | Delete the property entirely |
+| `"factor"` | Multiply the current numeric value by the given factor (e.g. `"gridwidthpx:1.1"` → 10% larger) |
+| `"set\|silent"` | Set value WITHOUT triggering a redraw (use for low-priority zoom tweaks) |
 
 **Prerequisites:**
 1. Every layer that should respond must have `name` in its `.meta()` (see Rule 21)
@@ -569,38 +623,80 @@ function toggleClass(classIdx) {
 
 > Multiple classes can be marked simultaneously — all marked classes show together. The `themeName` must match `name` in `.meta()` (same rule as `changeThemeStyle`).
 
-### Reacting to zoom / pan — `htmlgui_onZoomAndPan`
+### Reacting to zoom / pan — `.on()` events
 
-`map.on("zoomend", ...)` is **NOT implemented** in ixmaps. Instead, assign the hook as a method on the `ixmaps` object:
+Use `.on(events, handler)` to subscribe to view events. Multiple space-separated events are accepted in one call.
 
+#### View events
+
+| Event | Fires when |
+|-------|-----------|
+| `zoomend` | Zoom level changed |
+| `moveend` | Map panned without zoom change |
+| `viewchange` (alias `zoompan`) | Any zoom or pan |
+
+Handler receives `{ nZoom, zoomChanged, panChanged, szMap }`.
+
+**Typical zoom-adaptive pattern** — debounce to avoid firing on every intermediate step:
 ```javascript
-// ✅ CORRECT — assign as method on ixmaps object
-ixmaps.htmlgui_onZoomAndPan = function() {
-  myMap.then(function(map) {
-    var z = map.getZoom();
-    var bounds = map.getBounds();  // returns [swLat, swLng, neLat, neLng] — NOT a LatLngBounds object
-    // update basemap opacity and/or theme style based on zoom
-    map.setBasemapOpacity(value, "absolute"); // ✅ NOT map.options({ basemapopacity: ... })
-    map.changeThemeStyle("themeName", "fillopacity:" + ..., "set");
-  });
-};
-
-// ❌ WRONG — standalone global function is NOT called by ixmaps
-function htmlgui_onZoomAndPan() { ... }
+var _zoomTimer = null;
+myMap.on("zoomend moveend", function() {
+    clearTimeout(_zoomTimer);
+    _zoomTimer = setTimeout(function() {
+        var z = ixmaps.getZoom();   // global, no .then() needed
+        myMap.then(function(m) {
+            m.setBasemapOpacity(Math.max(0, Math.min(0.8, (z - 9) / 3)), "absolute");
+            m.changeThemeStyle("layerName", "minvaluesize:" + (z > 10 ? 1 : 15), "set");
+        });
+    }, 400);
+});
 ```
 
-Called by ixmaps on every zoom **and** pan event. Inside the Promise callback:
-- `map.getZoom()` — current zoom level
-- `map.getBounds()` — returns a flat **4-element array** `[swLat, swLng, neLat, neLng]`
-  - ⚠️ **NOT** a Leaflet `LatLngBounds` object — `.contains()` is **not defined** on it
-  - Always guard: `if (!bounds || bounds.length !== 4) return;`
-  - Test a point manually: `t.lat < swLat || t.lat > neLat || t.lon < swLng || t.lon > neLng`
+#### Item (feature) events
 
-**Live legend pattern** — update sidebar counts from inline data on every pan/zoom:
+| Event | Fires when | Handler receives |
+|-------|-----------|-----------------|
+| `mouseover` / `itemover` | Pointer enters a feature | `{ szId, id, theme, szMap }` |
+| `mouseout` / `itemout` | Pointer leaves a feature | same |
+| `click` / `itemclick` | Feature clicked | same |
+
+`szId` = full compound id `"themeId::itemKey"` · `id` = item key only · `theme` = layer id
+
+#### Lifecycle events
+
+| Event | Fires when |
+|-------|-----------|
+| `ready` / `mapready` | SVG engine fully loaded |
+| `layerdraw` / `drawtheme` | A layer finishes drawing |
+| `layeradd` / `newtheme` | A layer is created |
+| `layerremove` / `removetheme` | A layer is removed |
+
+```javascript
+myMap
+  .on("ready",     function()  { hideSpinner(); })
+  .on("layerdraw", function(e) { console.log("drawn:", e.id); })
+  .on("click",     function(e) { showDetail(e.id); })
+  .on("mouseover", function(e) { highlight(e.id); })
+  .on("mouseout",  function()  { clearHighlight(); });
+```
+
+**Inside handlers** — call `ixmaps.getZoom()` / `ixmaps.getCenter()` directly (no Promise); use `myMap.then(m => ...)` only when you need to call `m.changeThemeStyle()` or `m.setBasemapOpacity()`.
+
+**`getBounds()` note** — returns a flat **4-element array** `[swLat, swLng, neLat, neLng]`, NOT a Leaflet `LatLngBounds` object. Always guard: `if (!bounds || bounds.length !== 4) return;`
+
+**Legacy hook — `ixmaps.htmlgui_onZoomAndPan`** — still works; prefer `.on()` for new code:
 ```javascript
 ixmaps.htmlgui_onZoomAndPan = function() {
   myMap.then(function(m) { updateLegend(m.getBounds()); });
 };
+```
+When another handler already owns `htmlgui_onZoomAndPan`, wrap it to call `_prev` first instead of overwriting.
+
+**Live legend pattern** — update sidebar counts from inline data on every pan/zoom:
+```javascript
+myMap.on("viewchange", function() {
+  myMap.then(function(m) { updateLegend(m.getBounds()); });
+});
 // Also fire once on load:
 myMap.then(function(m) { updateLegend(m.getBounds()); });
 
@@ -713,7 +809,7 @@ setTimeout(function()  { hookUrlUpdate(); updateUrlFromView(); }, 1000);
 
 **CHART|USER — custom draw functions (pinnacleChart, arrowChart):**
 
-Requires three extra CDN scripts **before** `ixmaps.js`:
+Requires three extra CDN scripts (load order relative to `ixmaps.js` does not matter):
 ```html
 <script src="https://d3js.org/d3.v3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/chart.js"></script>
@@ -905,20 +1001,20 @@ ixmaps.statistics = function (szId) {
 };
 ```
 
-### `htmlgui_onDrawTheme` — fire on every zoom/pan/filter
+### React to layer draw — `map.on("layerdraw")`
+
+Use the event API (preferred over the legacy `htmlgui_onDrawTheme` hook):
 
 ```javascript
-var _prevOnDrawTheme = ixmaps.htmlgui_onDrawTheme;
-
-ixmaps.htmlgui_onDrawTheme = function (szId) {
-    var themeObj = ixmaps.getThemeObj(szId);
+myMap.on("layerdraw", function(e) {
+    var themeObj = ixmaps.getThemeObj(e.id);
 
     // skip helper/invisible layers
-    if (!themeObj) { try { _prevOnDrawTheme && _prevOnDrawTheme(szId); } catch(e){} return; }
-    if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND/)) { try { _prevOnDrawTheme && _prevOnDrawTheme(szId); } catch(e){} return; }
-    if (!themeObj.fVisible) { try { _prevOnDrawTheme && _prevOnDrawTheme(szId); } catch(e){} return; }
+    if (!themeObj) return;
+    if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND/)) return;
+    if (!themeObj.fVisible) return;
 
-    ixmaps.statistics(szId);
+    ixmaps.statistics(e.id);
 
     // show/hide active-filter banner
     if (themeObj.szFilter) {
@@ -927,10 +1023,10 @@ ixmaps.htmlgui_onDrawTheme = function (szId) {
     } else {
         document.getElementById("filter-div").style.display = "none";
     }
-
-    try { _prevOnDrawTheme && _prevOnDrawTheme(szId); } catch(e) {}
-};
+});
 ```
+
+> **Legacy hook `ixmaps.htmlgui_onDrawTheme`** — still works but is old-style. Prefer `map.on("layerdraw")` for new code. If an existing plugin already uses `htmlgui_onDrawTheme`, wrap it (`var _prev = ixmaps.htmlgui_onDrawTheme; ixmaps.htmlgui_onDrawTheme = function(szId){ ...; _prev && _prev(szId); }`) rather than overwriting.
 
 ### Clear all facet filters
 
@@ -1034,16 +1130,12 @@ Use a second layer over the main bubbles to show a per-item status flag — e.g.
 | Add `_dot` constant **before** filtering | `DATA.forEach(d => d._dot = 50)` on the source array means every filtered subset inherits the field |
 | Filter to only meaningful states | Empty dots for the "all-clear" state (A/negligible) add clutter without information |
 
-### `htmlgui_onDrawTheme` — skip the indicator layer
+### Skip the indicator layer in `layerdraw`
 
-The draw hook must skip `NOLEGEND` layers to avoid running `ixmaps.statistics` on the indicator layer (which would show the risk categories as the main facets):
+The draw handler must skip `NOLEGEND` layers to avoid running `ixmaps.statistics` on the indicator layer (which would show the risk categories as the main facets). The guard is already in the recommended pattern above:
 
 ```javascript
-// Already in the recommended hook template:
-if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND/)) {
-    try { _prevOnDrawTheme && _prevOnDrawTheme(szId); } catch(e) {}
-    return;
-}
+if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND/)) return;
 ```
 
 ---

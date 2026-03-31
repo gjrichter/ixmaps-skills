@@ -496,39 +496,56 @@ Creates directional arrows showing flows between geographic locations.
 **Common modifiers:**
 - `BEZIER`: Smooth curved arrows (vs straight lines)
 - `POINTER`: Adds arrowheads showing direction
-- `DASH`: Dashed lines instead of solid
+- `DASH`: Animated flowing dashes along flow direction
+- `GRADIENT`: Gradient color from origin to destination — **color must be set via `linecolor: ["#from","#to"]` array, NOT `colorscheme`**
+- `GAP`: Leaves a gap at the arrowhead so it doesn't overlap the destination symbol
 - `NOSCALE`: Constant arrow thickness (doesn't scale with zoom)
-- `EXACT`: Precise positioning at geographic coordinates
 - `AGGREGATE`: Combines multiple flows between same origin-destination
 - `SUM`: Sums values when aggregating (use with AGGREGATE)
 
-**Requires style properties:**
-- `colorfield`: Field name for arrow color (e.g., "origin")
-- `sizefield`: Field name for arrow thickness (e.g., "value")
-- `rangescale`: Thickness variation range (typical: 3-10)
+**Binding — two patterns:**
 
-**Effect:** Creates directional arrows from origin → destination locations. Arrow thickness encodes numeric values, arrow color encodes categories.
-
-**Use cases:**
-- Supply chain flows (supplier → buyer)
-- Migration patterns (origin → destination)
-- Trade routes (exporter → importer)
-- Transportation flows (departure → arrival)
-
-**Example:**
+*Direct lat/lon (preferred for point data):*
 ```javascript
-.binding({
-    position: "origin_region",
-    position2: "destination_region"
-})
-.type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
+.binding({ position: "olat|olon", position2: "dlat|dlon", value: "flow_value", title: "name" })
+```
+
+*Region/feature name (when a FEATURE base layer is loaded):*
+```javascript
+.binding({ position: "origin_region", position2: "destination_region", value: "flow_value" })
+```
+
+**Style properties:**
+- `sizefield`: Field name for arrow thickness (e.g., `"value"`)
+- `normalsizevalue`: Data value that maps to normal thickness (higher = thinner lines)
+- `rangescale`: Thickness variation range (typical: 3–10)
+- `colorfield`: Field for per-arrow categorical color (use with `colorscheme` + `values`)
+- `linecolor`: Single string for uniform color; array `["#c","#c"]` for `|GRADIENT`
+- Use `fillopacity`, NOT `opacity`
+
+**Example — lat/lon flows with gradient:**
+```javascript
+.binding({ position: "olat|olon", position2: "dlat|dlon", value: "share", title: "country" })
+.type("CHART|VECTOR|BEZIER|POINTER|DASH|GRADIENT|GAP")
 .style({
-    colorscheme: ["#1F77B4", "#FF7F0E", "#2CA02C"],
-    colorfield: "origin_region",
-    sizefield: "trade_value",
-    opacity: 0.67,
-    rangescale: 5,
-    showdata: "true"
+    linecolor:       ["#c0392b", "#2980b9"],  // gradient: red → blue
+    sizefield:       "share",
+    normalsizevalue: 50,
+    fillopacity:     0.85,
+    showdata:        "true"
+})
+```
+
+**Example — simple black flows:**
+```javascript
+.binding({ position: "olat|olon", position2: "dlat|dlon", value: "share", title: "country" })
+.type("CHART|VECTOR|BEZIER|POINTER|DASH|GAP")
+.style({
+    linecolor:       "#222",
+    sizefield:       "share",
+    normalsizevalue: 50,
+    fillopacity:     0.85,
+    showdata:        "true"
 })
 ```
 
@@ -889,9 +906,10 @@ Complete style property reference.
   ```
 - Available palettes: "tableau", "paired", "set1", "set2", "set3", "pastel1", "pastel2", "dark2", "accent"
 
-**linecolor** (string)
-- Border/stroke color
-- Hex code: `"#ffffff"` or named color: `"white"`
+**linecolor** (string | array)
+- Border/stroke color — accepts a single string **or** an array of two hex strings
+- Single: `"#ffffff"` or named color `"white"`
+- Array: `["#c0392b", "#2980b9"]` — used with `CHART|VECTOR|BEZIER|GRADIENT` to define the gradient from origin to destination color; **for VECTOR|GRADIENT, the gradient must be set here, NOT in `colorscheme`**
 - Default: `"#000000"`
 
 **linewidth** (number)

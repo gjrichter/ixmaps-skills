@@ -84,7 +84,7 @@ Is your data...
 - `|NOOUTLIER` — removes extreme outliers from classification calculations
 - `|ZEROISNOTVALUE` — suppresses rendering where value ≤ 0 (useful for sparse/incomplete time series)
 - `|NOSCALE` — disables dynamic zoom scaling; flows/symbols stay constant size regardless of zoom
-- `|GRADIENT` — gradient color along flow lines (origin color → destination color); use with `CHART|VECTOR|BEZIER`
+- `|GRADIENT` — gradient color along flow lines (origin color → destination color); use with `CHART|VECTOR|BEZIER` — **gradient must be defined via `linecolor: ["#from","#to"]` array, NOT `colorscheme`**
 - `|CLIPTOGEOBOUNDS` — clips chart rendering to the containing polygon boundary
 - `|DOMINANT|PERCENTOFMEAN` — colors by which of multiple piped fields is above-mean dominant; useful for showing "winner" category per region
 - `|SMOOTH` — smoothing interpolation on sparkline curves
@@ -203,6 +203,27 @@ myMap.layer("name")
 ```
 
 > Full `.options()` / `.style()` property reference → **API_REFERENCE.md § Map Constructor** and **§ Style Properties**
+
+---
+
+## Tooltip Mustache Reference
+
+Tooltips in `.meta({ tooltip: "..." })` use `{{…}}` placeholders. Two prefixes control formatting:
+
+| Syntax | Behaviour |
+|--------|-----------|
+| `{{fieldname}}` | ixmaps-formatted value — may apply number formatting, units, rounding |
+| `{{raw.fieldname}}` | **Raw unformatted value** — bypasses all ixmaps formatting; use this when you want pre-formatted strings (e.g. `"1.234.567"` from `.toLocaleString()`) or exact string values |
+| `{{theme.item.chart}}` | Renders the built-in chart SVG/HTML for this item |
+| `{{theme.item.data}}` | Renders the built-in data table for this item |
+
+**`raw.` is the escape hatch** — whenever ixmaps mangles a value (reformats numbers, truncates strings, adds units), use `{{raw.field}}` to get the original data value unchanged.
+
+For fields not in the primary `value` binding, list them in `datafields` in `.style()` to make them available:
+```javascript
+.style({ datafields: ["field1", "field2"], showdata: "true" })
+.meta({ tooltip: "{{raw.field1}} — {{field2}}" })
+```
 
 ---
 
@@ -381,7 +402,7 @@ function showYear(year) {
 |----------|-------|
 | `colorscheme` | Array of hex colors. `["100","tableau"]` for auto-palette |
 | `fillopacity` | 0–1. NEVER use `opacity` |
-| `linecolor` / `linewidth` | NEVER `strokecolor` / `strokewidth` |
+| `linecolor` / `linewidth` | NEVER `strokecolor` / `strokewidth`; `linecolor` accepts a single string **or** an array `["#c1","#c2"]` — array form required for `VECTOR\|GRADIENT` |
 | `scale` | Uniform size multiplier (start at 1) |
 | `normalsizevalue` | Data value that maps to "normal" display size. **Higher = SMALLER bubbles** — a larger reference value means most real data values fall below it, so bubbles render smaller. E.g. `"1000"` → smaller bubbles than `"300"`. |
 | `gridwidth` | Grid cell size for aggregate layers (e.g. `"5px"`) |

@@ -36,11 +36,17 @@ Creates a new map instance.
 
 **Valid mapType values:**
 - `"VT_TONER_LITE"` - Clean minimal base map (default)
-- `"white"` - Plain white background
+- `"white"` - Plain white background (use with projections)
 - `"OpenStreetMap - Osmarenderer"` - Standard OpenStreetMap
 - `"CartoDB - Positron"` - Light CartoDB style (note spaces)
 - `"CartoDB - Dark matter"` - Dark CartoDB style (note spaces)
 - `"Stamen Terrain"` - Terrain with hill shading
+
+**Valid mapProjection values:**
+- *(omit)* - Default Web Mercator (Leaflet standard)
+- `"lambert"` - Lambert Azimuthal Equal-Area (EPSG:3035) — Eurostat standard for Europe
+  - ⚠️ `.view()` **must use array syntax**: `.view([lat, lng], zoom)` — object `{center,zoom}` does NOT work with projections
+  - Use `mapType: "white"` + `basemapopacity: 0`; set sea color via CSS `background` on the `#map` div
 
 **Valid mode values:**
 - `"info"` - Show tooltips on mouseover (recommended)
@@ -427,15 +433,21 @@ Specify visualization type.
 - `"CHART|BUBBLE|SIZE|VALUES"` - Sized bubbles **with numeric value labels** rendered inside each circle (`VALUES` activates the text)
 - `"CHART|PIE"` - Pie charts
 - `"CHART|BAR|VALUES"` - Bar charts
+- `"CHART|BAR|STACKED"` - Stacked/grouped bar charts; add `|SIZE|GRID|BOX|VALUES` for full display
+  - `gridx: N` in `.style()` — values per bar group (e.g. `gridx:2` → 2 stacked segments per bar)
+  - `colorscheme` array maps to binding `value` array in the same order
 - `"CHART|BUBBLE|SIZE|AGGREGATE"` - Density grid (circles, sized by count)
 - `"CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE"` + `symbols:"square"` - Density grid (filled squares)
 - `"CHART|VECTOR|BEZIER|POINTER"` - Directional flow arrows (origin → destination)
 
 **GeoJSON/TopoJSON types:**
-- `"FEATURE"` - Simple features
+- `"FEATURE"` - Simple features (boundaries/shapes only)
+  - ⚠️ **`colorscheme` sets line color** on FEATURE layers — `linecolor` is overridden by `colorscheme`. Use `colorscheme: "none"` to hide lines entirely.
 - `"FEATURE|CHOROPLETH"` - Numeric choropleth
 - `"FEATURE|CHOROPLETH|EQUIDISTANT"` - Equal intervals
 - `"FEATURE|CHOROPLETH|QUANTILE"` - Quantile breaks
+- `"FEATURE|CHOROPLETH|QUANTILE|VALUES|DTEXT"` - Quantile choropleth with sized value labels on regions
+  - `|VALUES` — renders value labels; `|DTEXT` — makes those labels properly sized
 - `"FEATURE|CHOROPLETH|CATEGORICAL"` - Category choropleth
 - `"CHOROPLETH|QUANTILE|DOPACITYMAX"` - Dynamic opacity (varies transparency by data values)
 - `"CHOROPLETH|QUANTILE|DOPACITYMINMAX"` - Dynamic opacity highlighting min/max extremes
@@ -1145,6 +1157,12 @@ Complete visualization type reference.
 **CHART|BAR|VALUES**
 - Bar charts at locations
 - Use with: single or multiple value fields
+
+**CHART|BAR|STACKED**
+- Stacked/grouped bar charts at locations; add `|SIZE|GRID|BOX|VALUES` for full styled display
+- `gridx: N` in `.style()` — N values per bar group (e.g. `gridx:2` → pairs of M/F per bar; `gridx:3` → 3 separate bars)
+- `colorscheme` array maps to binding `value` array in the same order
+- Extra style: `xaxis:[]`, `maxvalue`, `normalsizevalue`, `boxcolor`, `boxopacity`, `boxradius`, `boxmargin`
 
 **CHART|BUBBLE|SIZE|AGGREGATE**
 - Density grid with sized bubbles

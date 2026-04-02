@@ -44,6 +44,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 18. **`lookup` goes in `.binding()`**, not in `.data()`
 19. **`values:` for CATEGORICAL must be strings** — ixMaps bug: numeric values silently ignored
 20. **To make a fill invisible** use `colorscheme: ["none"]` — NOT `fillopacity: 0` (causes errors)
+23. **FEATURE layer: `colorscheme` controls line color** — for `FEATURE` type layers, `colorscheme` sets the line/stroke color, NOT the fill. `linecolor` is overridden by `colorscheme`. Always drive line color via `colorscheme`. `colorscheme: "none"` silences lines entirely (renders invisible).
 21. **`changeThemeStyle` requires `name` in `.meta()`** — it finds themes by `name`, NOT by the string in `myMap.layer("name")`. Without `name`, calls silently have no effect:
     ```javascript
     .meta({ name: "punti", tooltip: "..." })   // ✅ — changeThemeStyle("punti", ...) will work
@@ -66,7 +67,9 @@ Is your data...
 │  ├─ Density heatmap (squares)?         → CHART|SYMBOL|GRIDSIZE|AGGREGATE|RECT|SUM|DOPACITY|VALUES  + symbols:["square"] + gridwidth:"80px"
 │  ├─ Sparklines per grid cell?          → CHART|SYMBOL|PLOT|LINES  (see Sparklines below)
 │  ├─ Flows origin→destination?          → CHART|VECTOR|BEZIER|POINTER
-│  └─ Multi-value per point?             → CHART|SYMBOL|SEQUENCE  (|STAR for 5+ categories)
+│  ├─ Multi-value per point?             → CHART|SYMBOL|SEQUENCE  (|STAR for 5+ categories)
+│  └─ Stacked/grouped bars per location? → CHART|BAR|STACKED  (add |SIZE|GRID|BOX|VALUES for full display)
+│     gridx:N in .style() = values per bar group (gridx:2 → 2 segments per bar; gridx:3 → 3 separate bars)
 │
 └─ Polygons (GeoJSON/TopoJSON)?
    ├─ Boundaries only?                   → FEATURE
@@ -87,6 +90,7 @@ Is your data...
 - `|GRADIENT` — gradient color along flow lines (origin color → destination color); use with `CHART|VECTOR|BEZIER` — **gradient must be defined via `linecolor: ["#from","#to"]` array, NOT `colorscheme`**
 - `|CLIPTOGEOBOUNDS` — clips chart rendering to the containing polygon boundary
 - `|DOMINANT|PERCENTOFMEAN` — colors by which of multiple piped fields is above-mean dominant; useful for showing "winner" category per region
+- `|DTEXT` — makes `VALUES`-generated text labels on `CHOROPLETH` themes properly sized (always pair with `|VALUES` on choropleth layers that show value labels)
 - `|SMOOTH` — smoothing interpolation on sparkline curves
 - `|SORT` / `|SORT|DOWN` — sort sparkline categories ascending / descending
 - `|TEXTLEGEND` — renders category labels directly on chart symbols instead of in the legend box
@@ -188,6 +192,48 @@ const myMap = ixmaps.Map("map", {
     flushChartDraw:  1000000
 });
 ```
+
+### Lambert projection (Eurostat style)
+```javascript
+var myMap = ixmaps.Map("map", {
+  mapType:       "white",        // blank tile layer
+  mapProjection: "lambert",      // Lambert Azimuthal Equal-Area — EPSG:3035
+  mode:          "pan",
+  legend:        "closed",
+  tools:         false
+})
+.view([53.4, 16.9], 3.7)        // ⚠️ ARRAY syntax [lat, lng], zoom — object {center,zoom} does NOT work with projections
+.options({ basemapopacity: 0, flushChartDraw: 1000000 });
+```
+- Set sea/background color via CSS on the `#map` div: `background: #c6daea`
+- `basemapopacity: 0` hides tile layer entirely
+- Add a graticule layer **before** countries (see Graticule below)
+
+### Graticule (world grid lines)
+```javascript
+(function() {
+  var step = 10, features = [];
+  for (var lon = -180; lon <= 180; lon += step) {
+    var coords = [];
+    for (var lat = -90; lat <= 90; lat += 2) coords.push([lon, lat]);
+    features.push({ type:"Feature", geometry:{ type:"LineString", coordinates:coords }, properties:{} });
+  }
+  for (var lat = -80; lat <= 80; lat += step) {
+    var coords = [];
+    for (var lon = -180; lon <= 180; lon += 2) coords.push([lon, lat]);
+    features.push({ type:"Feature", geometry:{ type:"LineString", coordinates:coords }, properties:{} });
+  }
+  myMap.layer("graticule")
+    .data({ obj: { type:"FeatureCollection", features:features }, type: "geojson" })
+    .binding({ geo: "geometry" })
+    .type("FEATURE|SILENT")
+    .style({ colorscheme: "#7aaabb", linewidth: 0.6, fillopacity: 0 })
+    .define();
+})();
+```
+Intermediate points every 2° ensure smooth curves in Lambert projection. Define graticule **before** the countries layer so it renders underneath.
+
+---
 
 **Layer chain (order matters):**
 ```javascript

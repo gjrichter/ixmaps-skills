@@ -1,6 +1,6 @@
 # ixMaps Skills
 
-This repository provides ixMaps skills for different assistants plus templates and examples. In the subfolders you will find tool-specific skills for **Claude Code** and **Codex**. For chat usage, use the general `SKILL.md` described below.
+This repository provides ixMaps skills for different assistants plus templates and examples. For chat usage, use the general `SKILL.md` described below.
 
 These **skills** enable **AI assistants** to create **ixMaps maps** in **HTML documents**. These documents load the **`ixmaps-flat`** framework and are executable in any **HTML5**-capable browser.
 

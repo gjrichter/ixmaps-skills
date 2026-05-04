@@ -150,6 +150,49 @@ This skill enables Claude to generate complete HTML files with interactive geogr
   - Layer toggle controls
   - More complex visualizations
 
+- **template-change-choropleth.html** - Period-over-period change maps
+  - Choropleth fill + signed pointer arrows at centroids
+  - Uses `CHART|BAR|POINTER|ARROW|SIZE` (upward = positive, downward = negative)
+  - Style keys: `scale`, `sizepow`, `fadenegative`, `linecolor`, `linewidth`
+  - Use for "t1 vs t2" comparisons, delta/variation visualizations
+
+- **template-world-flows.html** - Origin → destination flow maps
+  - Bezier flow arrows via `CHART|VECTOR|BEZIER|POINTER|FADEIN`
+  - `vectorScale` style key controls overall arrow thickness
+  - Use for migration, trade, remittances, connectivity
+
+- **template-europe-choropleth-sparklines.html** - Map + per-feature mini-charts
+  - Choropleth base + `CHART|USER` D3 sparklines at each centroid
+  - Requires loading `usercharts/d3/chart.js` from the ixmaps-flat CDN
+  - Use for "map + trend" dashboards where each polygon has a small time series
+
+## 🔑 The #1 Rule Before Picking a Template
+
+**Same layer name = geometry reuse.** A CHOROPLETH / CHART overlay has no geometry of
+its own — it joins onto the FEATURE layer with the **same name**. Use a different name
+(e.g. `"theme"`, `"overlay"`, `"data"`) and the overlay renders as nothing or fails with
+"selection field not found".
+
+For apps that switch between multiple visualizations of the same geometry (sidebar theme
+picker, etc.), redefine the *same-named* layer each click AND call `ixmaps.removeTheme(prev)`
+first — otherwise themes stack instead of replace. There is **no `"direct"` flag and no
+built-in upsert** in the flat API. See **SKILL.md § Multi-Layer Join Pattern · B. Swappable
+themes**.
+
+## When to Use Which Template
+
+| Task | Template |
+|------|----------|
+| Points with lat/lon (cities, events) | `template-points.html` |
+| Polygons with a single indicator | `template-geojson.html` |
+| Two+ layers (e.g. base + overlay) | `template-multi-layer.html` |
+| Swappable themes on one geometry (sidebar picker) | base + redefine `myMap.layer("<base>")` with new `.meta({name})` per theme, preceded by `api.removeTheme(prev)` |
+| Delta/variation between two periods (arrows) | `template-change-choropleth.html` |
+| Origin → destination flows | `template-world-flows.html` |
+| Choropleth + per-feature sparkline | `template-europe-choropleth-sparklines.html` |
+| Fully configurable, complex logic | `template-flexible.html` |
+| Starting point, generic | `template.html` |
+
 ## Improvements Made
 
 ### Critical Fixes
@@ -293,6 +336,9 @@ create-ixmap/
 ├── template-points.html        # Point data specialist
 ├── template-geojson.html       # GeoJSON specialist
 ├── template-multi-layer.html   # Multi-layer maps
+├── template-change-choropleth.html              # Delta/variation with arrows
+├── template-world-flows.html                    # Origin→destination flows
+├── template-europe-choropleth-sparklines.html   # Map + per-feature sparklines
 └── SKILL_OLD_BACKUP.md         # Original (backup)
 ```
 

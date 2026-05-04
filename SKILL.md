@@ -33,9 +33,84 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
     - **Only include the data.js CDN explicitly** when you need `Data.*` functions *outside* ixmaps theme realization (e.g. pre-processing data in your own `<script>` block before defining layers)
 13. **NEVER use info from** `ixmaps.ca` or `ixmaps.com` — only `github.com/gjrichter/ixmaps-flat`
 14. **ONE `.data()` per layer** — never chain two `.data()` calls on the same layer
-15. **SAME LAYER NAME** for all layers sharing geometry — #1 cause of silent failures:
-    - ✅ `myMap.layer("regions").type("FEATURE")` → `myMap.layer("regions").type("CHOROPLETH")`
-    - ❌ `myMap.layer("regions").type("FEATURE")` → `myMap.layer("flows").type("CHOROPLETH")` — silently broken
+15. **🔑 SAME LAYER NAME = GEOMETRY REUSE** — the single most important rule in ixMaps. 🔑
+
+    A CHOROPLETH / CHART / any data-driven overlay does **not** carry its own geometry — it joins onto the geometry of the FEATURE layer **with the same name**. Use a different name and the overlay has no geometry to draw on → it renders as nothing, or fails with "selection field not found".
+
+    ```javascript
+    // ✅ Base + overlay (both named "regions" → overlay binds onto regions' geometry)
+    myMap.layer("regions").data({url:geo}).type("FEATURE").define();
+    myMap.layer("regions").data({url:csv}).binding({lookup:"code",value:"pct"})
+                          .type("CHOROPLETH|QUANTILE").define();
+
+    // ❌ Different names → overlay has nothing to draw on, silently broken
+    myMap.layer("regions").type("FEATURE").define();
+    myMap.layer("stats").type("CHOROPLETH").define();   // ← WRONG
+    ```
+
+    **Theme switching (sidebar picker):** to swap the overlay at runtime — e.g. a sidebar with
+    "% RD", "Consorzi", "Dominante", "Sparkline" buttons — redefine the **same-named layer**
+    AND explicitly remove the previous theme. Two identifiers are in play and they are NOT
+    the same thing:
+
+    - **Layer name** (`myMap.layer("comuni")`) = GEOMETRY bucket — must match the FEATURE
+      base so the overlay reuses its geometry.
+    - **meta.name** (`.meta({name: "pie-theme-rd"})`) = THEME identity — the handle passed
+      to `ixmaps.removeTheme(name)` to tear down the previous overlay.
+
+    Without `removeTheme`, every `.layer("comuni").define()` call **adds another theme on
+    top**; the map stacks overlays instead of replacing them. There is no `"direct"` flag
+    or built-in upsert in the flat API — you must remove by meta.name yourself.
+
+    ```javascript
+    // One FEATURE base — no meta.name, never removed.
+    // ⚠️ DO NOT add |SILENT here if any overlay on the same layer needs tooltips /
+    //    hover events. See rule 15b below.
+    myMap.layer("comuni").data({url:geo}).type("FEATURE").define();
+
+    let ACTIVE_THEME_NAME = null;
+    let _PENDING_ID = null;
+
+    function setTheme({id, value, type, style, tooltip}) {
+      const themeName = "theme-" + id;
+      const prev = ACTIVE_THEME_NAME;
+
+      // removeTheme lives on the embedded Api (not the MapBuilder shim), so go through
+      // myMap.then(api => ...). Defining the new layer INSIDE the same callback
+      // guarantees remove-before-add ordering.
+      myMap.then(api => {
+        if (prev) { try { api.removeTheme(prev); } catch(e){} }
+
+        const meta = {name: themeName};
+        if (tooltip) meta.tooltip = tooltip;
+
+        myMap.layer("comuni")                             // ← same name as FEATURE base
+          .data({obj: DATA, type:"json", cache:"true"})
+          .binding({lookup:"ISTAT", value, title:"COMUNE"})
+          .type(type)
+          .style(style)
+          .meta(meta)                                     // ← meta.name = theme handle
+          .define();
+
+        ACTIVE_THEME_NAME = themeName;
+      });
+    }
+    ```
+
+    If you find yourself inventing a second layer name for the overlay (e.g. `"theme"`,
+    `"data"`, `"stats"`, `"overlay"`), stop — you are about to silently break the map.
+    If you find yourself redefining the layer without `removeTheme`, you are about to
+    stack overlays instead of replacing them.
+
+    **🪤 Gotcha — `FEATURE|SILENT` kills tooltips on CHOROPLETH overlays sharing the layer.**
+    The `|SILENT` flag on the base FEATURE disables mouse/hover event creation on the
+    underlying geometry. Because CHOROPLETH / CHART overlays that reuse the same layer
+    name inherit that geometry, they inherit its event-less state too — `.meta({tooltip})`
+    has nothing to attach to, and tooltips never fire. If any theme on this layer needs
+    tooltips, **drop `|SILENT`** from the base (`.type("FEATURE")` only). Use `|SILENT`
+    only on backdrop layers that truly should never react to the cursor and that no
+    overlay reuses.
+
 16. **NO `FEATURE` on overlay layers** — base layer gets `FEATURE`; choropleth/chart overlays do not:
     - ✅ `myMap.layer("x").type("FEATURE")` → `myMap.layer("x").type("CHOROPLETH|CATEGORICAL")`
     - ❌ `myMap.layer("x").type("FEATURE")` → `myMap.layer("x").type("FEATURE|CHOROPLETH|CATEGORICAL")`
@@ -44,7 +119,9 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 18. **`lookup` goes in `.binding()`**, not in `.data()`
 19. **`values:` for CATEGORICAL must be strings** — ixMaps bug: numeric values silently ignored
 20. **To make a fill invisible** use `colorscheme: ["none"]` — NOT `fillopacity: 0` (causes errors)
-23. **FEATURE layer: `colorscheme` controls line color** — for `FEATURE` type layers, `colorscheme` sets the line/stroke color, NOT the fill. `linecolor` is overridden by `colorscheme`. Always drive line color via `colorscheme`. `colorscheme: "none"` silences lines entirely (renders invisible).
+23. **FEATURE layer styling depends on geometry type:**
+    - **Line features** — `colorscheme` sets the line/stroke color; `linecolor` is overridden by `colorscheme` and has no effect. Use `colorscheme: "none"` to make lines invisible. Color classes (multi-value array) apply as line-color classes.
+    - **Polygon features** — `colorscheme` sets the **fill color** (single value or array for color classes); `linecolor` sets the **border/outline color** of the polygon. `fillopacity` controls fill transparency; `linewidth` controls border thickness.
 21. **`changeThemeStyle` requires `name` in `.meta()`** — it finds themes by `name`, NOT by the string in `myMap.layer("name")`. Without `name`, calls silently have no effect:
     ```javascript
     .meta({ name: "punti", tooltip: "..." })   // ✅ — changeThemeStyle("punti", ...) will work
@@ -193,21 +270,51 @@ const myMap = ixmaps.Map("map", {
 });
 ```
 
-### Lambert projection (Eurostat style)
+### Projections
+
+All projections use SVG-based rendering. Omit `mapProjection` for the default Web Mercator / Leaflet tile setup.
+
+| `mapProjection` value | Also accepted | Projection |
+|---|---|---|
+| *(omit)* | — | Default Web Mercator (Leaflet tiles) |
+| `"mercator"` | — | Mercator (SVG, no tile layer) |
+| `"winkel"` | — | Winkel Tripel |
+| `"equalearth"` | — | Equal Earth |
+| `"albersequalarea"` | `"albers"` | Albers Equal-Area Conic |
+| `"lambertazimuthalequalarea"` | `"lambert"` | Lambert Azimuthal Equal-Area (EPSG:3035) |
+| `"orthographic"` | — | Orthographic (globe view) |
+
+- Lookup is **case-insensitive**; unknown values fall back to Mercator
+- For **any** projected map: use **array** `.view([lat, lng], zoom)` — object `{center,zoom}` does NOT work with projections
+- Set `mapType` to the background/sea color instead of using CSS: `mapType: "#0a1929"` (dark), `mapType: "black"`, `mapType: "dark"`, `mapType: "white"`, or any hex color. Do **not** use `mapType: "white"` + CSS `background` on `#map` — set it directly in `mapType`.
+- Add a graticule layer **before** data layers for smooth curves (see Graticule below)
+- **Albers only:** pass `projectionParams` in map options to set custom standard parallels / center for conic tuning
+
+#### Lambert projection (Eurostat style — Europe)
 ```javascript
 var myMap = ixmaps.Map("map", {
-  mapType:       "white",        // blank tile layer
+  mapType:       "white",
   mapProjection: "lambert",      // Lambert Azimuthal Equal-Area — EPSG:3035
   mode:          "pan",
   legend:        "closed",
   tools:         false
 })
-.view([53.4, 16.9], 3.7)        // ⚠️ ARRAY syntax [lat, lng], zoom — object {center,zoom} does NOT work with projections
+.view([53.4, 16.9], 3.7)
 .options({ basemapopacity: 0, flushChartDraw: 1000000 });
 ```
-- Set sea/background color via CSS on the `#map` div: `background: #c6daea`
-- `basemapopacity: 0` hides tile layer entirely
-- Add a graticule layer **before** countries (see Graticule below)
+
+#### Equal Earth projection (world maps)
+```javascript
+var myMap = ixmaps.Map("map", {
+  mapType:       "#0a1929",      // dark ocean — set background directly in mapType, not CSS
+  mapProjection: "equalearth",
+  mode:          "info",
+  legend:        "closed",
+  tools:         false
+})
+.view([0, 0], 1)                // zoom: 0–1 for world-scale projections
+.options({ basemapopacity: 0, flushChartDraw: 1000000 });
+```
 
 ### Graticule (world grid lines)
 ```javascript
@@ -231,6 +338,8 @@ var myMap = ixmaps.Map("map", {
     .define();
 })();
 ```
+**Note:** `FEATURE|SILENT` layers do not need `value` in `.binding()` or `showdata` in `.style()` — omit both to avoid 'type not found' load errors.
+
 Intermediate points every 2° ensure smooth curves in Lambert projection. Define graticule **before** the countries layer so it renders underneath.
 
 ---
@@ -265,11 +374,24 @@ Tooltips in `.meta({ tooltip: "..." })` use `{{…}}` placeholders. Two prefixes
 
 **`raw.` is the escape hatch** — whenever ixmaps mangles a value (reformats numbers, truncates strings, adds units), use `{{raw.field}}` to get the original data value unchanged.
 
-For fields not in the primary `value` binding, list them in `datafields` in `.style()` to make them available:
-```javascript
-.style({ datafields: ["field1", "field2"], showdata: "true" })
-.meta({ tooltip: "{{raw.field1}} — {{field2}}" })
-```
+> ⚠️ **`raw.` bypasses auto-formatting — use it only when you do NOT want ixmaps to format the value** (e.g. a year `2025` that should not become `2.025`). For everything else use `{{field}}`.
+>
+> ⚠️ **`datafields` is only for restricting `{{theme.item.data}}`** — it filters which fields appear in the built-in data table. All data fields are automatically available as `{{field}}` in custom tooltip templates; no need to list them in `datafields`.
+>
+> | Goal | Syntax | Example output |
+> |---|---|---|
+> | Auto-formatted number | `{{freq}}` | `"8.519"` |
+> | String field | `{{provincia}}` | `"PD"` |
+> | Raw unformatted number (special cases only) | `{{raw.anno}}` | `2025` |
+> | Built-in value+label display | `{{theme.item.data}}` | ixmaps default table |
+>
+> **Pattern for CHOROPLETH tooltips:**
+> ```javascript
+> .binding({ lookup: "istat", value: "media", title: "comune" })
+> .style({ showdata: "true" })   // no datafields needed for custom tooltip fields
+> .meta({ tooltip: "<b>{{comune}}</b> ({{provincia}} — {{regione}})<br>N: {{freq}}<br>Tot: {{ammk}} k€<br>{{theme.item.data}}" })
+> // string/number fields via {{field}}; use {{theme.item.data}} for the bound value display
+> ```
 
 ---
 
@@ -309,10 +431,23 @@ Scales: `60M` (default/world) · `20M` · `10M` · `3M` · `1M` (country zoom)
 **Municipalities (comuni) — ISTAT, ~8 000 polygons, 500m simplified:**
 ```javascript
 .data({ url: "https://raw.githubusercontent.com/gjrichter/geo/main/italy/boundaries/italy_istat_municipalities_4326_500m.topojson", type: "topojson" })
-.binding({ geo: "geometry", id: "com_istat_code", title: "name" })
-// Join field: com_istat_code (numeric) — matches cod_istat in ISTAT/ondata CSVs
-// Useful properties: com_istat_code, name, prov_istat_code, reg_istat_code (cod_reg for region filter)
+.binding({ geo: "geometry", id: "com_istat_code_num", title: "name" })
+// com_istat_code     = zero-padded STRING "028001"  ← do NOT use for joins unless your data also has zero-padded strings
+// com_istat_code_num = plain INTEGER    28001       ← use this for joins with ISTAT CSV data
+// Useful properties: com_istat_code_num, com_istat_code, name, prov_istat_code_num, reg_istat_code_num
 ```
+
+> ⚠️ **Geometry version pitfall** — the `main` branch of gjrichter/geo was updated to **2026 ISTAT codes** on 2026-03-24. Official data sources (MEF IRPEF, ISTAT CSVs) still use **2024 codes**. Using `main` will silently break the join for all Sardinian municipalities and any others renumbered in 2026. Pin to commit `0153a0e14da5dae877b8c94d6deb11f210d4660a` for 2024-compatible codes:
+> ```
+> https://raw.githubusercontent.com/gjrichter/geo/0153a0e14da5dae877b8c94d6deb11f210d4660a/italy/boundaries/italy_istat_municipalities_4326_500m.topojson
+> ```
+
+> ⚠️ **ISTAT code join pitfall** — the geometry exposes two variants of the municipality code:
+> - `com_istat_code` is a **zero-padded string** (`"028001"`) — it will **not** match integers or un-padded strings from CSV data
+> - `com_istat_code_num` is a plain **integer** (`28001`) — use this when your lookup data comes from ISTAT CSVs where codes are stored as numbers
+>
+> Always verify which variant matches your data before writing the join. Mismatching types silently renders only a fraction of features (those whose string representation happens to match).
+
 ⚠️ Use `flushPaintShape: 1000000` in `.options()` when rendering all 8 000 polygons to avoid hangs.
 
 > ⚠️ Local `file://` URLs are blocked by browser CORS — always use CDN or inline `obj:`
@@ -322,7 +457,10 @@ Scales: `60M` (default/world) · `20M` · `10M` · `3M` · `1M` (country zoom)
 
 ## Multi-Layer Join Pattern
 
-When joining external data to geometry (e.g. TopoJSON + CSV statistics):
+When joining external data to geometry (e.g. TopoJSON + CSV statistics), the overlay layer
+**must reuse the FEATURE base's name** so it joins onto its geometry (see critical rule 15).
+
+### A. Static overlay (base + one data-driven layer)
 
 ```javascript
 // Step 1 — FEATURE base (geometry + id field for join)
@@ -333,7 +471,7 @@ myMap.layer("regions")
     .style({ colorscheme: ["#ccc"], fillopacity: 0.1, linecolor: "#666", linewidth: 0.5, showdata: "true" })
     .define();
 
-// Step 2 — CHOROPLETH overlay (SAME layer name, NO FEATURE, lookup joins to id)
+// Step 2 — CHOROPLETH overlay (SAME layer name "regions", NO FEATURE flag, lookup joins to id)
 myMap.layer("regions")
     .data({ url: "data.csv", type: "csv" })
     .binding({ lookup: "csv_code_col", value: "metric" })
@@ -345,6 +483,88 @@ myMap.layer("regions")
 
 **Critical:** `id` values in geometry must match `lookup` values in CSV exactly (case-sensitive).
 Always inspect both sources to confirm field names before writing the join.
+
+### B. Swappable themes on the same base (remove-then-define)
+
+For apps where the user flips between multiple visualizations of the same geometry
+(choropleth / dominant / sparkline / arrows / etc.), use **one FEATURE base** plus a single
+swappable overlay always redefined under the **same layer name** as the base. Do **not**
+create a separate layer per theme.
+
+**Two identifiers — don't confuse them:**
+- **Layer name** (`myMap.layer("comuni")`) = GEOMETRY bucket — must equal the FEATURE base's name.
+- **meta.name** (`.meta({name: "pie-theme-rd"})`) = THEME identity — the handle for `removeTheme`.
+
+There is **no `"direct"` flag and no built-in upsert** in the flat API — every
+`.layer("comuni").define()` call ADDS another theme. To replace instead of stack, you
+must track the previous theme's meta.name and call `ixmaps.removeTheme(prev)` before
+defining the next one.
+
+```javascript
+// ONE FEATURE base — defined once, no meta.name so it's never removed
+myMap.layer("comuni")
+    .data({ url: GEO_URL, type: "topojson" })
+    .binding({ geo: "geometry", id: "com_istat_code_num", title: "name" })
+    .filter("WHERE reg_istat_code_num == 1")
+    .type("FEATURE|SILENT")
+    .style({ colorscheme: ["#d9e4dc"], fillopacity: 0.55, linecolor: "#8a9d8c", linewidth: 0.2, showdata: "true" })
+    .define();
+
+// Remove-then-define swapper.
+// removeTheme lives on the embedded Api (not the MapBuilder shim), so the call
+// goes through myMap.then(api => ...). Defining the new layer INSIDE the same
+// callback guarantees remove-before-add ordering.
+let ACTIVE_THEME_NAME = null;
+
+function setTheme({ id, value, value100, type, style, tooltip }) {
+  const themeName = "theme-" + id;
+  const prev      = ACTIVE_THEME_NAME;
+  const bind = { lookup: "ISTAT", title: "COMUNE", value };
+  if (value100) bind.value100 = value100;
+
+  myMap.then(api => {
+    if (prev) { try { api.removeTheme(prev); } catch(e){} }
+
+    const meta = { name: themeName };
+    if (tooltip) meta.tooltip = tooltip;
+
+    myMap.layer("comuni")                                 // ← same name as FEATURE base
+      .data({ obj: DATA, type: "json", cache: "true" })
+      .binding(bind)
+      .type(type)
+      .style(Object.assign({ showdata: "true" }, style))
+      .meta(meta)                                         // ← meta.name = theme handle
+      .define();
+
+    ACTIVE_THEME_NAME = themeName;
+  });
+}
+
+// Each sidebar click = one setTheme({id, ...}) call — overlays REPLACE, not stack.
+setTheme({ id: "rd",        value: "% di RD [RD/RT]",
+           type: "CHOROPLETH|QUANTILE|VALUES",
+           style:{ colorscheme:["5","#FF4800","#7CB832","auto","#F7FA7A"], title:"% RD" }});
+setTheme({ id: "sparkline", value: "% RD 2011|% RD 2012|% RD 2013|% RD 2014",
+           type: "CHART|SYMBOL|PLOT|LINES|AREA|AGGREGATE|RECT|GRIDSIZE|MEAN",
+           style:{ gridwidthpx:"150", xaxis:["2011","2012","2013","2014"] }});
+```
+
+**Common mistakes — DO NOT DO THIS:**
+```javascript
+// ❌ Different layer names → overlay has no geometry to bind to
+myMap.layer("comuni").type("FEATURE").define();
+myMap.layer("theme").type("CHOROPLETH")...   // blank / error
+
+// ❌ No meta.name + no removeTheme → every click STACKS a new theme on the map
+function setTheme(opts) {
+  myMap.layer("comuni").type(opts.type)....define();   // stacks forever
+}
+
+// ❌ "direct" does not exist in the flat API — the second arg is ignored
+myMap.layer("comuni", "direct")...              // no-op flag, still stacks
+```
+Both overlays need layer name `"comuni"` (for geometry) AND a tracked `meta.name`
+with explicit `removeTheme(prev)` (for replacement).
 
 ---
 
@@ -399,44 +619,33 @@ Two distinct patterns depending on data shape:
 
 ## Animated / Timeseries Maps
 
-### Method A — `myMap.layer(theme, "direct")` (preferred)
+### Remove-then-define (the only pattern that actually replaces)
 ```javascript
-// ixmaps.layer() (global) builds theme WITHOUT adding to map
-// myMap.layer(theme, "direct") = smart upsert: add on first call, replace on subsequent
+// Each theme has a stable meta.name. Before defining the next one,
+// removeTheme(prev) tears down the previous overlay. Without this, every
+// showYear() call STACKS a new theme on the map — they never replace.
+let ACTIVE = null;   // meta.name of the currently-drawn theme
+
 function showYear(year) {
-    const theme = ixmaps.layer("countries")
-        .data({ obj: yearData[year], type: "json" })
-        .binding({ geo: "lat|lon", value: "metric" })
-        .type("CHART|BUBBLE|SIZE|VALUES")
-        .style({ colorscheme: ["#0066cc"], fillopacity: 0.7, showdata: "true" })
-        .meta({ name: "myTheme", tooltip: "{{label}}: {{metric}}" })
-        .define();           // returns theme object, does NOT add to map
-    myMap.layer(theme, "direct");   // smart upsert — no tracking needed
+    const themeName = "year-" + year;
+    const prev = ACTIVE;
+    myMap.then(api => {
+        if (prev) { try { api.removeTheme(prev); } catch(e){} }
+        myMap.layer("countries")                                   // SAME name as FEATURE base
+            .data({ obj: yearData[year], type: "json" })
+            .binding({ geo: "lat|lon", value: "metric" })
+            .type("CHART|BUBBLE|SIZE|VALUES")
+            .style({ colorscheme: ["#0066cc"], fillopacity: 0.7, showdata: "true" })
+            .meta({ name: themeName, tooltip: "{{label}}: {{metric}}" })
+            .define();
+        ACTIVE = themeName;
+    });
 }
 showYear("2023");
 ```
-
-### Method B — explicit `addTheme` / `replaceTheme`
-```javascript
-let activeTheme = null;
-let mapInstance = null;
-myMap.then(map => { mapInstance = map; showYear("2023"); });
-
-function showYear(year) {
-    if (!mapInstance) return;
-    const theme = ixmaps.layer("countries")
-        .data({ obj: yearData[year], type: "json" })
-        .binding({ geo: "lat|lon", value: "metric" })
-        .type("CHART|BUBBLE|SIZE|VALUES")
-        .style({ colorscheme: ["#0066cc"], fillopacity: 0.7, showdata: "true" })
-        .meta({ name: "myTheme", tooltip: "{{label}}: {{metric}}" })
-        .define();
-    if (activeTheme) mapInstance.replaceTheme("myTheme", theme, "direct");
-    else             mapInstance.addTheme("myTheme", theme, "direct");
-    activeTheme = theme;
-}
-```
-**Key:** `replaceTheme` avoids flicker vs remove+add. Theme `name` in `.meta()` is the upsert key.
+**Key:** the flat API has no `"direct"` upsert and no `replaceTheme` on the MapBuilder shim.
+`removeTheme` lives on the embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`.
+Theme `name` in `.meta()` is the handle; layer name (`"countries"`) is the geometry bucket.
 
 > Time slider (`timefield` in `.binding()`), `setThemeTimeFrame()` → **API_REFERENCE.md § Time Slider**
 
@@ -1257,6 +1466,15 @@ Instead of Bootstrap, include ~35 lines of standalone CSS that covers only what 
   vertical-align: baseline; background: #777; border-radius: 10px;
 }
 .pull-right { float: right !important; }
+```
+
+### Tooltip text color on dark basemaps
+
+On dark basemaps (`CartoDB - Dark matter`, etc.) the tooltip text color is inherited from the page and often renders dark/invisible. Always include this CSS when using a dark basemap:
+
+```css
+#tooltip { color: #e8eaf6 !important; }
+#tooltip * { color: #e8eaf6 !important; }
 ```
 
 ### Tooltip and context menu fix

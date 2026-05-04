@@ -191,6 +191,19 @@ The style properties for hiding a layer outside a scale range are:
 - For GeoJSON: use property names directly
 - For point data: use exact field names from data object
 
+### Problem: Tooltip text is dark / unreadable on dark basemaps
+
+ixmaps renders tooltips in a `#tooltip` element whose text color is inherited from the page. On dark basemaps (`CartoDB - Dark matter`, etc.) the inherited color is often dark, making text invisible.
+
+**Fix:** Add this CSS rule:
+
+```css
+#tooltip { color: #e8eaf6 !important; }
+#tooltip * { color: #e8eaf6 !important; }
+```
+
+Always include this rule when using dark basemaps (`CartoDB - Dark matter`, `CartoDB - Positron` in dark contexts, etc.).
+
 ---
 
 ## Performance Issues

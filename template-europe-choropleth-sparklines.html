@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{MAP_TITLE}}</title>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
+    <style>
+        :root {
+            --bg-sea: #eef5ef;
+            --panel: rgba(251, 253, 249, 0.95);
+            --panel-border: rgba(75, 104, 80, 0.16);
+            --ink: #203126;
+            --muted: #5f7565;
+            --accent: #4d7a57;
+            --spark: #1f5a43;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+            color: var(--ink);
+            background: var(--bg-sea);
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-sea);
+        }
+
+        .panel {
+            position: absolute;
+            z-index: 1000;
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 18px;
+            box-shadow: 0 18px 46px rgba(44, 36, 24, 0.12);
+            backdrop-filter: blur(14px);
+        }
+
+        .headline {
+            top: 18px;
+            left: 18px;
+            width: min(420px, calc(100vw - 36px));
+            padding: 18px 20px 16px 20px;
+        }
+
+        .headline h1 {
+            margin: 0 0 8px 0;
+            font-size: 28px;
+            line-height: 1.02;
+            letter-spacing: -0.02em;
+            font-weight: 700;
+        }
+
+        .headline p {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.4;
+            color: var(--muted);
+        }
+
+        .kicker {
+            display: inline-block;
+            margin-bottom: 10px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(125, 90, 40, 0.1);
+            color: var(--accent);
+            font-size: 11px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .summary {
+            right: 18px;
+            top: 18px;
+            width: min(300px, calc(100vw - 36px));
+            padding: 16px 18px;
+        }
+
+        .summary h2,
+        .summary h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .summary h3 {
+            margin-top: 14px;
+        }
+
+        .summary ol {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--ink);
+        }
+
+        .legend-list {
+            display: grid;
+            gap: 7px;
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: var(--ink);
+            cursor: pointer;
+            transition: transform 120ms ease;
+        }
+
+        .legend-row:hover {
+            transform: translateX(2px);
+        }
+
+        .legend-row.is-active {
+            background: rgba(255, 255, 255, 0.52);
+            border-radius: 8px;
+        }
+
+        .legend-swatch {
+            width: 18px;
+            height: 12px;
+            border-radius: 4px;
+            border: 1px solid rgba(63, 86, 69, 0.12);
+            flex: 0 0 auto;
+            position: relative;
+        }
+
+        .legend-row.is-active .legend-swatch {
+            border-color: rgba(31, 90, 67, 0.9);
+            box-shadow: 0 0 0 2px rgba(31, 90, 67, 0.18);
+        }
+
+        .legend-row.is-active .legend-swatch::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 4px;
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        .legend-note {
+            margin-top: 10px;
+            font-size: 11px;
+            line-height: 1.35;
+            color: var(--muted);
+        }
+
+        .footnote {
+            left: 18px;
+            bottom: 18px;
+            width: min(580px, calc(100vw - 36px));
+            padding: 12px 16px;
+            font-size: 12px;
+            line-height: 1.45;
+            color: var(--muted);
+        }
+
+        .footnote a {
+            color: var(--spark);
+        }
+
+        @media (max-width: 900px) {
+            .headline {
+                width: calc(100vw - 36px);
+            }
+
+            .summary {
+                top: auto;
+                bottom: 104px;
+                right: 18px;
+                width: min(300px, calc(100vw - 36px));
+            }
+
+            .headline h1 {
+                font-size: 24px;
+            }
+
+            .footnote {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="panel headline">
+        <div class="kicker">{{KICKER}}</div>
+        <h1>{{MAP_HEADLINE}}</h1>
+        <p>{{MAP_COPY}}</p>
+    </div>
+
+    <div class="panel summary">
+        <h2>{{LEGEND_TITLE}}</h2>
+        <div id="legend" class="legend-list"></div>
+        <div class="legend-note">{{LEGEND_NOTE}}</div>
+        <h3>{{LEADERBOARD_TITLE}}</h3>
+        <ol id="leaderboard"></ol>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="panel footnote">
+        {{FOOTNOTE_HTML}}
+    </div>
+
+    <script>
+        const YEARS = ["2015", "2016", "2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024"];
+        const CHOROPLETH_COLORS = ["#dcefd7", "#bfe0b8", "#93c993", "#63aa74", "#3f825e"];
+        const COUNTRY_SERIES = [
+            { code: "NO", country_name: "Norway",  lat: 63.5, lon: 10.4, latest_value: 92.3, latest_label: "92.3%", detail_a: "138,265", detail_b: "149,234", series: { "2015": 23.1, "2016": 29.1, "2017": 39.2, "2018": 49.1, "2019": 56.0, "2020": 74.8, "2021": 86.2, "2022": 88.9, "2023": 91.5, "2024": 92.3 } },
+            { code: "SE", country_name: "Sweden",  lat: 62.0, lon: 16.0, latest_value: 58.4, latest_label: "58.4%", detail_a: "173,411", detail_b: "296,830", series: { "2015": 2.8, "2016": 4.2, "2017": 6.3, "2018": 8.1, "2019": 11.2, "2020": 32.1, "2021": 45.7, "2022": 56.8, "2023": 59.6, "2024": 58.4 } },
+            { code: "DE", country_name: "Germany", lat: 51.0, lon: 10.3, latest_value: 20.1, latest_label: "20.1%", detail_a: "573,421", detail_b: "2853275", series: { "2015": 0.9, "2016": 1.1, "2017": 1.8, "2018": 2.1, "2019": 3.0, "2020": 13.5, "2021": 26.0, "2022": 31.4, "2023": 24.6, "2024": 20.1 } },
+            { code: "FR", country_name: "France",  lat: 46.4, lon: 2.2,  latest_value: 25.9, latest_label: "25.9%", detail_a: "447,315", detail_b: "1726980", series: { "2015": 1.3, "2016": 1.5, "2017": 1.9, "2018": 2.5, "2019": 3.2, "2020": 11.4, "2021": 18.3, "2022": 21.7, "2023": 24.5, "2024": 25.9 } },
+            { code: "NL", country_name: "Netherlands", lat: 52.2, lon: 5.4, latest_value: 34.7, latest_label: "34.7%", detail_a: "131,021", detail_b: "377204", series: { "2015": 9.7, "2016": 6.4, "2017": 2.8, "2018": 6.0, "2019": 14.9, "2020": 25.1, "2021": 29.8, "2022": 33.9, "2023": 35.2, "2024": 34.7 } }
+        ];
+
+        const currentData = COUNTRY_SERIES.map((item) => ({
+            country: item.code,
+            country_name: item.country_name,
+            latest_value: item.latest_value,
+            latest_label: item.latest_label,
+            detail_a: item.detail_a,
+            detail_b: item.detail_b
+        }));
+
+        const seriesData = COUNTRY_SERIES.flatMap((item) =>
+            YEARS.map((year) => ({
+                country: item.code,
+                country_name: item.country_name,
+                lat: item.lat,
+                lon: item.lon,
+                year,
+                trend_value: item.series[year]
+            }))
+        );
+
+        let myMap;
+        let clearLegendTimer = null;
+        const activeLegendClasses = new Set();
+
+        function renderLeaderboard() {
+            const target = document.getElementById("leaderboard");
+            const topFive = [...currentData]
+                .sort((a, b) => b.latest_value - a.latest_value)
+                .slice(0, 5);
+            target.innerHTML = topFive
+                .map((item) => `<li>${item.country_name}: <strong>${item.latest_label}</strong></li>`)
+                .join("");
+        }
+
+        function applyMarkedClasses(classIndexes) {
+            if (!myMap) {
+                return;
+            }
+            const classList = classIndexes.map((index) => `"${index}"`).join(",");
+            myMap.then((map) => {
+                map.changeThemeStyle("latest-choropleth", `markclasses:[${classList}]`, "set");
+            });
+        }
+
+        function syncLegendActiveState() {
+            document.querySelectorAll(".legend-row").forEach((row) => {
+                const index = Number(row.dataset.classIndex);
+                row.classList.toggle("is-active", activeLegendClasses.has(index));
+            });
+        }
+
+        function previewLegendClass(index) {
+            if (activeLegendClasses.size) {
+                return;
+            }
+            if (clearLegendTimer) {
+                clearTimeout(clearLegendTimer);
+                clearLegendTimer = null;
+            }
+            applyMarkedClasses([index]);
+        }
+
+        function resetLegendPreview() {
+            if (activeLegendClasses.size) {
+                return;
+            }
+            if (clearLegendTimer) {
+                clearTimeout(clearLegendTimer);
+            }
+            clearLegendTimer = setTimeout(() => {
+                applyMarkedClasses([]);
+                clearLegendTimer = null;
+            }, 90);
+        }
+
+        function clearHoverPreview() {
+            if (activeLegendClasses.size) {
+                return;
+            }
+            resetLegendPreview();
+        }
+
+        function toggleLegendClass(index) {
+            if (activeLegendClasses.has(index)) {
+                activeLegendClasses.delete(index);
+            } else {
+                activeLegendClasses.add(index);
+            }
+            applyMarkedClasses([...activeLegendClasses].sort((a, b) => a - b));
+            syncLegendActiveState();
+        }
+
+        function renderLegend() {
+            const target = document.getElementById("legend");
+            const values = currentData
+                .map((item) => Number(item.latest_value))
+                .filter((value) => Number.isFinite(value))
+                .sort((a, b) => a - b);
+
+            if (!target || !values.length) {
+                return;
+            }
+
+            const classCount = CHOROPLETH_COLORS.length;
+            const ranges = [];
+
+            for (let i = 0; i < classCount; i++) {
+                const startIndex = Math.floor((i * values.length) / classCount);
+                const endIndex = Math.min(values.length - 1, Math.floor((((i + 1) * values.length) / classCount) - 1));
+                const min = values[startIndex];
+                const max = values[Math.max(startIndex, endIndex)];
+                ranges.push({ min, max, color: CHOROPLETH_COLORS[i] });
+            }
+
+            target.innerHTML = ranges
+                .map((item, index) => {
+                    const min = item.min.toFixed(1);
+                    const max = item.max.toFixed(1);
+                    const label = min === max ? `${min} {{UNIT_SUFFIX}}` : `${min} to ${max} {{UNIT_SUFFIX}}`;
+                    return `<div class="legend-row" data-class-index="${index}"><span class="legend-swatch" style="background:${item.color}"></span><span>${label}</span></div>`;
+                })
+                .join("");
+
+            target.querySelectorAll(".legend-row").forEach((row) => {
+                const index = Number(row.dataset.classIndex);
+                row.addEventListener("mouseenter", () => previewLegendClass(index));
+                row.addEventListener("mouseleave", resetLegendPreview);
+                row.addEventListener("click", () => toggleLegendClass(index));
+            });
+            target.addEventListener("mouseleave", clearHoverPreview);
+        }
+
+        renderLegend();
+        renderLeaderboard();
+
+        try {
+            myMap = ixmaps.Map("map", {
+                mapType: "white",
+                mapProjection: "lambert",
+                mode: "info",
+                legend: "closed",
+                tools: true
+            })
+            .view([53.4, 16.9], 3.7)
+            .options({
+                objectscaling: "dynamic",
+                normalSizeScale: "15000000",
+                basemapopacity: 0,
+                flushChartDraw: 1000000
+            });
+
+            myMap.layer("countries")
+                .data({
+                    url: "https://gisco-services.ec.europa.eu/distribution/v2/countries/geojson/CNTR_RG_20M_2020_4326.geojson",
+                    type: "geojson",
+                    cache: "true"
+                })
+                .binding({
+                    geo: "geometry",
+                    id: "CNTR_ID",
+                    title: "NAME_ENGL",
+                    value: "NAME_ENGL"
+                })
+                .type("FEATURE")
+                .style({
+                    colorscheme: ["#e8e8e8"],
+                    linewidth: "0.6",
+                    linecolor: "#ffffff",
+                    showdata: "true"
+                })
+                .meta({
+                    name: "country-bounds",
+                    tooltip: "{{theme.item.title}}"
+                })
+                .define();
+
+            myMap.layer("countries")
+                .data({
+                    obj: currentData,
+                    type: "json",
+                    cache: "true"
+                })
+                .binding({
+                    lookup: "country",
+                    value: "latest_value",
+                    title: "country_name"
+                })
+                .type("CHOROPLETH|QUANTILE")
+                .style({
+                    colorscheme: CHOROPLETH_COLORS,
+                    fillopacity: "0.96",
+                    linecolor: "#f7fbf5",
+                    linewidth: "0.7",
+                    units: "{{UNIT_SUFFIX}}",
+                    decimals: "1"
+                })
+                .meta({
+                    name: "latest-choropleth",
+                    tooltip: "<div style='min-width:190px;padding:10px 12px;background:rgba(250,253,249,0.97);border:1px solid rgba(86,118,87,0.18);border-radius:12px;box-shadow:0 10px 24px rgba(25,45,31,0.12);font-family:Georgia,serif;color:#203126;'><div style='font-size:17px;font-weight:700;line-height:1.15;margin-bottom:8px;'>{{country_name}}</div><div style='display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:4px;'><span style='font-size:12px;color:#5f7565;'>{{LATEST_VALUE_LABEL}}</span><span style='font-size:22px;font-weight:700;color:#1f5a43;'>{{latest_label}}</span></div><div style='font-size:12px;color:#5f7565;'>{{DETAIL_LINE_PREFIX}} {{detail_a}} {{DETAIL_LINE_MIDDLE}} {{detail_b}}</div></div>"
+                })
+                .define();
+
+            myMap.layer("sparks")
+                .data({
+                    obj: seriesData,
+                    type: "json",
+                    cache: "true"
+                })
+                .binding({
+                    geo: "lat|lon",
+                    position: "lat|lon",
+                    value: "year",
+                    size: "trend_value",
+                    title: "country_name"
+                })
+                .type("CHART|SYMBOL|PLOT|LINES|AREA|FADE|LASTARROW|SMOOTH|BOX|XAXIS|FIXSIZE|CATEGORICAL|AGGREGATE|SUM|BOTTOMTITLE|NOLEGEND")
+                .style({
+                    colorscheme: ["#1f5a43"],
+                    symbols: "none",
+                    linecolor: "#1f5a43",
+                    boxcolor: "none",
+                    bordercolor: "none",
+                    fillopacity: "0.6",
+                    boxopacity: "0.05",
+                    align: "center|top",
+                    values: YEARS,
+                    xaxis: ["'15", "", "", "'18", "", "", "'21", "", "", "'24"],
+                    label: ["'15", "'16", "'17", "'18", "'19", "'20", "'21", "'22", "'23", "'24"],
+                    normalsizevalue: "100",
+                    scale: "0.48",
+                    textscale: "5",
+                    textcolor: "#1f5a43",
+                    linewidth: "5",
+                    markersize: "1"
+                })
+                .meta({
+                    name: "trend-sparklines",
+                    tooltip: "<div style='min-width:220px;max-width:260px;padding:10px 12px;background:rgba(250,253,249,0.97);border:1px solid rgba(86,118,87,0.18);border-radius:12px;box-shadow:0 10px 24px rgba(25,45,31,0.12);font-family:Georgia,serif;color:#203126;'><div style='font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#5f7565;margin-bottom:6px;'>{{TREND_TOOLTIP_LABEL}}</div><div style='font-size:17px;font-weight:700;line-height:1.15;margin-bottom:8px;'>{{theme.item.title}}</div><div style='font-size:12px;color:#5f7565;margin-bottom:6px;'>{{TREND_TOOLTIP_SUBLABEL}}</div><div style='padding:6px 0 2px 0;'>{{theme.item.chart}}</div></div>"
+                })
+                .define();
+        } catch (error) {
+            console.error("Map initialization failed:", error);
+        }
+    </script>
+</body>
+</html>

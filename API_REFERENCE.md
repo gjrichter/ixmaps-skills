@@ -43,10 +43,21 @@ Creates a new map instance.
 - `"Stamen Terrain"` - Terrain with hill shading
 
 **Valid mapProjection values:**
-- *(omit)* - Default Web Mercator (Leaflet standard)
-- `"lambert"` - Lambert Azimuthal Equal-Area (EPSG:3035) — Eurostat standard for Europe
-  - ⚠️ `.view()` **must use array syntax**: `.view([lat, lng], zoom)` — object `{center,zoom}` does NOT work with projections
-  - Use `mapType: "white"` + `basemapopacity: 0`; set sea color via CSS `background` on the `#map` div
+
+| Value | Alias | Projection |
+|---|---|---|
+| *(omit)* | — | Default Web Mercator (Leaflet tiles) |
+| `"mercator"` | — | Mercator (SVG, no tile layer) |
+| `"winkel"` | — | Winkel Tripel |
+| `"equalearth"` | — | Equal Earth |
+| `"albersequalarea"` | `"albers"` | Albers Equal-Area Conic |
+| `"lambertazimuthalequalarea"` | `"lambert"` | Lambert Azimuthal Equal-Area (EPSG:3035) |
+| `"orthographic"` | — | Orthographic (globe view) |
+
+- Lookup is **case-insensitive**; unknown values fall back to Mercator
+- ⚠️ For **any** projection: `.view()` **must use array syntax** `.view([lat, lng], zoom)` — object `{center,zoom}` does NOT work
+- Use `mapType: "white"` + `basemapopacity: 0`; set sea color via CSS `background` on `#map`
+- **Albers only:** `projectionParams` in map options tunes standard parallels / center
 
 **Valid mode values:**
 - `"info"` - Show tooltips on mouseover (recommended)
@@ -442,7 +453,8 @@ Specify visualization type.
 
 **GeoJSON/TopoJSON types:**
 - `"FEATURE"` - Simple features (boundaries/shapes only)
-  - ⚠️ **`colorscheme` sets line color** on FEATURE layers — `linecolor` is overridden by `colorscheme`. Use `colorscheme: "none"` to hide lines entirely.
+  - **Line geometry:** `colorscheme` sets the stroke/line color — `linecolor` is overridden and has no effect. Color-class arrays in `colorscheme` apply as line-color classes. Use `colorscheme: "none"` to hide lines entirely.
+  - **Polygon geometry:** `colorscheme` sets the **fill color** (single value or array for color classes); `linecolor` sets the **border/outline color**. Use `fillopacity` for fill transparency and `linewidth` for border thickness.
 - `"FEATURE|CHOROPLETH"` - Numeric choropleth
 - `"FEATURE|CHOROPLETH|EQUIDISTANT"` - Equal intervals
 - `"FEATURE|CHOROPLETH|QUANTILE"` - Quantile breaks
@@ -1327,6 +1339,7 @@ myMap.layer("accidents")
 Renders a **line/area curve chart** per grid cell, showing how a value changes across an ordered set of categories (typically years or time steps). Each cell shows its own mini sparkline. Used for trend analysis across time within spatial grid cells.
 
 **Typical use:** show how accident counts, case numbers, or measurements evolved year-by-year per area.
+**Composite map use:** for Europe country maps that combine a latest-year choropleth with overlaid mini trends, start from `template-europe-choropleth-sparklines.html`.
 
 ### Full type string
 

@@ -3,6 +3,7 @@
 Complete working examples for common use cases.
 
 **🆕 NEW EXAMPLE:** See **[example-multi-layer-join.md](example-multi-layer-join.md)** for a complete real-world case study of multi-layer mapping with external CSV data join (MEPA 2024 Italian procurement visualization with choropleth + bubbles).
+**🆕 NEW TEMPLATE:** See **`template-europe-choropleth-sparklines.html`** for a projected Europe map that combines a country choropleth with fixed-size time-series sparklines and an interactive custom legend.
 
 ## Table of Contents
 
@@ -18,6 +19,7 @@ Complete working examples for common use cases.
 5.5. **[Flow Visualization Examples](#flow-visualization-examples)** ⭐ **VECTOR FLOWS**
 6. [Custom Styling Examples](#custom-styling-examples)
 7. **[Multi-Layer with External Data Join](example-multi-layer-join.md)** ⭐ NEW
+7.5. **[Europe Choropleth with Trend Sparklines](#example-75-europe-choropleth-with-trend-sparklines)** ⭐ **COMPOSITE PATTERN**
 
 ---
 
@@ -2059,3 +2061,119 @@ For more information:
 - **SKILL.md** - Core skill documentation
 - **API_REFERENCE.md** - Complete API reference
 - **TROUBLESHOOTING.md** - Common issues and solutions
+
+---
+
+## Example 7.5: Europe Choropleth with Trend Sparklines
+
+**Best pattern for "latest value + 10-year trend" by country.**
+
+Use this when you want:
+
+- country fill color for the current value
+- a compact sparkline over each country for the historical trend
+- a projected Europe view
+- a custom legend panel with class interaction
+
+### Why this pattern works
+
+- `FEATURE` gives you the base country outlines
+- `CHOROPLETH` joins the latest metric to the same geometry
+- `CHART|SYMBOL|PLOT|LINES|FIXSIZE|NOLEGEND` adds one compact trend chart per country
+- a custom HTML legend can isolate choropleth classes without relying on the built-in legend
+
+### Recommended structure
+
+```javascript
+const myMap = ixmaps.Map("map", {
+    mapType: "white",
+    mapProjection: "lambert",
+    mode: "info",
+    legend: "closed",
+    tools: true
+})
+.view([53.4, 16.9], 3.7)
+.options({
+    objectscaling: "dynamic",
+    normalSizeScale: "15000000",
+    basemapopacity: 0,
+    flushChartDraw: 1000000
+});
+
+myMap.layer("countries")
+    .data({ url: "countries.geojson", type: "geojson" })
+    .binding({ geo: "geometry", id: "CNTR_ID", title: "NAME_ENGL", value: "NAME_ENGL" })
+    .type("FEATURE")
+    .style({
+        colorscheme: ["#e8e8e8"],
+        linewidth: "0.6",
+        linecolor: "#ffffff",
+        showdata: "true"
+    })
+    .meta({ name: "country-bounds", tooltip: "{{theme.item.title}}" })
+    .define();
+
+myMap.layer("countries")
+    .data({ obj: currentData, type: "json" })
+    .binding({ lookup: "country", value: "latest_value", title: "country_name" })
+    .type("CHOROPLETH|QUANTILE")
+    .style({
+        colorscheme: ["#dcefd7", "#bfe0b8", "#93c993", "#63aa74", "#3f825e"],
+        fillopacity: "0.96",
+        linecolor: "#f7fbf5",
+        linewidth: "0.7",
+        decimals: "1"
+    })
+    .meta({
+        name: "latest-choropleth",
+        tooltip: "{{country_name}}: {{latest_label}}"
+    })
+    .define();
+
+myMap.layer("sparks")
+    .data({ obj: seriesData, type: "json" })
+    .binding({
+        geo: "lat|lon",
+        position: "lat|lon",
+        value: "year",
+        size: "trend_value",
+        title: "country_name"
+    })
+    .type("CHART|SYMBOL|PLOT|LINES|AREA|FADE|LASTARROW|SMOOTH|BOX|XAXIS|FIXSIZE|CATEGORICAL|AGGREGATE|SUM|BOTTOMTITLE|NOLEGEND")
+    .style({
+        colorscheme: ["#1f5a43"],
+        symbols: "none",
+        boxcolor: "none",
+        bordercolor: "none",
+        values: ["2015","2016","2017","2018","2019","2020","2021","2022","2023","2024"],
+        normalsizevalue: "100",
+        scale: "0.48",
+        linewidth: "5",
+        markersize: "1"
+    })
+    .meta({
+        name: "trend-sparklines",
+        tooltip: "{{theme.item.title}}{{theme.item.chart}}"
+    })
+    .define();
+```
+
+### Legend interaction
+
+For custom choropleth legends, use the supported API:
+
+```javascript
+myMap.then((m) => {
+    m.changeThemeStyle("latest-choropleth", 'markclasses:["1","3"]', "set");
+});
+```
+
+This works well for:
+
+- hover preview of a single class
+- click-to-lock one or more classes
+- debounced reset to `markclasses:[]` on mouseleave
+
+### Template
+
+Use **`template-europe-choropleth-sparklines.html`** when starting from this pattern.

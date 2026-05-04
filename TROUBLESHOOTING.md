@@ -84,6 +84,8 @@ The style properties for hiding a layer outside a scale range are:
 
 ### Problem: Map displays but no data points/features visible
 
+> **Why it fails silently:** ixMaps has a two-phase rendering model — it loads and processes data in the first phase, then decides what to *draw* in the second. `showdata: "true"` is the gate that opens the second phase. Without it, data is fully loaded and parsed but the draw phase never starts. No error is thrown because the load succeeded; the draw just never happened. Similarly, `.binding()` without `geo` means ixMaps has coordinates of `undefined` for every row, which it silently skips rather than erroring.
+
 **Checklist:**
 
 1. **Missing `showdata: "true"` in style** ⚠️ Most common issue
@@ -149,6 +151,8 @@ The style properties for hiding a layer outside a scale range are:
 ## Tooltips Not Working
 
 ### Problem: No tooltips appear on hover
+
+> **Why it fails silently:** ixMaps only registers mouseover hit targets when constructed with `mode: "info"`. In `"pan"` mode (or when `mode` is omitted), no hit-detection layer is created at all — hover events are simply never wired. Adding `.meta({tooltip})` afterward has nothing to attach to. This is a constructor-time decision that can't be patched after the fact.
 
 **Solutions:**
 
@@ -265,6 +269,8 @@ Always include this rule when using dark basemaps (`CartoDB - Dark matter`, `Car
 
 ### Problem: Colors not applying
 
+> **Why it fails silently:** `fillcolor` is not a valid ixMaps property — it's inherited naming from other mapping libraries. ixMaps uses `colorscheme` for fills and `linecolor` for borders. Passing `fillcolor` is silently ignored; ixMaps falls back to its default gray. (Note: `opacity` is accepted as an alias for `fillopacity`, so it's not a silent-failure case — `fillopacity` is just preferred for clarity.)
+
 **Solutions:**
 
 1. **Using wrong property name**
@@ -366,6 +372,8 @@ Always include this rule when using dark basemaps (`CartoDB - Dark matter`, `Car
 ## GeoJSON Issues
 
 ### Problem: GeoJSON features not displaying
+
+> **Why it fails silently:** The GeoJSON spec wraps all properties under a `properties` object, but ixMaps flattens them into the data row automatically. Referencing `"properties.NAME"` looks for a field literally named `"properties.NAME"` (which doesn't exist), finds nothing, and renders without error. The binding silently resolves to `undefined` for every row.
 
 **Solutions:**
 

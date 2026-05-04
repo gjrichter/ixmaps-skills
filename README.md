@@ -1,6 +1,6 @@
 # ixMaps Skills
 
-This repository provides ixMaps skills for different assistants plus templates and examples. For chat usage, use the general `SKILL.md` described below.
+This repository provides ixMaps skills for different assistants plus templates and examples. In the subfolders you will find tool-specific skills for **Claude Code** and **Codex**. For chat usage, use the general `SKILL.md` described below.
 
 These **skills** enable **AI assistants** to create **ixMaps maps** in **HTML documents**. These documents load the **`ixmaps-flat`** framework and are executable in any **HTML5**-capable browser.
 
@@ -166,18 +166,9 @@ This skill enables Claude to generate complete HTML files with interactive geogr
   - Requires loading `usercharts/d3/chart.js` from the ixmaps-flat CDN
   - Use for "map + trend" dashboards where each polygon has a small time series
 
-## 🔑 The #1 Rule Before Picking a Template
+## ⚠️ Before Picking a Template
 
-**Same layer name = geometry reuse.** A CHOROPLETH / CHART overlay has no geometry of
-its own — it joins onto the FEATURE layer with the **same name**. Use a different name
-(e.g. `"theme"`, `"overlay"`, `"data"`) and the overlay renders as nothing or fails with
-"selection field not found".
-
-For apps that switch between multiple visualizations of the same geometry (sidebar theme
-picker, etc.), redefine the *same-named* layer each click AND call `ixmaps.removeTheme(prev)`
-first — otherwise themes stack instead of replace. There is **no `"direct"` flag and no
-built-in upsert** in the flat API. See **SKILL.md § Multi-Layer Join Pattern · B. Swappable
-themes**.
+> Critical rules and silent failure hotspots are maintained in **SKILL.md** — refer there as the single source of truth. Key reminder: the overlay layer name **must exactly match** the FEATURE base name or the overlay renders as nothing. See **SKILL.md § Silent Failure Hotspots** and **§ Geometry Reuse Pre-flight Checklist**.
 
 ## When to Use Which Template
 
@@ -306,17 +297,9 @@ When invoked, Claude will:
 - ✅ **Performance optimized** - Options for large datasets
 - ✅ **Mobile responsive** - Works on all devices
 
-## Critical Rules (for Claude)
+## Critical Rules
 
-When using this skill, Claude must:
-
-1. ⚠️ **ALWAYS** include `.binding()` with appropriate `geo` and `value`
-2. ⚠️ **ALWAYS** include `showdata: "true"` in `.style()`
-3. ⚠️ **ALWAYS** include `.meta()` with tooltip template
-4. ⚠️ When using `objectscaling: "dynamic"`, MUST include `normalSizeScale`
-5. ⚠️ For GeoJSON: Reference properties directly (no "properties." prefix)
-6. ⚠️ For aggregation: Use `value: "$item$"` and `gridwidth` in style
-7. ⚠️ **NEVER** use `.tooltip()` method (doesn't exist)
+> Maintained in **SKILL.md § CRITICAL RULES** — that is the single authoritative source. Do not edit rules here; update SKILL.md instead.
 
 ## File Structure
 

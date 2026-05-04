@@ -56,7 +56,7 @@ Creates a new map instance.
 
 - Lookup is **case-insensitive**; unknown values fall back to Mercator
 - ⚠️ For **any** projection: `.view()` **must use array syntax** `.view([lat, lng], zoom)` — object `{center,zoom}` does NOT work
-- Use `mapType: "white"` + `basemapopacity: 0`; set sea color via CSS `background` on `#map`
+- Set background color directly in `mapType` (hex or keyword): `mapType: "#0a1929"`, `"dark"`, `"black"`, `"white"` — do **not** use CSS `background` on `#map`
 - **Albers only:** `projectionParams` in map options tunes standard parallels / center
 
 **Valid mode values:**
@@ -976,13 +976,13 @@ Complete style property reference.
 
 ### Opacity Properties
 
-**opacity** (number)
-- Overall opacity: `0.0` (invisible) to `1.0` (opaque)
+**fillopacity** (number) — preferred
+- Fill transparency: `0.0` (invisible) to `1.0` (opaque)
 - Default: `1.0`
 
-**fillopacity** (number)
-- Fill opacity (alternative to opacity)
-- `0.0` to `1.0`
+**opacity** (number) — accepted, but `fillopacity` is preferred
+- Equivalent to `fillopacity` for fill transparency
+- New code should use `fillopacity` for clarity
 
 ### Aggregation Properties
 
@@ -1010,7 +1010,7 @@ Complete style property reference.
         "#66bb6a", "#43a047", "#2e7d32"   // 3 greens (above 65%)
     ],  // 6 colors total (even number) - 65% is the boundary between reds and greens
     rangecentervalue: 65,  // EU target - boundary between color groups
-    opacity: 0.7,
+    fillopacity: 0.7,
     showdata: "true"
 })
 .type("FEATURE|CHOROPLETH")  // No QUANTILE/EQUIDISTANT
@@ -1038,7 +1038,7 @@ Complete style property reference.
         "#2e7d32"   // 6. >80%
     ],
     ranges: [0, 50, 57.5, 65, 72.5, 80, 100],  // 6 colors = 7 values
-    opacity: 0.7,
+    fillopacity: 0.7,
     showdata: "true"
 })
 .type("FEATURE|CHOROPLETH")  // No QUANTILE/EQUIDISTANT
@@ -1057,7 +1057,7 @@ Complete style property reference.
         "#2e7d32"   // >80%
     ],
     ranges: [0, 50, 55, 60, 65, 70, 80, 100],  // 7 colors = 8 values, 4 below + 3 above
-    opacity: 0.7,
+    fillopacity: 0.7,
     showdata: "true"
 })
 .type("FEATURE|CHOROPLETH")
@@ -1076,7 +1076,7 @@ Complete style property reference.
 .style({
     colorscheme: ["#0066cc"],
     scale: 1,
-    opacity: 0.7,
+    fillopacity: 0.7,
     showdata: "true"
 })
 ```
@@ -1086,7 +1086,7 @@ Complete style property reference.
 .style({
     colorscheme: ["100", "tableau"],
     scale: 1.5,
-    opacity: 0.8,
+    fillopacity: 0.8,
     showdata: "true"
 })
 ```
@@ -1096,7 +1096,7 @@ Complete style property reference.
 .style({
     colorscheme: ["#ff5722"],
     normalsizevalue: 500000,
-    opacity: 0.7,
+    fillopacity: 0.7,
     linecolor: "#ffffff",
     linewidth: 1,
     showdata: "true"
@@ -1109,7 +1109,7 @@ Complete style property reference.
     colorscheme: ["#ffeb3b", "#ff9800", "#f44336"],
     gridwidth: "5px",
     scale: 1.5,
-    opacity: 0.7,
+    fillopacity: 0.7,
     showdata: "true"
 })
 ```
@@ -1127,11 +1127,16 @@ Complete style property reference.
 
 ### Properties That DON'T Exist
 
-❌ **These properties are NOT valid:**
+❌ **These properties are NOT valid (silently ignored):**
 - `fillcolor` - Use `colorscheme` instead
 - `symbolsize` - Use `scale` or `normalsizevalue`
 - `strokecolor` - Use `linecolor`
 - `strokewidth` - Use `linewidth`
+- `bordercolor` - Use `linecolor`
+- `borderwidth` - Use `linewidth`
+
+ℹ️ **Accepted but not preferred (use the canonical name in new code):**
+- `opacity` works — but `fillopacity` is the preferred form
 
 ---
 
@@ -2014,6 +2019,75 @@ myMap.layer(
         .define()
 );
 ```
+
+---
+
+## Common Property Conflicts
+
+Properties that look similar but are NOT interchangeable. Using the wrong one is silently ignored.
+
+### Fill color vs border color vs opacity
+
+| Goal | Preferred | Wrong (silently ignored) |
+|---|---|---|
+| Set fill color | `colorscheme: ["#hex"]` | `fillcolor`, `color`, `fill` |
+| Set border/outline color | `linecolor: "#hex"` | `strokecolor`, `bordercolor` |
+| Set fill transparency | `fillopacity: 0.7` (or `opacity` — both work, `fillopacity` preferred) | `alpha`, `fillOpacity` (camelCase) |
+| Set border thickness | `linewidth: 1` | `strokewidth`, `borderwidth` |
+| Make fill invisible | `colorscheme: ["none"]` | `fillopacity: 0` (causes errors) |
+
+### `colorscheme` vs `linecolor` — depends on geometry type
+
+| Geometry | `colorscheme` controls | `linecolor` controls |
+|---|---|---|
+| **Polygon** | fill color | border/outline color |
+| **Line** | stroke/line color | overridden by `colorscheme` — no effect |
+| **VECTOR\|GRADIENT flow** | not used for gradient | gradient: use `linecolor: ["#from","#to"]` array |
+
+### `normalSizeScale` vs `normalsizevalue` vs `scale`
+
+| Property | Where | What it does |
+|---|---|---|
+| `normalSizeScale` | `.options()` | Map-level: the map zoom scale at which charts render at "normal" size. **Higher = smaller symbols** (reference scale is farther out). Required with `objectscaling: "dynamic"`. |
+| `normalsizevalue` | `.style()` | Layer-level: the data value that maps to the default symbol size. **Higher = smaller symbols** (the reference value is above most data). |
+| `scale` | `.style()` | Layer-level: simple size multiplier on top of both above. Start at `1`. |
+
+### `lookup` vs `id` vs `geo`
+
+| Property | Where | Use when |
+|---|---|---|
+| `geo` | `.binding()` | Binding data directly to geometry coordinates (point data) or GeoJSON geometry field |
+| `id` | `.binding()` on FEATURE base | Exposes the join key from geometry for matching overlay rows |
+| `lookup` | `.binding()` on CHOROPLETH/CHART overlay | The field in the overlay data that matches `id` in the FEATURE base |
+
+Never put `lookup` in `.data()` — it belongs only in `.binding()`.
+
+### `value` field on FEATURE layers
+
+- `FEATURE` base layers that load only geometry don't need `value` in `.binding()` at all — omit it
+- Exception: `FEATURE|SILENT` (graticule, backdrop) — also omit `value` and `showdata`
+- `value: "$item$"` counts rows — use for simple feature rendering with a count fallback
+
+### `CHART` vs `CHOROPLETH` — mutually exclusive
+
+Never combine in a single type string.
+
+| Use case | Type | Wrong |
+|---|---|---|
+| Points/symbols with data | `CHART|BUBBLE|SIZE` | ~~`CHART|CHOROPLETH`~~ |
+| Region fill from joined data | `CHOROPLETH|QUANTILE` | ~~`CHART|CHOROPLETH`~~ |
+| Region fill + geometry loaded together | `FEATURE|CHOROPLETH|QUANTILE` | ~~`CHART|FEATURE|CHOROPLETH`~~ |
+
+### `myMap.layer("name")` vs `.meta({name: "name"})`
+
+These look similar but are completely different identifiers:
+
+| Identifier | Purpose | Used by |
+|---|---|---|
+| `myMap.layer("name")` | Geometry bucket — determines which FEATURE base provides coordinates | ixMaps renderer (geometry reuse) |
+| `.meta({name: "id"})` | Theme identity — a handle to find the rendered theme at runtime | `changeThemeStyle`, `hideTheme`, `showTheme`, `removeTheme` |
+
+Setting `myMap.layer("comuni")` does NOT make `changeThemeStyle("comuni", ...)` work — you must also set `.meta({name: "comuni"})`.
 
 ---
 

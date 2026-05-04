@@ -25,7 +25,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 7. **NEVER use `|EXACT` classification** — deprecated; use `CATEGORICAL`
 8. **NEVER use `map` as variable name** — conflicts with internals; use `myMap`
 8a. **NEVER use reserved HTML element IDs** — ixMaps owns `loading-div`, `tooltip`, `contextmenu`. Using them causes visible artifacts (a white box stuck on the map). Use `app-loading` or any other non-conflicting name for your own overlays.
-9. **NEVER use `opacity`** in `.style()` — use `fillopacity`
+9. **Prefer `fillopacity` over `opacity`** in `.style()` — both work, but `fillopacity` is the recommended form
 10. **NEVER use `fillcolor`** — use `colorscheme: ["#hex"]`
 11. **NEVER add `.legend("string")`** unless user explicitly requests it — destroys the default color legend
 12. **ALWAYS use CDN** `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js`
@@ -33,83 +33,19 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
     - **Only include the data.js CDN explicitly** when you need `Data.*` functions *outside* ixmaps theme realization (e.g. pre-processing data in your own `<script>` block before defining layers)
 13. **NEVER use info from** `ixmaps.ca` or `ixmaps.com` — only `github.com/gjrichter/ixmaps-flat`
 14. **ONE `.data()` per layer** — never chain two `.data()` calls on the same layer
-15. **🔑 SAME LAYER NAME = GEOMETRY REUSE** — the single most important rule in ixMaps. 🔑
-
-    A CHOROPLETH / CHART / any data-driven overlay does **not** carry its own geometry — it joins onto the geometry of the FEATURE layer **with the same name**. Use a different name and the overlay has no geometry to draw on → it renders as nothing, or fails with "selection field not found".
+15. **🔑 SAME LAYER NAME = GEOMETRY REUSE** — see § Geometry Reuse Pre-flight Checklist below for the authoritative rules. Quick example:
 
     ```javascript
-    // ✅ Base + overlay (both named "regions" → overlay binds onto regions' geometry)
+    // ✅ Both named "regions" → overlay binds onto regions' geometry
     myMap.layer("regions").data({url:geo}).type("FEATURE").define();
     myMap.layer("regions").data({url:csv}).binding({lookup:"code",value:"pct"})
                           .type("CHOROPLETH|QUANTILE").define();
 
     // ❌ Different names → overlay has nothing to draw on, silently broken
-    myMap.layer("regions").type("FEATURE").define();
-    myMap.layer("stats").type("CHOROPLETH").define();   // ← WRONG
+    myMap.layer("stats").type("CHOROPLETH").define();
     ```
 
-    **Theme switching (sidebar picker):** to swap the overlay at runtime — e.g. a sidebar with
-    "% RD", "Consorzi", "Dominante", "Sparkline" buttons — redefine the **same-named layer**
-    AND explicitly remove the previous theme. Two identifiers are in play and they are NOT
-    the same thing:
-
-    - **Layer name** (`myMap.layer("comuni")`) = GEOMETRY bucket — must match the FEATURE
-      base so the overlay reuses its geometry.
-    - **meta.name** (`.meta({name: "pie-theme-rd"})`) = THEME identity — the handle passed
-      to `ixmaps.removeTheme(name)` to tear down the previous overlay.
-
-    Without `removeTheme`, every `.layer("comuni").define()` call **adds another theme on
-    top**; the map stacks overlays instead of replacing them. There is no `"direct"` flag
-    or built-in upsert in the flat API — you must remove by meta.name yourself.
-
-    ```javascript
-    // One FEATURE base — no meta.name, never removed.
-    // ⚠️ DO NOT add |SILENT here if any overlay on the same layer needs tooltips /
-    //    hover events. See rule 15b below.
-    myMap.layer("comuni").data({url:geo}).type("FEATURE").define();
-
-    let ACTIVE_THEME_NAME = null;
-    let _PENDING_ID = null;
-
-    function setTheme({id, value, type, style, tooltip}) {
-      const themeName = "theme-" + id;
-      const prev = ACTIVE_THEME_NAME;
-
-      // removeTheme lives on the embedded Api (not the MapBuilder shim), so go through
-      // myMap.then(api => ...). Defining the new layer INSIDE the same callback
-      // guarantees remove-before-add ordering.
-      myMap.then(api => {
-        if (prev) { try { api.removeTheme(prev); } catch(e){} }
-
-        const meta = {name: themeName};
-        if (tooltip) meta.tooltip = tooltip;
-
-        myMap.layer("comuni")                             // ← same name as FEATURE base
-          .data({obj: DATA, type:"json", cache:"true"})
-          .binding({lookup:"ISTAT", value, title:"COMUNE"})
-          .type(type)
-          .style(style)
-          .meta(meta)                                     // ← meta.name = theme handle
-          .define();
-
-        ACTIVE_THEME_NAME = themeName;
-      });
-    }
-    ```
-
-    If you find yourself inventing a second layer name for the overlay (e.g. `"theme"`,
-    `"data"`, `"stats"`, `"overlay"`), stop — you are about to silently break the map.
-    If you find yourself redefining the layer without `removeTheme`, you are about to
-    stack overlays instead of replacing them.
-
-    **🪤 Gotcha — `FEATURE|SILENT` kills tooltips on CHOROPLETH overlays sharing the layer.**
-    The `|SILENT` flag on the base FEATURE disables mouse/hover event creation on the
-    underlying geometry. Because CHOROPLETH / CHART overlays that reuse the same layer
-    name inherit that geometry, they inherit its event-less state too — `.meta({tooltip})`
-    has nothing to attach to, and tooltips never fire. If any theme on this layer needs
-    tooltips, **drop `|SILENT`** from the base (`.type("FEATURE")` only). Use `|SILENT`
-    only on backdrop layers that truly should never react to the cursor and that no
-    overlay reuses.
+    For runtime theme swapping (sidebar picker, time slider) → see § Multi-Layer Join Pattern · B. Swappable themes for the full `setTheme` / `removeTheme` pattern.
 
 16. **NO `FEATURE` on overlay layers** — base layer gets `FEATURE`; choropleth/chart overlays do not:
     - ✅ `myMap.layer("x").type("FEATURE")` → `myMap.layer("x").type("CHOROPLETH|CATEGORICAL")`
@@ -119,15 +55,54 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 18. **`lookup` goes in `.binding()`**, not in `.data()`
 19. **`values:` for CATEGORICAL must be strings** — ixMaps bug: numeric values silently ignored
 20. **To make a fill invisible** use `colorscheme: ["none"]` — NOT `fillopacity: 0` (causes errors)
-23. **FEATURE layer styling depends on geometry type:**
+21. **FEATURE layer styling depends on geometry type:**
     - **Line features** — `colorscheme` sets the line/stroke color; `linecolor` is overridden by `colorscheme` and has no effect. Use `colorscheme: "none"` to make lines invisible. Color classes (multi-value array) apply as line-color classes.
     - **Polygon features** — `colorscheme` sets the **fill color** (single value or array for color classes); `linecolor` sets the **border/outline color** of the polygon. `fillopacity` controls fill transparency; `linewidth` controls border thickness.
-21. **`changeThemeStyle` requires `name` in `.meta()`** — it finds themes by `name`, NOT by the string in `myMap.layer("name")`. Without `name`, calls silently have no effect:
+22. **`changeThemeStyle` requires `name` in `.meta()`** — it finds themes by `name`, NOT by the string in `myMap.layer("name")`. Without `name`, calls silently have no effect:
     ```javascript
     .meta({ name: "punti", tooltip: "..." })   // ✅ — changeThemeStyle("punti", ...) will work
     .meta({ tooltip: "..." })                   // ❌ — theme is invisible to changeThemeStyle
     ```
-22. **`hideTheme`/`showTheme` also resolve themes by `name` in `.meta()`** — same rule as `changeThemeStyle`. Once `name` is set, use `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)` for layer visibility. CSS injection (`[id*=":name:"] { display: none !important }`) remains a reliable fallback if `hideTheme` behaves unexpectedly for a given layer type.
+23. **`hideTheme`/`showTheme` also resolve themes by `name` in `.meta()`** — same rule as `changeThemeStyle`. Once `name` is set, use `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)` for layer visibility. CSS injection (`[id*=":name:"] { display: none !important }`) remains a reliable fallback if `hideTheme` behaves unexpectedly for a given layer type.
+
+---
+
+## 🔴 Silent Failure Hotspots
+
+These produce **no error, no warning, no console message** — the map just silently renders wrong. Check these first when something looks broken.
+
+| # | What you did | What happens | Fix |
+|---|---|---|---|
+| 1 | Omitted `showdata: "true"` | Layer loads, data processes, nothing renders — completely invisible | Add `showdata: "true"` to every `.style()` |
+| 2 | Used different layer name for overlay vs FEATURE base | Overlay renders nothing; no error | Overlay name must exactly match the FEATURE base name |
+| 3 | Omitted `ixmaps.Map()` assignment (`const myMap = …`) | Map may partially init; further calls fail or do nothing | Always assign to `const myMap` |
+| 4 | Omitted `name` in `.meta()` | `changeThemeStyle` / `hideTheme` / `showTheme` silently no-op | Add `name: "themeName"` to every `.meta()` you'll reference at runtime |
+| 5 | Called `changeThemeStyle` via `ixmaps.map()` or fluent chain | Returns `{szMap: null}`; no update | Use `myMap.then(api => api.changeThemeStyle(...))` |
+| 6 | Missing `.binding()` | Layer skipped entirely | `.binding()` with `geo` + `value` is required on every layer |
+| 7 | Missing `.define()` | Layer never registered | `.define()` must close every layer chain |
+| 8 | `objectscaling: "dynamic"` without `normalSizeScale` | All symbols invisible or wildly oversized | Add `normalSizeScale: "8000000"` (match to zoom level) |
+| 9 | Overlay layer named differently from FEATURE base | No geometry to draw on → blank | Always check: overlay name == base name |
+| 10 | `FEATURE\|SILENT` on base + overlay needs tooltips | Overlay renders but tooltip never fires | Drop `\|SILENT` from any base that has overlays needing hover |
+| 11 | `values:` for CATEGORICAL contains numbers | Categories silently unmatched; no color applied | Cast all `values:` entries to strings: `["1","2","3"]` |
+| 12 | `colorscheme: "none"` on polygon layer | Fill invisible but no error; may look like data missing | Use `colorscheme: ["none"]` (array) — or `fillopacity: 0` for opacity |
+| 13 | `removeTheme` not called before redefining an overlay | Themes stack on top of each other | Call `api.removeTheme(prev)` inside `myMap.then()` before `.define()` |
+| 14 | Geometry branch mismatch (main=2026 codes vs data=2024) | Some regions silently unjoined (Sardinia etc.) | Pin geometry to commit `0153a0e` for 2024-compatible ISTAT codes |
+
+---
+
+## Geometry Reuse Pre-flight Checklist
+
+Run this mental check before writing **any** overlay layer (CHOROPLETH, CHART on polygons):
+
+```
+[ ] Is this overlay's myMap.layer("NAME") identical to the FEATURE base layer name?
+    → If NO: rename it. A different name = no geometry = nothing renders.
+
+[ ] Does this overlay need to be swappable at runtime (sidebar picker, time slider)?
+    → If YES: add name: "unique-id" to .meta() AND track ACTIVE_THEME_NAME
+              and call api.removeTheme(prev) before each new .define()
+    → If NO: no meta.name required (unless changeThemeStyle is needed)
+```
 
 ---
 

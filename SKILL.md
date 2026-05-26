@@ -11,10 +11,21 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 
 ## ⚠️ CRITICAL RULES (Never Skip)
 
-1. **ALWAYS assign `ixmaps.Map()` to `const`** — discarded instance = silent failure
+1. `ixmaps.Map()` returns a Promise — capture the instance in `.then()`
    ```javascript
-   const myMap = ixmaps.Map("map", { ... });  // ✅
-   ixmaps.Map("map", { ... });                 // ❌ instance lost
+   // ✅ correct
+   var mapInstance = null;
+   ixmaps.Map("map", { ... })
+       .view({ ... })
+       .options({ ... })
+       .then(function(map) {
+           mapInstance = map;
+           // use mapInstance.layer(...) here or later
+       });
+
+   // ❌ WRONG — ixmaps.Map() returns a Promise, not the map instance
+   const myMap = ixmaps.Map("map", { ... });
+   myMap.layer(...);  // fails silently — myMap is a Promise
    ```
 2. **ALWAYS include `.binding()`** with `geo` and `value`
 3. **ALWAYS include `showdata: "true"`** in `.style()`
@@ -56,7 +67,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 19. **`values:` for CATEGORICAL must be strings** — ixMaps bug: numeric values silently ignored
 20. **To make a fill invisible** use `colorscheme: ["none"]` — NOT `fillopacity: 0` (causes errors)
 21. **FEATURE layer styling depends on geometry type:**
-    - **Line features** — `colorscheme` sets the line/stroke color; `linecolor` is overridden by `colorscheme` and has no effect. Use `colorscheme: "none"` to make lines invisible. Color classes (multi-value array) apply as line-color classes.
+    - **Line features** — `colorscheme` sets the line/stroke color; `linecolor` is overridden by `colorscheme` and has no effect. Use `colorscheme: "none"` to make lines invisible. Color classes (multi-value array) apply as line-color classes. Data-driven colorization (CHOROPLETH|QUANTILE, CHOROPLETH|CATEGORICAL, etc.) works symmetrically with polygon features — `colorscheme` drives stroke color instead of fill.
     - **Polygon features** — `colorscheme` sets the **fill color** (single value or array for color classes); `linecolor` sets the **border/outline color** of the polygon. `fillopacity` controls fill transparency; `linewidth` controls border thickness.
 22. **`changeThemeStyle` requires `name` in `.meta()`** — it finds themes by `name`, NOT by the string in `myMap.layer("name")`. Without `name`, calls silently have no effect:
     ```javascript
@@ -594,6 +605,8 @@ Two distinct patterns depending on data shape:
 
 ## Animated / Timeseries Maps
 
+⚠️ `mapInstance` must be captured inside `.then(function(map) { mapInstance = map; })` — it is NOT the return value of `ixmaps.Map()`, which is a Promise.
+
 ### Remove-then-define (the only pattern that actually replaces)
 ```javascript
 // Each theme has a stable meta.name. Before defining the next one,
@@ -1060,11 +1073,20 @@ setTimeout(function()  { hookUrlUpdate(); updateUrlFromView(); }, 1000);
 
 **CHART|USER — custom draw functions (pinnacleChart, arrowChart):**
 
-Requires three extra CDN scripts (load order relative to `ixmaps.js` does not matter):
+Scripts required — load after `ixmaps.js`, order between them does not matter:
+
+| Draw function | Scripts needed |
+|---|---|
+| `arrowChart` | `d3.v3.min.js` + `arrow_chart.js` |
+| `pinnacleChart` | `d3.v3.min.js` + `chart.js` + `arrow_chart.js` |
+
 ```html
+<!-- arrowChart only -->
 <script src="https://d3js.org/d3.v3.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/arrow_chart.js"></script>
+
+<!-- pinnacleChart (also needs chart.js) -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/chart.js"></script>
 ```
 
 The `userdraw` style property names the draw function (`"pinnacleChart"` or `"arrowChart"`).
@@ -1111,6 +1133,71 @@ myMap.layer("comuni")
 ```
 > Binding order determines sign: `"a|b"` → `b − a`. With `NONEGATIVE`, only locations where the result > 0 get a chart drawn. Swapping `a` and `b` between two layers gives "A wins" vs "B wins" without any data pre-processing.
 > `{{raw.fieldname}}` in tooltip accesses fields listed in `datafields` — useful for pre-formatted strings (e.g. `"12.345"` from `.toLocaleString()`).
+
+**Rotated arrowChart wrapper** — tilt arrows left/right to distinguish two groups visually:
+
+Redirect `args.target` to a rotated child `<g>` before calling the standard `arrowChart`, then restore it. The outer group keeps its ixmaps-assigned translate; only the drawn shapes rotate.
+
+```javascript
+window.ixmaps = window.ixmaps || {};
+
+function makeRotatedArrowChart(angle) {
+  return function(SVGDocument, args) {
+    var origTarget = args.target;
+    var rotG = d3.select(origTarget)
+                 .append("g")
+                 .attr("transform", "rotate(" + angle + ")")
+                 .node();
+    args.target = rotG;
+    var result = ixmaps.arrowChart(SVGDocument, args);
+    args.target = origTarget;
+    return result;
+  };
+}
+ixmaps.arrowChartLeft_init  = function(s,a) { if (typeof ixmaps.arrowChart_init === "function") ixmaps.arrowChart_init(s,a); };
+ixmaps.arrowChartRight_init = function(s,a) { if (typeof ixmaps.arrowChart_init === "function") ixmaps.arrowChart_init(s,a); };
+ixmaps.arrowChartLeft  = makeRotatedArrowChart(-15);   // ← tilts left  (e.g. CS/left bloc)
+ixmaps.arrowChartRight = makeRotatedArrowChart(+15);   // → tilts right (e.g. CDX/right bloc)
+```
+
+Then use `userdraw: "arrowChartLeft"` / `userdraw: "arrowChartRight"` in `.style()`.
+
+**Simultaneous theme stacking on one layer** — two themes rendered at the same position:
+
+Calling `.define()` multiple times on the same layer name *adds* themes (they stack). Use this when you need two independent visual signals at the same geo-coordinates (e.g. one red arrow group + one blue arrow group). Each theme must have a distinct `name` in `.meta()` so they can be removed independently.
+
+```javascript
+// Both themes render simultaneously on layer "sedi"
+// Pre-filtered: csWins has only sedes where CS leads; cdWins only where CDX leads
+myMap.layer("sedi")
+  .data({ obj: csWins, type: "json" })
+  .binding({ geo: "sez_da", value: "margin" })
+  .type("CHART|USER|SIZE|VALUES")
+  .style({ userdraw: "arrowChartLeft", colorscheme: ["#e74c3c","#e74c3c"],
+           normalsizevalue: 100, rangescale: 0.5, fillopacity: 0.85,
+           showdata: "true", units: " voti", valuedecimals: 0 })
+  .meta({ name: "cs_dom", title: "CS in testa", tooltip: "..." })
+  .define();                               // ← adds theme, does NOT replace
+
+myMap.layer("sedi")
+  .data({ obj: cdWins, type: "json" })
+  .binding({ geo: "sez_da", value: "margin" })
+  .type("CHART|USER|SIZE|VALUES")
+  .style({ userdraw: "arrowChartRight", colorscheme: ["#2980b9","#2980b9"],
+           normalsizevalue: 100, rangescale: 0.5, fillopacity: 0.85,
+           showdata: "true", units: " voti", valuedecimals: 0 })
+  .meta({ name: "cd_dom", title: "CDX in testa", tooltip: "..." })
+  .define();                               // ← stacks on top of cs_dom
+
+// To refresh: remove both by name, then redefine
+myMap.then(function(api) {
+  try { api.removeTheme("cs_dom"); } catch(e) {}
+  try { api.removeTheme("cd_dom"); } catch(e) {}
+  // ... redefine both
+});
+```
+
+> ⚠️ Stacking only works correctly when the two datasets are **mutually exclusive** per feature (e.g. pre-filtered so each sede appears in at most one theme). If the same `sez_da` id appears in both, both themes draw at that location and visually overlap.
 
 **Invisible point anchor layer** — load centroid geometry without rendering anything:
 ```javascript

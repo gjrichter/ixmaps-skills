@@ -6,13 +6,15 @@ Complete reference for the ixMaps JavaScript API.
 
 1. [Map Constructor](#map-constructor)
 2. [Map Methods](#map-methods)
-3. [Layer Methods](#layer-methods)
-4. [Data Configuration](#data-configuration)
-5. [Binding Configuration](#binding-configuration)
-6. [Style Properties](#style-properties)
-7. [Visualization Types](#visualization-types)
-8. [Color Schemes](#color-schemes)
-9. [Meta Configuration](#meta-configuration)
+3. [Map Events](#map-events)
+4. [Layer Methods](#layer-methods)
+5. [Data Configuration](#data-configuration)
+6. [Binding Configuration](#binding-configuration)
+7. [Style Properties](#style-properties)
+8. [Visualization Types](#visualization-types)
+9. [Color Schemes](#color-schemes)
+10. [Meta Configuration](#meta-configuration)
+11. [View-Dependent Statistics](#view-dependent-statistics--ixmapsdatagetfacets)
 
 ---
 
@@ -212,6 +214,71 @@ Add a data layer to the map.
 **Notes:**
 - Can chain multiple `.layer()` calls for multi-layer maps
 - Each layer must have unique ID
+
+---
+
+## Map Events
+
+Subscribe to map and feature events with `myMap.on(event, handler)`.
+
+### View events
+
+| Event | Fires when |
+|-------|-----------|
+| `viewchange` (alias `zoompan`) | Any zoom or pan |
+| `zoomend` | Zoom level changed |
+| `moveend` | Map panned without zoom change |
+
+```javascript
+var _timer = null;
+myMap.on("viewchange", function() {
+    clearTimeout(_timer);
+    _timer = setTimeout(syncURL, 400);   // debounce URL sync
+});
+```
+
+**Inside handlers** — call `ixmaps.getZoom()` / `ixmaps.getCenter()` directly (no `.then()` needed). Use `myMap.then(api => ...)` only when you need to call `api.changeThemeStyle()` or `api.getBounds()`.
+
+### Feature (item) events
+
+| Event | Fires when | Handler receives |
+|-------|-----------|-----------------|
+| `mouseover` / `itemover` | Pointer enters a feature | `{ szId, id, theme, szMap }` |
+| `mouseout` / `itemout` | Pointer leaves a feature | same |
+| `click` / `itemclick` | Feature clicked | same |
+
+`szId` = full compound id `"themeId::itemKey"` · `id` = item key only · `theme` = layer id
+
+```javascript
+myMap.on("click",     function(e) { showDetail(e.id); });
+myMap.on("mouseover", function(e) { highlight(e.id); });
+myMap.on("mouseout",  function()  { clearHighlight(); });
+```
+
+### Lifecycle events
+
+| Event | Fires when |
+|-------|-----------|
+| `ready` / `mapready` | SVG engine fully loaded |
+| `layerdraw` / `drawtheme` | A layer finishes rendering |
+| `layeradd` / `newtheme` | A layer is created |
+| `layerremove` / `removetheme` | A layer is removed |
+
+**`layerdraw` — standard pattern with guards:**
+
+```javascript
+myMap.on("layerdraw", function(e) {
+    var themeObj = ixmaps.getThemeObj(e.id);
+    if (!themeObj || !themeObj.fVisible) return;
+    // skip helper layers that should not trigger stats or UI updates
+    if (themeObj.szFlag && themeObj.szFlag.match(/SILENT|NOLEGEND/)) return;
+    // → safe to call getFacets, update counters, show/hide panels here
+});
+```
+
+> ⚠️ `FEATURE|SILENT` and `CHART|...|NOLEGEND` layers **do fire `layerdraw`** — always add the `szFlag` guard or your stats/UI code will run on the wrong layer and produce incorrect counts.
+
+**`getBounds()` inside handlers** — returns a flat 4-element array `[swLat, swLng, neLat, neLng]`, NOT a Leaflet `LatLngBounds`. Always guard: `if (!bounds || bounds.length !== 4) return;`
 
 ---
 
@@ -672,6 +739,12 @@ const data = [
 })
 ```
 
+**Inline GeoJSON (computed at runtime — e.g. Turf.js output):**
+```javascript
+// ⚠️ key is obj: — using data: silently fails
+.data({ obj: myFeatureCollection, type: "geojson" })
+```
+
 **TopoJSON file:**
 ```javascript
 .data({
@@ -897,6 +970,30 @@ Complete binding reference.
 - Use `value: "$item$"` for simple features
 - Use `value: "fieldname"` for categorical coloring
 - Reference properties directly (no "properties." prefix)
+
+**Silent/background layer — `FEATURE|CHOROPLETH|SILENT` (no legend, no tooltips, no stats):**
+
+Use for graticules, computed isoline/isoband overlays, or any decorative GeoJSON that should not appear in the legend or trigger statistics.
+
+> ⚠️ **Include `CHOROPLETH` when you need `changeThemeStyle` to work on this layer.** Plain `FEATURE|SILENT` does not respond to `changeThemeStyle` calls — style updates (e.g. changing `fillopacity` via a slider) are silently ignored. Adding `CHOROPLETH` opts the layer into the redraw cycle so runtime style changes take effect. Pan/zoom redraws are not affected by this distinction.
+
+```javascript
+myMap.layer("overlay")
+    .data({ obj: myFeatureCollection, type: "geojson" })  // obj: for inline data
+    .binding({ geo: "geometry" })   // no value — omit it for SILENT
+    .type("FEATURE|CHOROPLETH|SILENT")   // CHOROPLETH required for pan/zoom redraw
+    .style({
+        colorscheme: "#ff4444",     // LINE color for LineString; FILL color for Polygon
+        linewidth:   1.5,           // NOT strokewidth
+        fillopacity: 0
+    })
+    .define();
+    // omit showdata:, value in binding, and .meta() — not needed and may cause errors
+```
+
+> **Line vs Polygon style rules:**
+> - **LineString/MultiLineString** — `colorscheme` sets the stroke/line color. `linecolor` has no effect on lines. Use `linewidth` (never `strokewidth` or `strokecolor` — both invalid).
+> - **Polygon** — `colorscheme` sets fill color; `linecolor` sets border color; `linewidth` sets border width.
 
 ---
 
@@ -2089,6 +2186,66 @@ These look similar but are completely different identifiers:
 
 Setting `myMap.layer("comuni")` does NOT make `changeThemeStyle("comuni", ...)` work — you must also set `.meta({name: "comuni"})`.
 
+> ⚠️ **Layer name and meta `name` must be different strings.** If both are the same value, `changeThemeStyle` silently fails. Always use a distinct meta name:
+> ```javascript
+> myMap.layer("density")…meta({ name: "kde" })     // ✅ different — changeThemeStyle("kde") works
+> myMap.layer("density")…meta({ name: "density" }) // ❌ same — changeThemeStyle silently no-ops
+> ```
+
+---
+
+## View-Dependent Statistics — `ixmaps.data.getFacets()`
+
+Compute category counts for the **currently visible map extent** after each render. Call inside `layerdraw` so counts always reflect the freshly drawn set.
+
+### Minimal pattern — counters without sidebar
+
+```javascript
+myMap.on("layerdraw", function(e) {
+    var themeObj = ixmaps.getThemeObj(e.id);
+    if (!themeObj || !themeObj.fVisible) return;
+    if (themeObj.szFlag && themeObj.szFlag.match(/SILENT|NOLEGEND/)) return;
+
+    var facets = ixmaps.data.getFacets(
+        themeObj.szFilter || "",    // current filter — read from theme, never a local variable
+        "user_legend",              // facet mode
+        ["myField"],                // fields to facet (array of field names)
+        e.id,                       // theme id from the layerdraw event
+        "map",                      // scope: "map" = visible extent only
+        "NONUMERIC"                 // suppress range-slider for numeric-but-categorical fields
+    );
+
+    if (facets && facets.length) {
+        var vc    = facets[0].valuesCount || {};  // { "value": count, ... }
+        var total = facets[0].nValuesSum  || 0;   // total visible count
+        document.getElementById("cnt-total").textContent = total.toLocaleString();
+        document.getElementById("cnt-a").textContent = (vc["A"] || 0).toLocaleString();
+        document.getElementById("cnt-b").textContent = (vc["B"] || 0).toLocaleString();
+    }
+});
+```
+
+### Return structure
+
+Each element of the returned array corresponds to one requested field:
+
+| Property | Type | Description |
+|---|---|---|
+| `facets[i].id` | string | Field name |
+| `facets[i].values` | array | Unique values in visible extent |
+| `facets[i].valuesCount` | object | `{ "value": count, … }` — count per category |
+| `facets[i].nValuesSum` | number | Total count across all categories (= visible feature count) |
+
+### Key rules
+
+| Rule | Why |
+|---|---|
+| Always read `themeObj.szFilter` | The facet engine updates the theme filter internally — a local copy goes stale |
+| `"map"` scope | Counts only features in the current viewport; omit or pass `""` for the full dataset |
+| `"NONUMERIC"` last arg | Suppresses range-slider behaviour for fields like year codes or severity IDs that are numeric but categorical |
+| Values in `valuesCount` are **strings** | Match with string keys even when data values are numbers: `vc["2"]`, not `vc[2]` |
+| Call from `layerdraw`, not `viewchange` | `layerdraw` fires after each re-render (including post-pan/zoom), ensuring counts match what's actually drawn |
+
 ---
 
 ## Quick Reference Card
@@ -2242,10 +2399,10 @@ Lets you draw fully custom SVG shapes at each feature centroid using D3.
 ```html
 <script src="https://d3js.org/d3.v3.min.js"></script>
 <!-- pre-built options: -->
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/usercharts/d3/chart.js"></script>       <!-- pinnacleChart -->
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps_flat@master/usercharts/d3/arrow_chart.js"></script> <!-- arrowChart -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/chart.js"></script>       <!-- pinnacleChart -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/arrow_chart.js"></script> <!-- arrowChart -->
 ```
-Note: `ixmaps_flat` with **underscore** (not hyphen).
+Note: `ixmaps-flat` with **hyphen** (not underscore).
 
 **Layer definition:**
 ```javascript

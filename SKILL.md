@@ -2,7 +2,7 @@
 name: create-ixmap
 description: Creates interactive maps using ixMaps framework. Use when the user wants to create a map, visualize geographic data, or display data with bubble charts, choropleth maps, pie charts, or bar charts on a map.
 argument-hint: "[filename] [options]"
-allowed-tools: Write, Read, AskUserQuestion
+allowed-tools: Write, Read, AskUserQuestion, Bash
 ---
 
 # Create ixMap Skill
@@ -65,9 +65,9 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
     zoom 4→30M · 5→15M · 6→8M · 8→2M · 10→500k · 12→100k
 18. **`lookup` goes in `.binding()`**, not in `.data()`
 19. **`values:` for CATEGORICAL must be strings** — ixMaps bug: numeric values silently ignored
-20. **To make a fill invisible** use `colorscheme: ["none"]` — NOT `fillopacity: 0` (causes errors)
+20. **To make a fill invisible** use `colorscheme: ["none"]` — NOT `fillopacity: 0`. ⚠️ ixMaps bug: `fillopacity: 0` is silently coerced to `1` (fully opaque), so it does the **opposite** of hiding the fill
 21. **FEATURE layer styling depends on geometry type:**
-    - **Line features** — `colorscheme` sets the line/stroke color; `linecolor` is overridden by `colorscheme` and has no effect. Use `colorscheme: "none"` to make lines invisible. Color classes (multi-value array) apply as line-color classes. Data-driven colorization (CHOROPLETH|QUANTILE, CHOROPLETH|CATEGORICAL, etc.) works symmetrically with polygon features — `colorscheme` drives stroke color instead of fill.
+    - **Line features** — `colorscheme` sets the line/stroke color; `linecolor` is overridden by `colorscheme` and has no effect. Use `colorscheme: ["none"]` to make lines invisible. Color classes (multi-value array) apply as line-color classes. Data-driven colorization (CHOROPLETH|QUANTILE, CHOROPLETH|CATEGORICAL, etc.) works symmetrically with polygon features — `colorscheme` drives stroke color instead of fill.
     - **Polygon features** — `colorscheme` sets the **fill color** (single value or array for color classes); `linecolor` sets the **border/outline color** of the polygon. `fillopacity` controls fill transparency; `linewidth` controls border thickness.
 22. **`changeThemeStyle` requires `name` in `.meta()`** — it finds themes by `name`, NOT by the string in `myMap.layer("name")`. Without `name`, calls silently have no effect:
     ```javascript
@@ -75,6 +75,10 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
     .meta({ tooltip: "..." })                   // ❌ — theme is invisible to changeThemeStyle
     ```
 23. **`hideTheme`/`showTheme` also resolve themes by `name` in `.meta()`** — same rule as `changeThemeStyle`. Once `name` is set, use `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)` for layer visibility. CSS injection (`[id*=":name:"] { display: none !important }`) remains a reliable fallback if `hideTheme` behaves unexpectedly for a given layer type.
+24. **NEVER use the same string for a layer name and a `meta.name`** — reusing one string for both has caused failures. They are different identifiers:
+    - **Layer name** (`myMap.layer("comuni")`) = geometry bucket; shared by a FEATURE base and the overlays that reuse its geometry, and **not unique**. A standalone CHART layer with its own geo data can use any arbitrary name (even `"generic"`).
+    - **`meta.name`** = the **unique** theme id used by `changeThemeStyle` / `hideTheme` / `showTheme` / `removeTheme`.
+    Keep them distinct — e.g. layer `"comuni"` + `meta.name: "comuni-choropleth"`.
 
 ---
 
@@ -86,7 +90,7 @@ These produce **no error, no warning, no console message** — the map just sile
 |---|---|---|---|
 | 1 | Omitted `showdata: "true"` | Layer loads, data processes, nothing renders — completely invisible | Add `showdata: "true"` to every `.style()` |
 | 2 | Used different layer name for overlay vs FEATURE base | Overlay renders nothing; no error | Overlay name must exactly match the FEATURE base name |
-| 3 | Omitted `ixmaps.Map()` assignment (`const myMap = …`) | Map may partially init; further calls fail or do nothing | Always assign to `const myMap` |
+| 3 | Omitted the `ixmaps.Map()` assignment (`var myMap = …`) | Map may partially init; further calls fail or do nothing | Always capture the instance in a variable named `myMap` (never `map`). Use `var`/outer scope if it's reassigned in `buildMap()` or shared across functions; `const` is fine for a single self-contained block |
 | 4 | Omitted `name` in `.meta()` | `changeThemeStyle` / `hideTheme` / `showTheme` silently no-op | Add `name: "themeName"` to every `.meta()` you'll reference at runtime |
 | 5 | Called `changeThemeStyle` via `ixmaps.map()` or fluent chain | Returns `{szMap: null}`; no update | Use `myMap.then(api => api.changeThemeStyle(...))` |
 | 6 | Missing `.binding()` | Layer skipped entirely | `.binding()` with `geo` + `value` is required on every layer |
@@ -95,8 +99,8 @@ These produce **no error, no warning, no console message** — the map just sile
 | 9 | Overlay layer named differently from FEATURE base | No geometry to draw on → blank | Always check: overlay name == base name |
 | 10 | `FEATURE\|SILENT` on base + overlay needs tooltips | Overlay renders but tooltip never fires | Drop `\|SILENT` from any base that has overlays needing hover |
 | 11 | `values:` for CATEGORICAL contains numbers | Categories silently unmatched; no color applied | Cast all `values:` entries to strings: `["1","2","3"]` |
-| 12 | `colorscheme: "none"` on polygon layer | Fill invisible but no error; may look like data missing | Use `colorscheme: ["none"]` (array) — or `fillopacity: 0` for opacity |
-| 13 | `removeTheme` not called before redefining an overlay | Themes stack on top of each other | Call `api.removeTheme(prev)` inside `myMap.then()` before `.define()` |
+| 12 | `fillopacity: 0` to hide a fill | Silently coerced to `1` (fully opaque) — fill shows at full strength, the opposite of intended | Use `colorscheme: ["none"]` (array) to hide a fill; never `fillopacity: 0` |
+| 13 | Redefining an overlay under a **new** `meta.name` without `removeTheme(prev)` | Old theme stays — themes stack | Reuse the **same** `meta.name` (auto-replaces) **or** call `api.removeTheme(prev)` before `.define()` |
 | 14 | Geometry branch mismatch (main=2026 codes vs data=2024) | Some regions silently unjoined (Sardinia etc.) | Pin geometry to commit `0153a0e` for 2024-compatible ISTAT codes |
 
 ---
@@ -110,8 +114,8 @@ Run this mental check before writing **any** overlay layer (CHOROPLETH, CHART on
     → If NO: rename it. A different name = no geometry = nothing renders.
 
 [ ] Does this overlay need to be swappable at runtime (sidebar picker, time slider)?
-    → If YES: add name: "unique-id" to .meta() AND track ACTIVE_THEME_NAME
-              and call api.removeTheme(prev) before each new .define()
+    → If YES: add name to .meta(). Reuse the SAME meta.name on each swap → auto-replaces.
+              (Or use a different name per theme + api.removeTheme(prev) before each .define().)
     → If NO: no meta.name required (unless changeThemeStyle is needed)
 ```
 
@@ -202,13 +206,29 @@ Is your data...
    - `template.html` — general purpose
 4. **Write** the HTML file
 5. **Validate before writing**:
-   - [ ] `const myMap = ixmaps.Map(...)` — instance stored
+   - [ ] `myMap = ixmaps.Map(...)` — instance captured in a variable (`var` if reassigned/shared, `const` for a single block; never name it `map`)
    - [ ] `.binding()` has `geo` + `value`
    - [ ] `.style()` has `showdata: "true"`
    - [ ] `.meta()` present with tooltip
    - [ ] If `objectscaling:"dynamic"` → `normalSizeScale` set
    - [ ] Start with `scale: 1` — let user request size adjustments
+
+   **Optional programmatic check** — for parameter-driven maps, validate a JSON config
+   against `skill-ui.yaml` before generating:
+   ```bash
+   node validate-config.js config.json    # checks types, ranges, valid options, deps
+   # one-time setup if missing: npm install js-yaml
+   ```
 6. **Confirm** file created; explain what it shows; offer to enhance
+
+> **Hosting local data** — if the user's data is a local file but a layer needs a `data({url:…})`
+> (CORS blocks `file://`), upload it to get a CDN URL:
+> ```bash
+> ./upload-helper.sh data.csv [project-name]   # GitHub API → git → manual fallback
+> ```
+> Needs `IXMAPS_GITHUB_TOKEN` + `IXMAPS_REPO_USER` env vars for automated upload; otherwise it
+> prints manual steps. Full setup → **DATA_HOSTING_GUIDE.md**. (Or skip hosting entirely and
+> inline the data via `obj:` — see § Data Configuration.)
 
 ---
 
@@ -320,7 +340,7 @@ var myMap = ixmaps.Map("map", {
     .data({ obj: { type:"FeatureCollection", features:features }, type: "geojson" })
     .binding({ geo: "geometry" })
     .type("FEATURE|SILENT")
-    .style({ colorscheme: "#7aaabb", linewidth: 0.6, fillopacity: 0 })
+    .style({ colorscheme: ["#7aaabb"], linewidth: 0.6 })
     .define();
 })();
 ```
@@ -478,13 +498,23 @@ swappable overlay always redefined under the **same layer name** as the base. Do
 create a separate layer per theme.
 
 **Two identifiers — don't confuse them:**
-- **Layer name** (`myMap.layer("comuni")`) = GEOMETRY bucket — must equal the FEATURE base's name.
-- **meta.name** (`.meta({name: "pie-theme-rd"})`) = THEME identity — the handle for `removeTheme`.
+- **Layer name** (`myMap.layer("comuni")`) = GEOMETRY bucket — must equal the FEATURE base's name (not unique).
+- **meta.name** (`.meta({name: "pie-theme-rd"})`) = THEME identity — unique, and the **key that drives replacement**.
+- ⚠️ **Never make these two the same string** (see Rule 24) — reusing one string for both has caused failures. Keep the `meta.name` distinct from the layer name.
 
-There is **no `"direct"` flag and no built-in upsert** in the flat API — every
-`.layer("comuni").define()` call ADDS another theme. To replace instead of stack, you
-must track the previous theme's meta.name and call `ixmaps.removeTheme(prev)` before
-defining the next one.
+**Replacement is automatic by `meta.name`.** Adding a theme whose `meta.name` already exists
+on the map *replaces* the existing one in place. So there are two ways to swap:
+
+- **Same `meta.name` on every swap → automatic replace** (simplest; no `removeTheme` needed).
+- **Different `meta.name` per theme** (e.g. one per year/category) → each `.define()` ADDS a
+  new theme, so you must track the previous name and call `api.removeTheme(prev)` before
+  defining the next, or they stack. The example below uses this form.
+
+The **`"direct"` flag** (aliases **`"fast"`**, **`"silent"`**), passed as the 2nd argument to
+`.layer(...)`, makes the add/replace *fluent* — it suppresses the loading spinner and status
+messages and skips the intermediate render flash during a replace. It does **not** decide
+*whether* a replace happens (that's `meta.name`); it only makes the transition smooth. The
+same flag also works as a mode on `changeThemeStyle`.
 
 ```javascript
 // ONE FEATURE base — defined once, no meta.name so it's never removed
@@ -546,11 +576,14 @@ function setTheme(opts) {
   myMap.layer("comuni").type(opts.type)....define();   // stacks forever
 }
 
-// ❌ "direct" does not exist in the flat API — the second arg is ignored
-myMap.layer("comuni", "direct")...              // no-op flag, still stacks
+// ⚠️ "direct"/"fast"/"silent" is a FLUENCY flag, NOT the replace mechanism.
+// Replacement is keyed on meta.name; the flag only suppresses spinner/messages
+// and the intermediate render flash. With NO meta.name it still stacks.
+myMap.layer("comuni", "direct")...   // smooth, but only replaces if meta.name matches
 ```
-Both overlays need layer name `"comuni"` (for geometry) AND a tracked `meta.name`
-with explicit `removeTheme(prev)` (for replacement).
+For replacement, give each swap a **stable `meta.name`** (automatic replace) — or use
+**different** names plus an explicit `removeTheme(prev)`. Either way the layer name stays
+`"comuni"` so the overlay reuses the base geometry.
 
 ---
 
@@ -607,11 +640,12 @@ Two distinct patterns depending on data shape:
 
 ⚠️ `mapInstance` must be captured inside `.then(function(map) { mapInstance = map; })` — it is NOT the return value of `ixmaps.Map()`, which is a Promise.
 
-### Remove-then-define (the only pattern that actually replaces)
+### Remove-then-define (needed only when meta.name varies)
 ```javascript
-// Each theme has a stable meta.name. Before defining the next one,
-// removeTheme(prev) tears down the previous overlay. Without this, every
-// showYear() call STACKS a new theme on the map — they never replace.
+// This example gives each year a DIFFERENT meta.name ("year-2023", "year-2024"),
+// so each showYear() would ADD a new theme — removeTheme(prev) tears down the
+// previous one first. Simpler alternative: use ONE stable meta.name for all years;
+// then each define auto-replaces and no removeTheme is needed.
 let ACTIVE = null;   // meta.name of the currently-drawn theme
 
 function showYear(year) {
@@ -631,9 +665,12 @@ function showYear(year) {
 }
 showYear("2023");
 ```
-**Key:** the flat API has no `"direct"` upsert and no `replaceTheme` on the MapBuilder shim.
-`removeTheme` lives on the embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`.
-Theme `name` in `.meta()` is the handle; layer name (`"countries"`) is the geometry bucket.
+**Key:** replacement is automatic when the new theme's `meta.name` matches one already on the
+map; `removeTheme` is only needed when the names differ (as above). `removeTheme` lives on the
+embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`. The
+`"direct"`/`"fast"`/`"silent"` flag (2nd arg to `.layer(...)`) just makes the swap fluent
+(no spinner / no intermediate render flash); it is not itself the upsert. Theme `name` in
+`.meta()` is the replace key; layer name (`"countries"`) is the geometry bucket.
 
 > Time slider (`timefield` in `.binding()`), `setThemeTimeFrame()` → **API_REFERENCE.md § Time Slider**
 
@@ -643,7 +680,7 @@ Theme `name` in `.meta()` is the handle; layer name (`"countries"`) is the geome
 
 | Property | Notes |
 |----------|-------|
-| `colorscheme` | Array of hex colors. `["100","tableau"]` for auto-palette |
+| `colorscheme` | Array of hex colors. `["100","tableau"]` for auto-palette. A bare string (`colorscheme: "#0066cc"`) is accepted **only** for a single color — **always use the array form** (`["#0066cc"]`, `["none"]`) as best practice |
 | `fillopacity` | 0–1. NEVER use `opacity` |
 | `linecolor` / `linewidth` | NEVER `strokecolor` / `strokewidth`; `linecolor` accepts a single string **or** an array `["#c1","#c2"]` — array form required for `VECTOR\|GRADIENT` |
 | `scale` | Uniform size multiplier (start at 1) |
@@ -653,7 +690,7 @@ Theme `name` in `.meta()` is the handle; layer name (`"countries"`) is the geome
 | `ranges` | Explicit class breaks (n+1 values for n colors) |
 | `values` | Category list for CATEGORICAL (must be **strings**) |
 | `align` | Chart anchor: `"left"` `"right"` `"top"` `"bottom"` `"above"` `"below"` |
-| `sizepow` | Power curve for size scaling — `2` = quadratic, exaggerates contrast between small and large values |
+| `sizepow` | Power for size scaling: radius ∝ value^(1/sizepow). `1` = linear (width ∝ value); `2` = area proportional to value (cartographic standard, flattens apparent contrast); `3` = volume proportional to value (even flatter). Higher = smaller arrows for small values appear relatively larger |
 | `rotation` | Rotate chart symbol in degrees (e.g. `35` for a tilted arrow) |
 | `rangescale` | Scale factor applied after range computation |
 | `aggregationfield` | Field used as aggregation key when `AGGREGATE` is set |
@@ -684,348 +721,17 @@ Theme `name` in `.meta()` is the handle; layer name (`"countries"`) is the geome
 
 ## Runtime Controls (Filters & Layer Toggles)
 
-Use these patterns when you need interactive UI controls (checkboxes, dropdowns) that modify the map after it's loaded.
+Interactive controls that modify the map after load. What's available:
 
-### Filtering data across all layers — `changeThemeStyle`
+- **Filter across layers** — `changeThemeStyle(themeName, "filter:WHERE …", "set")` via `myMap.then(map => …)`; aggregate layers (grids, sparklines) re-aggregate. Every responsive layer needs `name` in `.meta()`.
+- **Region selector + zoom** — a `<select>` that filters all named themes and pans/zooms via `myMap.view()`; `<option value="">` is the "show all" sentinel.
+- **Toggle visibility** — `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)`; start a layer hidden with `visible: false` in `.style()` (never call `hideTheme` from `myMap.then()`).
+- **Isolate categories** — `ixmaps.markThemeClass(name, idx)` / `unmarkThemeClass(name, idx)` for clickable legends (idx = position in the `values:` array).
+- **React to zoom/pan/click** — `myMap.on("zoomend moveend click mouseover …", handler)`. `ixmaps.getZoom()` / `getCenter()` are global (no `.then()`); `getBounds()` returns a flat `[swLat, swLng, neLat, neLng]` array.
+- **Persist view in URL** — read `lat/lng/zoom` params on init, write back with `history.replaceState` (debounced); wrap (don't overwrite) an existing `htmlgui_onZoomAndPan`.
 
-`changeThemeStyle(themeName, styleString, mode)` modifies a live layer property and triggers a re-render. For aggregate layers (grid counts, sparklines) it also **re-aggregates** — cells recount correctly with only the filtered rows.
-
-**Mode values:**
-
-| Mode | Behaviour |
-|------|-----------|
-| `"set"` | Replace property with the given value (default) |
-| `"remove"` | Delete the property entirely |
-| `"factor"` | Multiply the current numeric value by the given factor (e.g. `"gridwidthpx:1.1"` → 10% larger) |
-| `"set\|silent"` | Set value WITHOUT triggering a redraw (use for low-priority zoom tweaks) |
-
-**Prerequisites:**
-1. Every layer that should respond must have `name` in its `.meta()` (see Rule 21)
-2. Must call via the **Promise API** — `myMap.then(map => ...)` — NOT the fluent chain
-
-```javascript
-function applyFilter(activeValues) {
-  // activeValues = array of selected values, e.g. ["M", "F"]
-  const szFilter = (activeValues.length === totalCount)
-    ? null   // all selected → remove filter
-    : 'WHERE fieldName in (' + activeValues.join(',') + ')';
-
-  myMap.then(function(map) {
-    ['layerNameA', 'layerNameB', 'layerNameC'].forEach(function(id) {
-      if (szFilter) {
-        map.changeThemeStyle(id, 'filter:' + szFilter, 'set');
-      } else {
-        map.changeThemeStyle(id, 'filter', 'remove');
-      }
-    });
-  });
-}
-```
-
-> ⚠️ `ixmaps.map().changeThemeStyle()` returns `{szMap: null}` and silently does nothing — that form cannot find the live map instance.
-
-### Region selector with zoom navigation
-
-Use a `<select>` dropdown to filter all theme layers to a single geographic region **and** pan/zoom to it. The map needs to be declared as `var myMap` (not `const`) in outer scope so both `buildMap()` and `changeRegion()` can access it.
-
-**Key facts:**
-- Filter uses single-value equality: `WHERE field = value`
-- Empty `<option value="">` is the "show all" sentinel — triggers filter removal
-- Navigation uses `myMap.view()` called **outside** `.then()` — it is safe to call on the fluent chain after init
-- `myMap.view()` only pans/zooms; it does not reset layers
-
-**REGION_VIEWS lookup table:**
-```javascript
-const REGION_VIEWS = {
-    "":  { lat: 42.5, lng: 12.5, zoom: 6 },   // full extent
-    "1": { lat: 44.9, lng:  7.9, zoom: 8 },
-    // ... one entry per region code
-};
-```
-
-**changeRegion function:**
-```javascript
-var myMap;   // outer scope — shared by buildMap() and changeRegion()
-
-function changeRegion(code) {
-    var THEME_NAMES = ["themeA", "themeB", "themeC"];  // all named themes that should filter
-    var filterStr = code ? "WHERE regionField = " + code : null;
-    var v = REGION_VIEWS[code] || REGION_VIEWS[""];
-
-    myMap.then(function(m) {
-        THEME_NAMES.forEach(function(name) {
-            if (filterStr) {
-                m.changeThemeStyle(name, "filter:" + filterStr, "set");
-            } else {
-                m.changeThemeStyle(name, "filter", "remove");
-            }
-        });
-    });
-
-    myMap.view({ center: { lat: v.lat, lng: v.lng }, zoom: v.zoom });
-}
-
-function buildMap() {
-    myMap = ixmaps.Map("map", { ... });
-    // ...layers...
-}
-```
-
-**Overlay selector UI** — centered over the map, no background bar, map interaction passes through the wrapper:
-```html
-<!-- CSS -->
-#region-bar {
-    position: absolute;
-    top: 20px; left: 50%; transform: translateX(-50%);
-    z-index: 1001;
-    display: flex; align-items: center; gap: 8px;
-    pointer-events: none;        /* wrapper is click-through */
-}
-#region-bar label {
-    color: #333; font-size: 0.78rem;
-    pointer-events: none;
-}
-#region-select {
-    background: rgba(20,20,20,0.72);
-    border: 1px solid rgba(255,255,255,0.22);
-    border-radius: 6px; color: #f0f0f0;
-    padding: 5px 10px; cursor: pointer;
-    pointer-events: all;         /* select itself is interactive */
-}
-#region-select option { background: #1e1e1e; color: #f0f0f0; }
-
-<!-- HTML (inside the 1024px container div, above the map div) -->
-<div id="region-bar">
-    <label for="region-select">Regione:</label>
-    <select id="region-select" onchange="changeRegion(this.value)">
-        <option value="">— Tutta Italia —</option>
-        <option value="1">Piemonte</option>
-        <!-- ... -->
-    </select>
-</div>
-```
-
-> ⚠️ Always include `<option value="">` as the first option — it is the "show all" state that triggers `filter remove`. Presetting a region on load via `selected` means removing the initial `.filter()` from layer definitions; conversely, if a region is pre-filtered in `.filter()`, set `selected` on the matching option so the UI and the data stay in sync.
-
-### Toggling layer visibility — `hideTheme` / `showTheme`
-
-`hideTheme` and `showTheme` resolve themes by `name` in `.meta()` — just like `changeThemeStyle`. Once `name` is set on every layer, the standard calls work:
-
-```javascript
-ixmaps.hideTheme("grid");       // hides layer named "grid"
-ixmaps.showTheme("grid");       // shows it again
-// Usage: <input type="checkbox" onchange="this.checked ? ixmaps.showTheme('grid') : ixmaps.hideTheme('grid')">
-```
-
-**Initially hidden layer** — add `visible: false` to `.style()` — do NOT call `hideTheme` from `myMap.then()`:
-
-```javascript
-myMap.layer("danno")
-  .binding({ ... })
-  .type("CHART|BUBBLE|CATEGORICAL|GLOW")
-  .style({
-    colorscheme: [...],
-    values:      [...],
-    visible:     false    // ✅ layer starts hidden; toggle via showTheme/hideTheme at runtime
-  })
-  .define();
-// ❌ WRONG: myMap.then(function() { ixmaps.hideTheme('danno'); });  — unreliable timing
-```
-
-**CSS injection fallback** — if `hideTheme` behaves unexpectedly for a layer type, inject/remove a style rule instead:
-
-```javascript
-function toggleLayer(id, show) {
-  const styleId = 'hide-' + id;
-  if (!show) {
-    if (!document.getElementById(styleId)) {
-      const s = document.createElement('style');
-      s.id = styleId;
-      s.textContent = '[id*=":' + id + ':"] { display: none !important; }';
-      document.head.appendChild(s);
-    }
-  } else {
-    document.getElementById(styleId)?.remove();
-  }
-}
-```
-
-The category filter and layer-visibility toggle work independently and can be freely combined.
-
-### Isolating categorical classes — `markThemeClass` / `unmarkThemeClass`
-
-Use these to isolate one or more categorical classes in a `CATEGORICAL` layer. Marked classes stay visible; all others are hidden. When zero classes are marked, every class is shown again — no reset call needed.
-
-```javascript
-// Mark (isolate) class at index n — index = position in the `values:` array (0-based)
-ixmaps.markThemeClass("themeName", n);
-
-// Remove the isolation for class n
-ixmaps.unmarkThemeClass("themeName", n);
-```
-
-**Clickable legend pattern** — toggle isolation on click, track state in a `Set`:
-```javascript
-const markedClasses = new Set();
-
-function toggleClass(classIdx) {
-    if (markedClasses.has(classIdx)) {
-        markedClasses.delete(classIdx);
-        ixmaps.unmarkThemeClass("myLayer", classIdx);
-    } else {
-        markedClasses.add(classIdx);
-        ixmaps.markThemeClass("myLayer", classIdx);
-    }
-    // update legend UI: dim items not in markedClasses (only when set is non-empty)
-    document.querySelectorAll(".leg-item").forEach(el => {
-        const c = parseInt(el.dataset.class, 10);
-        el.classList.toggle("off", markedClasses.size > 0 && !markedClasses.has(c));
-    });
-}
-// HTML: <div class="leg-item" data-class="0" onclick="toggleClass(0)">…</div>
-```
-
-> Multiple classes can be marked simultaneously — all marked classes show together. The `themeName` must match `name` in `.meta()` (same rule as `changeThemeStyle`).
-
-### Reacting to zoom / pan — `.on()` events
-
-Use `.on(events, handler)` to subscribe to view events. Multiple space-separated events are accepted in one call.
-
-#### View events
-
-| Event | Fires when |
-|-------|-----------|
-| `zoomend` | Zoom level changed |
-| `moveend` | Map panned without zoom change |
-| `viewchange` (alias `zoompan`) | Any zoom or pan |
-
-Handler receives `{ nZoom, zoomChanged, panChanged, szMap }`.
-
-**Typical zoom-adaptive pattern** — debounce to avoid firing on every intermediate step:
-```javascript
-var _zoomTimer = null;
-myMap.on("zoomend moveend", function() {
-    clearTimeout(_zoomTimer);
-    _zoomTimer = setTimeout(function() {
-        var z = ixmaps.getZoom();   // global, no .then() needed
-        myMap.then(function(m) {
-            m.setBasemapOpacity(Math.max(0, Math.min(0.8, (z - 9) / 3)), "absolute");
-            m.changeThemeStyle("layerName", "minvaluesize:" + (z > 10 ? 1 : 15), "set");
-        });
-    }, 400);
-});
-```
-
-#### Item (feature) events
-
-| Event | Fires when | Handler receives |
-|-------|-----------|-----------------|
-| `mouseover` / `itemover` | Pointer enters a feature | `{ szId, id, theme, szMap }` |
-| `mouseout` / `itemout` | Pointer leaves a feature | same |
-| `click` / `itemclick` | Feature clicked | same |
-
-`szId` = full compound id `"themeId::itemKey"` · `id` = item key only · `theme` = layer id
-
-#### Lifecycle events
-
-| Event | Fires when |
-|-------|-----------|
-| `ready` / `mapready` | SVG engine fully loaded |
-| `layerdraw` / `drawtheme` | A layer finishes drawing |
-| `layeradd` / `newtheme` | A layer is created |
-| `layerremove` / `removetheme` | A layer is removed |
-
-```javascript
-myMap
-  .on("ready",     function()  { hideSpinner(); })
-  .on("layerdraw", function(e) { console.log("drawn:", e.id); })
-  .on("click",     function(e) { showDetail(e.id); })
-  .on("mouseover", function(e) { highlight(e.id); })
-  .on("mouseout",  function()  { clearHighlight(); });
-```
-
-**Inside handlers** — call `ixmaps.getZoom()` / `ixmaps.getCenter()` directly (no Promise); use `myMap.then(m => ...)` only when you need to call `m.changeThemeStyle()` or `m.setBasemapOpacity()`.
-
-**`getBounds()` note** — returns a flat **4-element array** `[swLat, swLng, neLat, neLng]`, NOT a Leaflet `LatLngBounds` object. Always guard: `if (!bounds || bounds.length !== 4) return;`
-
-**Legacy hook — `ixmaps.htmlgui_onZoomAndPan`** — still works; prefer `.on()` for new code:
-```javascript
-ixmaps.htmlgui_onZoomAndPan = function() {
-  myMap.then(function(m) { updateLegend(m.getBounds()); });
-};
-```
-When another handler already owns `htmlgui_onZoomAndPan`, wrap it to call `_prev` first instead of overwriting.
-
-**Live legend pattern** — update sidebar counts from inline data on every pan/zoom:
-```javascript
-myMap.on("viewchange", function() {
-  myMap.then(function(m) { updateLegend(m.getBounds()); });
-});
-// Also fire once on load:
-myMap.then(function(m) { updateLegend(m.getBounds()); });
-
-function updateLegend(bounds) {
-  if (!bounds || bounds.length !== 4) return;
-  const [swLat, swLng, neLat, neLng] = bounds;
-  const counts = {};
-  for (const t of DATA) {
-    if (t.lat < swLat || t.lat > neLat || t.lon < swLng || t.lon > neLng) continue;
-    counts[t.category] = (counts[t.category] || 0) + 1;
-  }
-  // update DOM legend elements with new counts
-}
-```
-
-### Persisting the map view in the browser URL
-
-Storing `lat`/`lng`/`zoom` in URL params lets users bookmark or share the exact view. Use `ixmaps.getCenter()` and `ixmaps.getZoom()` (global, no Promise needed) to read state, and `history.replaceState` to update silently.
-
-**Important:** if another handler (e.g. a data provider) already owns `htmlgui_onZoomAndPan`, use a **wrapper** that calls `_prev` first — never overwrite blindly.
-
-```javascript
-/* ── 1. Read initial view from URL (before map init) ── */
-var _urlParams = new URLSearchParams(window.location.search);
-var _initLat   = parseFloat(_urlParams.get("lat"))  || 46.8;   // default fallback
-var _initLng   = parseFloat(_urlParams.get("lng"))  || 2.3;
-var _initZoom  = parseFloat(_urlParams.get("zoom")) || 6;
-
-const myMap = ixmaps.Map("map", { ... })
-    .view({ center: { lat: _initLat, lng: _initLng }, zoom: _initZoom })
-    ...
-
-/* ── 2. Write current view back to URL (debounced) ── */
-var _urlUpdateTimer = null;
-
-function updateUrlFromView() {
-    try {
-        var c = ixmaps.getCenter();
-        var z = ixmaps.getZoom();
-        if (!c || z == null) { return; }
-        var params = new URLSearchParams(window.location.search);
-        params.set("lat",  c.lat.toFixed(6));
-        params.set("lng",  c.lng.toFixed(6));
-        params.set("zoom", z.toFixed(4));
-        history.replaceState(null, "", "?" + params.toString());
-    } catch(e) {}
-}
-
-/* ── 3. Wrap the existing htmlgui_onZoomAndPan (don't replace it) ── */
-function hookUrlUpdate() {
-    var _prev = ixmaps.htmlgui_onZoomAndPan;   // save whatever is already there
-    ixmaps.htmlgui_onZoomAndPan = function(nZoom) {
-        try { if (_prev) { _prev.call(this, nZoom); } } catch(e) {}
-        clearTimeout(_urlUpdateTimer);
-        _urlUpdateTimer = setTimeout(updateUrlFromView, 400);
-    };
-}
-
-/* ── 4. Install after map is ready; setTimeout fallback for edge cases ── */
-myMap.then(function() { hookUrlUpdate(); updateUrlFromView(); });
-setTimeout(function()  { hookUrlUpdate(); updateUrlFromView(); }, 1000);
-```
-
-> `ixmaps.getCenter()` / `ixmaps.getZoom()` are global — call them directly, no `myMap.then()` needed.
-> Shareable URL format: `map.html?lat=48.856900&lng=2.347800&zoom=14.0000`
+> ⚠️ `ixmaps.map().changeThemeStyle()` returns `{szMap:null}` and silently no-ops — always go through `myMap.then(map => …)`.
+> Full patterns + copy-paste code (filter helper, region selector + overlay CSS, hide/show, mark/unmark, `.on()` event tables, URL-sync wrapper) → **RUNTIME_CONTROLS.md**
 
 ---
 
@@ -1202,7 +908,8 @@ myMap.then(function(api) {
 **Invisible point anchor layer** — load centroid geometry without rendering anything:
 ```javascript
 // Required when CHART|USER layers need to snap to precise urban centroids
-// For POINT geometry, fillopacity:0 alone still renders a dot — scale:0 suppresses it completely
+// For POINT geometry: colorscheme:["none"] + scale:0 suppress the dot completely.
+// (Do NOT rely on fillopacity:0 — ixMaps coerces it to 1, so it never hides anything.)
 myMap.layer("centroids")
     .data({ url: CENTROIDS_URL, type: "geojson" })
     .binding({ geo: "geometry", id: "PRO_COM", title: "PRO_COM" })
@@ -1210,7 +917,6 @@ myMap.layer("centroids")
     .style({
         colorscheme: ["none"],
         scale:       0,         // ← required for point geometry
-        fillopacity: 0,
         linecolor:   "none",
         linewidth:   0,
         showdata:    "true"
@@ -1228,344 +934,22 @@ myMap.layer("centroids")
 
 ## Facet Sidebar (filter panel updated on zoom/pan)
 
-A facet sidebar lets users filter the map by clicking category values or dragging range sliders. It auto-updates on every zoom, pan, and filter change. This pattern requires three CDN plugins:
+A clickable facet panel that auto-updates on every zoom/pan/filter. Requires three CDN plugins (`format.js`, `facet.js`, `show_facets.js`), a sidebar `<div id="show-facets-div">`, an override of `ixmaps.statistics` (calls `ixmaps.data.getFacets` → `showFacets`), wired via `myMap.on("layerdraw", …)`. Pass `"NONUMERIC"` to `getFacets` for numeric-looking category fields; a facet field matching the theme's `value` binding auto-picks up theme colors.
 
-```html
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/plugins/format.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/plugins/facet.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/plugins/show_facets.js"></script>
-```
-
-### Sidebar HTML structure
-
-Use the canonical template below. The counter-chips pattern (`🌳 N totali` / `👁 N in vista`) gives users immediate feedback on dataset size and current view. Adapt the emoji and label text to the subject matter.
-
-```html
-<!-- Sidebar — place outside #map_div, position with CSS (right panel, overlay, etc.) -->
-<div id="sidebar_div" style="
-    position:absolute; top:0; right:0; width:320px; height:100%;
-    display:flex; flex-direction:column;
-    background:rgba(248,247,242,0.97); box-shadow:-2px 0 8px rgba(0,0,0,0.08);
-    font-family:sans-serif; z-index:900;">
-
-  <!-- Title block -->
-  <div style="padding:1.2em 1.2em 0.6em">
-    <div style="font-size:1.3em; font-weight:700">🌳 Map Title</div>
-    <div style="font-size:0.85em; color:#888; margin-top:0.2em">Subtitle / data source line</div>
-  </div>
-
-  <!-- Counter chips: total + in-view -->
-  <div style="padding:0 1.2em 0.8em; display:flex; gap:0.5em; flex-wrap:wrap; border-bottom:1px solid #e0dfd8">
-    <span id="count-chip-total" style="
-        background:#fff; border:1.5px solid #ccc; border-radius:2em;
-        padding:0.3em 0.9em; font-size:0.9em; white-space:nowrap">
-      🌳 <b id="count-total">—</b> totali
-    </span>
-    <span id="count-chip-visible" style="
-        background:#fff; border:1.5px solid #ccc; border-radius:2em;
-        padding:0.3em 0.9em; font-size:0.9em; white-space:nowrap">
-      👁 <b id="count-visible">—</b> in vista
-    </span>
-  </div>
-
-  <!-- Active-filter banner (hidden until a filter is applied) -->
-  <div id="filter-div" style="display:none; padding:0.4em 1.2em; background:#fff3cd; font-size:0.82em">
-    <b>Filtro attivo:</b> <span id="filter" style="font-style:italic"></span>
-    <button onclick="clearFilter()" style="
-        float:right; background:none; border:none; cursor:pointer;
-        font-size:1em; color:#666">✕</button>
-  </div>
-
-  <!-- Data source credit -->
-  <div style="padding:0.4em 1.2em; font-size:0.78em; color:#999; border-bottom:1px solid #e0dfd8">
-    Dati: <a href="#" target="_blank" style="color:#888">Source Name</a> (CC-BY)
-  </div>
-
-  <!-- Scrollable facet area -->
-  <div style="overflow-y:auto; flex:1; padding:0 0.4em">
-    <div id="show-facets-div"></div>
-  </div>
-</div>
-```
-
-**Set the total count once** after data loads (not on every draw):
-```javascript
-document.getElementById("count-total").textContent = DATA.length;
-```
-
-### `ixmaps.statistics` — the facet engine hook
-
-Override `ixmaps.statistics` to compute and render facets. It is called by ixmaps after every draw:
-
-```javascript
-ixmaps.statistics = function (szId) {
-    var themeObj = ixmaps.getThemeObj(szId);
-    if (!themeObj) return;
-
-    var lastFilter = themeObj.szFilter || "";
-
-    // Fields to facet — order determines sidebar order.
-    // NONUMERIC flag: suppresses numeric range sliders for fields that
-    // have many unique numbers but are better treated as categories.
-    // Fields with >N unique values auto-render as text-search inputs.
-    ixmaps.data.fShowFacetValues = false;
-    var szFieldsA = [
-        "CATEGORY_FIELD",   // categorical — picks up theme colors if it's the value field
-        "HEIGHT_CLASS",     // ordinal text
-        "STREET_NAME",      // high-cardinality → auto text-search input
-        "YEAR"              // numeric range slider (omit NONUMERIC to allow)
-    ];
-
-    var facetsA = ixmaps.data.getFacets(
-        lastFilter, "user_legend", szFieldsA, szId, "map", "NONUMERIC"
-    );
-
-    if (facetsA && facetsA.length) {
-        ixmaps.data.showFacets(lastFilter, "show-facets-div", facetsA);
-    }
-
-    // update visible-count chip — use your inline DATA array, not theme.indexA
-    myMap.then(function(m) {
-        var bounds = m.getBounds();
-        if (!bounds || bounds.length !== 4) return;
-        var swLat = bounds[0], swLng = bounds[1], neLat = bounds[2], neLng = bounds[3];
-        var vis = 0;
-        DATA.forEach(function(d) {
-            if (d.lat >= swLat && d.lat <= neLat && d.lon >= swLng && d.lon <= neLng) vis++;
-        });
-        var el = document.getElementById("count-visible");
-        if (el) el.textContent = vis;
-    });
-};
-```
-
-### React to layer draw — `map.on("layerdraw")`
-
-Use the event API (preferred over the legacy `htmlgui_onDrawTheme` hook):
-
-```javascript
-myMap.on("layerdraw", function(e) {
-    var themeObj = ixmaps.getThemeObj(e.id);
-
-    // skip helper/invisible layers
-    if (!themeObj) return;
-    if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND/)) return;
-    if (!themeObj.fVisible) return;
-
-    ixmaps.statistics(e.id);
-
-    // show/hide active-filter banner
-    if (themeObj.szFilter) {
-        document.getElementById("filter").innerHTML = themeObj.szFilter;
-        document.getElementById("filter-div").style.display = "";
-    } else {
-        document.getElementById("filter-div").style.display = "none";
-    }
-});
-```
-
-> **Legacy hook `ixmaps.htmlgui_onDrawTheme`** — still works but is old-style. Prefer `map.on("layerdraw")` for new code. If an existing plugin already uses `htmlgui_onDrawTheme`, wrap it (`var _prev = ixmaps.htmlgui_onDrawTheme; ixmaps.htmlgui_onDrawTheme = function(szId){ ...; _prev && _prev(szId); }`) rather than overwriting.
-
-### Clear all facet filters
-
-```javascript
-function clearFilter() {
-    ixmaps.data.facetsFilterA = [];
-    myMap.then(function(m) {
-        m.changeThemeStyle("yourThemeName", "filter", "remove");
-    });
-}
-```
-
-### Facet button style overrides
-
-`show_facets.js` generates `.btn-primary` buttons and `.badge` count labels. Override them to match your design:
-
-```css
-#show-facets-div .btn-primary {
-    background-color: #fff;
-    color: #334;
-    border: none;
-    border-bottom: solid rgba(128,128,128,0.25) 1px;
-    border-radius: 0;
-}
-#show-facets-div .btn-primary:hover,
-#show-facets-div .btn-primary:focus {
-    background-color: #f0efe8;
-    color: #112;
-    outline: none; box-shadow: none;
-}
-#show-facets-div .badge {
-    background: transparent;
-    color: #778;
-    font-size: 13px;
-    font-weight: 400;
-}
-```
-
-### `NONUMERIC` flag
-
-Pass `"NONUMERIC"` as the last argument to `getFacets` to suppress range-slider facets for fields that happen to contain numbers but are really categories (e.g. year codes, ID numbers). Without this flag, any numeric field will render as a histogram + dual-handle slider.
-
-### Category field gets theme colors automatically
-
-If one of the facet fields matches the theme's `value` binding field, `show_facets.js` automatically colors each facet button with the corresponding theme color. No extra config needed — just include the field name.
-
-### `theme.szFilter` vs `themeObj.szFilter`
-
-`lastFilter = themeObj.szFilter || ""` — always read the filter from the theme object, not a local variable. The facet engine updates it internally; reading it fresh on each draw ensures facets reflect the current filter state.
+> Full sidebar HTML/CSS, `ixmaps.statistics` hook, layerdraw wiring, clear-filter, button-style overrides → **FACETS_GUIDE.md**
 
 ---
 
-## Overlay Indicator Layer (small dot on top of main bubble)
+## Overlay Indicator Layer (small status dot on top of main bubbles)
 
-Use a second layer over the main bubbles to show a per-item status flag — e.g. failure risk class, alert state, certification level — without changing the primary color scheme.
+A second `CHART|BUBBLE|CATEGORICAL|NOLEGEND` layer drawn over the main bubbles to show a per-item status flag (risk class, alert state) without touching the primary colors. Add a constant `_dot` size field, filter to only meaningful states, use `scale: ~0.1` + `align: "bottom"`. `NOLEGEND` **must** be in the type string so the layerdraw/statistics handler skips it.
 
-### Pattern
-
-1. **Add a constant `_dot` field** to source data so the size binding has a numeric value:
-   ```javascript
-   DATA.forEach(function(d) { d._dot = 50; });
-   ```
-
-2. **Filter to only the items worth showing** (e.g. only elevated/extreme risk, skip negligible):
-   ```javascript
-   var riskData = DATA.filter(function(d) {
-       return d.RISK && d.RISK.match(/^(HIGH|EXTREME)/);
-   });
-   ```
-
-3. **Define the overlay layer** using `CATEGORICAL|NOLEGEND` piped into the type string, `scale` for size, and `_dot` for the size binding:
-   ```javascript
-   var indicatorTheme = ixmaps.layer("risk_dots")
-       .data({ obj: riskData, type: "json" })
-       .binding({ geo: "lat|lon", value: "RISK", title: "NAME", size: "_dot" })
-       .type("CHART|BUBBLE|CATEGORICAL|NOLEGEND")
-       .style({
-           colorscheme:    ["#ff9800", "#d32f2f"],
-           values:         ["HIGH", "EXTREME"],
-           normalsizevalue: "1000",   // same as main layer
-           scale:           0.1,      // 10% of main bubble size → small indicator dot
-           fillopacity:     1.0,
-           strokewidth:     "0",
-           showdata:        "true",
-           align:           "bottom"  // anchor dot to bottom of main bubble
-       })
-       .meta({ name: "risk_dots" })
-       .title("Risk indicator")
-       .define();
-
-   myMap.layer(indicatorTheme, "direct");
-   ```
-
-### Key rules
-
-| Rule | Why |
-|------|-----|
-| `NOLEGEND` **must be piped** into the type string: `"CHART|BUBBLE|CATEGORICAL|NOLEGEND"` | Passing it only in `.meta({ flag: "NOLEGEND" })` is not enough — it must appear in the type flags so the draw hook skips this layer when scanning for the statistics theme |
-| Use `scale: 0.1` rather than a very large `normalsizevalue` | `scale` is a clean multiplier applied after size calculation; `normalsizevalue` only works cleanly when the size field has a known typical range |
-| Keep `normalsizevalue` the same as the main layer | Makes the dot size proportional to the main bubble for the same item — a bigger tree gets a bigger dot |
-| Add `_dot` constant **before** filtering | `DATA.forEach(d => d._dot = 50)` on the source array means every filtered subset inherits the field |
-| Filter to only meaningful states | Empty dots for the "all-clear" state (A/negligible) add clutter without information |
-
-### Skip the indicator layer in `layerdraw`
-
-The draw handler must skip `NOLEGEND` layers to avoid running `ixmaps.statistics` on the indicator layer (which would show the risk categories as the main facets). The guard is already in the recommended pattern above:
-
-```javascript
-if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND/)) return;
-```
+> Full pattern, key rules, define-then-add (`ixmaps.layer(...).define()` + `myMap.layer(theme, "direct")`) → **FACETS_GUIDE.md § Overlay Indicator Layer**
 
 ---
 
 ## CSS Conflicts with External Frameworks (Bootstrap etc.)
 
-**Never load Bootstrap 3 (or similar CSS frameworks) alongside ixmaps.** Bootstrap 3's `.hidden { display:none !important }` rule silently breaks ixmaps UI elements — toolbar buttons, tooltip, and context menu all become invisible because:
-- ixmaps creates elements with `class="hidden"` and controls visibility via `element.style.display = "flex/block/inline"`
-- Bootstrap's `!important` on `.hidden` beats inline styles — ixmaps can never win
-- The failure is **silent**: no JS errors, elements just stay invisible
+**Never load Bootstrap 3 alongside ixmaps** — its `.hidden { display:none !important }` silently hides ixmaps' toolbar / tooltip / contextmenu (ixmaps toggles them via inline `style.display`, which `!important` beats). Ship the ~35-line standalone facet CSS instead. On dark basemaps, force `#tooltip` text color. Always run the tooltip/contextmenu class-cleanup inside `myMap.then()`.
 
-### Root fix: standalone facet CSS
-
-Instead of Bootstrap, include ~35 lines of standalone CSS that covers only what `show_facets.js` generates:
-
-```css
-/* ── Standalone facet CSS (replaces Bootstrap 3) ── */
-.list-group { padding-left: 0; margin-bottom: 20px; list-style: none; }
-.facet, .facet-active { margin-bottom: 0; }
-
-/* CRITICAL: must use display:table, NOT flexbox.
-   show_facets.js renders a colored proportion bar as a <div> immediately
-   after each <button> inside .input-group. With display:table, they stack
-   vertically (each becomes a table row). With display:flex, the bar becomes
-   a horizontal sibling and disappears entirely. */
-.input-group { position: relative; display: table; border-collapse: separate; width: 100%; }
-.input-group .form-control { display: table-cell; width: 100%; }
-.input-group-btn { display: table-cell; white-space: nowrap; width: 1%; vertical-align: middle; }
-.form-control {
-  display: block; width: 100%;
-  padding: 4px 8px; font-size: 14px; line-height: 1.43;
-  color: #555; background: #fff;
-  border: 1px solid #ccc; border-radius: 4px;
-}
-.form-control:focus { outline: none; border-color: #66afe9; }
-
-.btn {
-  display: inline-block; padding: 5px 10px;
-  font-size: 14px; font-weight: 400; line-height: 1.43;
-  text-align: center; white-space: nowrap; vertical-align: middle;
-  cursor: pointer; border: 1px solid transparent; border-radius: 4px;
-  background: none; font-family: inherit;
-}
-.btn-block  { display: block; width: 100%; }
-.btn-primary { color: #fff; background: #337ab7; border-color: #2e6da4; }
-.btn-default { color: #333; background: #fff; border-color: #ccc; }
-.btn-default:hover { background: #e6e6e6; border-color: #adadad; }
-.badge {
-  display: inline-block; min-width: 10px; padding: 3px 7px;
-  font-size: 12px; font-weight: 700; line-height: 1;
-  color: #fff; text-align: center; white-space: nowrap;
-  vertical-align: baseline; background: #777; border-radius: 10px;
-}
-.pull-right { float: right !important; }
-```
-
-### Tooltip text color on dark basemaps
-
-On dark basemaps (`CartoDB - Dark matter`, etc.) the tooltip text color is inherited from the page and often renders dark/invisible. Always include this CSS when using a dark basemap:
-
-```css
-#tooltip { color: #e8eaf6 !important; }
-#tooltip * { color: #e8eaf6 !important; }
-```
-
-### Tooltip and context menu fix
-
-ixmaps creates `#tooltip` and `#contextmenu` with `class="hidden visibility-hidden;"` (note: literal semicolon in the class attribute). Always add this safety fix in `myMap.then()`:
-
-```javascript
-myMap.then(function() {
-    setTimeout(function() {
-        ["tooltip","contextmenu"].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) {
-                el.classList.remove("hidden");
-                el.classList.remove("visibility-hidden");
-                el.style.display = "none";
-            }
-        });
-    }, 500);
-});
-```
-
-### Fallback: CSS attribute-selector workaround
-
-If Bootstrap cannot be removed (e.g. it is required by other page content), use higher-specificity rules to override the conflict. Specificity (0,2,0) beats Bootstrap's (0,1,0):
-
-```css
-.hidden[style*="display: flex"],   .hidden[style*="display:flex"]   { display: flex   !important; }
-.hidden[style*="display: block"],  .hidden[style*="display:block"]  { display: block  !important; }
-.hidden[style*="display: inline"], .hidden[style*="display:inline"] { display: inline !important; }
-```
-
-> Note: CDN-loaded Bootstrap stylesheets are CORS-blocked, so JS-based patching of `cssRules` does not work. The CSS or JS approaches above are the only reliable fixes.
+> Standalone facet CSS, dark-basemap tooltip fix, tooltip/contextmenu cleanup, attribute-selector fallback → **CSS_INTEROP.md**

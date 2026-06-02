@@ -1017,19 +1017,19 @@ For more information:
 **Fix:** Always use the Promise API:
 ```javascript
 // ❌ WRONG — returns {szMap: null}, silently no-ops:
-ixmaps.map().changeThemeStyle("punti", "filter:WHERE ...", "set");
+ixmaps.map().changeThemeStyle("punti-theme", "filter:WHERE ...", "set");
 
 // ❌ WRONG — not on fluent chain:
-myMap.changeThemeStyle("punti", "filter:WHERE ...", "set");
+myMap.changeThemeStyle("punti-theme", "filter:WHERE ...", "set");
 
 // ✅ CORRECT — Promise API:
 myMap.then(function(map) {
-  map.changeThemeStyle("punti", "filter:WHERE tipo in (M,F)", "set");
+  map.changeThemeStyle("punti-theme", "filter:WHERE tipo in (M,F)", "set");
 });
 
 // To remove the filter:
 myMap.then(function(map) {
-  map.changeThemeStyle("punti", "filter", "remove");
+  map.changeThemeStyle("punti-theme", "filter", "remove");
 });
 ```
 
@@ -1045,12 +1045,12 @@ myMap.then(function(map) {
 ```javascript
 // ❌ WRONG — layer string doesn't become the theme name:
 myMap.layer("punti")
-  .meta({ tooltip: "..." })   // no name → changeThemeStyle("punti", ...) won't find it
+  .meta({ tooltip: "..." })   // no name → changeThemeStyle("punti-theme", ...) won't find it
   .define();
 
 // ✅ CORRECT:
 myMap.layer("punti")
-  .meta({ name: "punti", tooltip: "..." })   // name matches what changeThemeStyle looks up
+  .meta({ name: "punti-theme", tooltip: "..." })   // meta.name ≠ layer name; this is what changeThemeStyle looks up
   .define();
 ```
 
@@ -1074,7 +1074,7 @@ map.changeThemeStyle("myLayer", "filter", "remove");
 
 ### Problem: `hideTheme` / `showTheme` has no effect on a layer
 
-**Symptom:** Calling `ixmaps.hideTheme("grid")` does nothing — the layer stays visible.
+**Symptom:** Calling `ixmaps.hideTheme("grid-theme")` does nothing — the layer stays visible.
 
 **Cause:** `hideTheme` and `showTheme` resolve themes by `name` in `.meta()`, exactly like `changeThemeStyle`. If `name` is absent from `.meta()`, the theme can't be found and the call silently no-ops.
 
@@ -1084,17 +1084,17 @@ map.changeThemeStyle("myLayer", "filter", "remove");
 myMap.layer("grid").meta({ }).define();
 
 // ✅ CORRECT:
-myMap.layer("grid").meta({ name: "grid" }).define();
+myMap.layer("grid").meta({ name: "grid-theme" }).define();   // meta.name ≠ layer name
 ```
 
 Then the standard calls work for all layer types:
 ```javascript
-ixmaps.hideTheme("grid");    // hide
-ixmaps.showTheme("grid");    // show
+ixmaps.hideTheme("grid-theme");    // hide
+ixmaps.showTheme("grid-theme");    // show
 
 // Checkbox wiring:
 // <input type="checkbox" checked
-//   onchange="this.checked ? ixmaps.showTheme('grid') : ixmaps.hideTheme('grid')">
+//   onchange="this.checked ? ixmaps.showTheme('grid-theme') : ixmaps.hideTheme('grid-theme')">
 ```
 
 **CSS injection alternative** — if `hideTheme` still behaves unexpectedly for a particular layer type, inject/remove a style rule instead:

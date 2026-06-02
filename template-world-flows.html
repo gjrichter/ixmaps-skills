@@ -313,7 +313,7 @@ ixMap.layer("graticule")
     .data({ obj: graticuleGeoJSON, type: "geojson" })
     .binding({ geo: "geometry" })
     .type("FEATURE")
-    .style({ colorscheme: [STYLE.graticule], fillopacity: 0,
+    .style({ colorscheme: [STYLE.graticule],
              linecolor: STYLE.graticule, linewidth: 0.4, showdata: "true" })
     .meta({ tooltip: "" })
     .define();
@@ -364,7 +364,7 @@ FLOW_SERIES.forEach(function(s) {
             showdata:    "true"
         })
         .meta({
-            name: "flows_" + s.id,
+            name: "flowsTheme_" + s.id,
             tooltip: "<div style='padding:8px'><b>{{name}}</b> → " +
                      "<span style='color:" + s.color + "'>" + s.dest.name + "</span>" +
                      "<br>{{value}}" + BUBBLE_UNITS + "</div>"
@@ -388,7 +388,7 @@ FLOW_SERIES.forEach(function(s) {
             units:        BUBBLE_UNITS
         })
         .meta({
-            name: "bubbles_" + s.id,
+            name: "bubblesTheme_" + s.id,
             tooltip: "<div style='padding:8px;min-width:160px'>" +
                      "<b style='font-size:13px'>{{name}}</b><br>" +
                      "<span style='color:" + s.color + "'>●</span> " +
@@ -411,7 +411,7 @@ ixMap.layer("destinations")
         scale:        1.8,
         showdata:    "true"
     })
-    .meta({ name: "destinations", tooltip: "<b>{{name}}</b>" })
+    .meta({ name: "destinationsTheme", tooltip: "<b>{{name}}</b>" })
     .define();
 
 </script>

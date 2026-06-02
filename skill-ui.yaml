@@ -104,7 +104,7 @@ parameters:
         label: "White Background"
         description: "Plain white, no base map"
         preview: "⬜"
-      - value: "OpenStreetMap"
+      - value: "OpenStreetMap - Osmarenderer"
         label: "OpenStreetMap"
         description: "Standard OSM tiles"
         preview: "🌍"
@@ -112,7 +112,7 @@ parameters:
         label: "CartoDB Positron"
         description: "Light gray base map"
         preview: "☁️"
-      - value: "CartoDB - Dark_Matter"
+      - value: "CartoDB - Dark matter"
         label: "CartoDB Dark Matter"
         description: "Dark base map"
         preview: "🌑"
@@ -494,7 +494,7 @@ presets:
     description: "Dark base with bright markers"
     icon: "🌙"
     parameters:
-      maptype: "CartoDB - Dark_Matter"
+      maptype: "CartoDB - Dark matter"
       colorscheme: ["#ffeb3b", "#ff5722", "#e91e63"]
       basemap_opacity: 1.0
       opacity: 0.9

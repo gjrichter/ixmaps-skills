@@ -291,9 +291,10 @@ Methods called on layer objects created with `ixmaps.layer(id)`.
 Create a new layer.
 
 **Parameters:**
-- `id` (string) - Unique layer identifier
+- `id` (string) - Layer/geometry-bucket name. **Not necessarily unique** — a FEATURE base and the overlays reusing its geometry share the same `id`; a standalone CHART layer with its own geo data can use any arbitrary name. The *unique* theme identity is `meta.name` (see warning below), which must be a **different** string from `id`.
+- `flag` (string, optional) - Fluency flag for adding/replacing a theme: `"direct"` (aliases `"fast"`, `"silent"`) suppresses the loading spinner, status messages, and the intermediate render flash during a theme swap. It does **not** decide whether a replace happens (that's `meta.name`); it only makes the transition smooth. Also accepted as a `changeThemeStyle` mode.
 
-**Returns:** Layer object (chainable)
+**Returns:** Layer object (chainable). Called as `ixmaps.layer(id)` it defines a theme **without** adding it to the map and returns the theme object; `myMap.layer(themeObj, flag)` then adds it.
 
 **Method chain order (IMPORTANT):**
 1. `.data()` - Define data source
@@ -339,6 +340,20 @@ Define the data source.
 - `"fgb"` - FlatGeoBuf format
 - `"geobuf"` - GeoBuf format
 - `"pbf"` - GeoBuf format
+
+**Optional `name` — sharing one dataset across themes:**
+
+`name` labels the in-memory JavaScript data object.
+- **Omitted** → ixMaps generates a unique id and **each theme keeps its own copy** of the data.
+- **Same `name` on two or more themes** → they **share a single loaded/parsed data object** instead of fetching/parsing it again (pair with `cache: "true"` for `query`/`process` sources).
+
+```javascript
+// Both themes load the dataset once and share it:
+myMap.layer("a").data({ url: "data.csv", type: "csv", name: "shared" }) … .define();
+myMap.layer("b").data({ url: "data.csv", type: "csv", name: "shared" }) … .define();
+```
+
+> This is the **data-source** name — completely separate from the layer name and from `meta.name` (Rule 24). It only controls data-object reuse.
 
 **For programmatic multi-source loading (`query` + `ixmaps.setExternalData`):**
 
@@ -520,7 +535,7 @@ Specify visualization type.
 
 **GeoJSON/TopoJSON types:**
 - `"FEATURE"` - Simple features (boundaries/shapes only)
-  - **Line geometry:** `colorscheme` sets the stroke/line color — `linecolor` is overridden and has no effect. Color-class arrays in `colorscheme` apply as line-color classes. Use `colorscheme: "none"` to hide lines entirely.
+  - **Line geometry:** `colorscheme` sets the stroke/line color — `linecolor` is overridden and has no effect. Color-class arrays in `colorscheme` apply as line-color classes. Use `colorscheme: ["none"]` to hide lines entirely (array form preferred; a bare string works only for a single color).
   - **Polygon geometry:** `colorscheme` sets the **fill color** (single value or array for color classes); `linecolor` sets the **border/outline color**. Use `fillopacity` for fill transparency and `linewidth` for border thickness.
 - `"FEATURE|CHOROPLETH"` - Numeric choropleth
 - `"FEATURE|CHOROPLETH|EQUIDISTANT"` - Equal intervals
@@ -983,9 +998,9 @@ myMap.layer("overlay")
     .binding({ geo: "geometry" })   // no value — omit it for SILENT
     .type("FEATURE|CHOROPLETH|SILENT")   // CHOROPLETH required for pan/zoom redraw
     .style({
-        colorscheme: "#ff4444",     // LINE color for LineString; FILL color for Polygon
-        linewidth:   1.5,           // NOT strokewidth
-        fillopacity: 0
+        colorscheme: ["#ff4444"],   // LINE color for LineString; FILL color for Polygon
+        linewidth:   1.5            // NOT strokewidth
+        // to hide a polygon fill use colorscheme: ["none"] — NEVER fillopacity: 0 (coerced to 1)
     })
     .define();
     // omit showdata:, value in binding, and .meta() — not needed and may cause errors
@@ -2131,7 +2146,7 @@ Properties that look similar but are NOT interchangeable. Using the wrong one is
 | Set border/outline color | `linecolor: "#hex"` | `strokecolor`, `bordercolor` |
 | Set fill transparency | `fillopacity: 0.7` (or `opacity` — both work, `fillopacity` preferred) | `alpha`, `fillOpacity` (camelCase) |
 | Set border thickness | `linewidth: 1` | `strokewidth`, `borderwidth` |
-| Make fill invisible | `colorscheme: ["none"]` | `fillopacity: 0` (causes errors) |
+| Make fill invisible | `colorscheme: ["none"]` | `fillopacity: 0` (ixMaps bug: silently coerced to `1` — fill shows fully opaque, the opposite of intended) |
 
 ### `colorscheme` vs `linecolor` — depends on geometry type
 
@@ -2347,7 +2362,7 @@ myMap.layer('earthquakes')
     .type('CHART|BUBBLE|SIZE|VALUES')
     .style({ colorscheme: ['#ffffb2','#fecc5c','#fd8d3c','#f03b20','#bd0026'],
              fillopacity: 0.80, showdata: 'true', units: ' M' })
-    .meta({ name: 'earthquakes', tooltip: '{{place}} — M{{mag}}' })
+    .meta({ name: 'earthquakes-theme', tooltip: '{{place}} — M{{mag}}' })  // meta.name ≠ layer name
     .define();
 ```
 
@@ -2374,13 +2389,13 @@ ixmaps.setThemeTimeFrame(themeId, startTimeMs, endTimeMs);
 myMap.layer('quakes')
     .data({ obj: allFeatures, type: 'geojson' })
     .binding({ geo: 'geometry', value: 'mag', timefield: 'time' })
-    .meta({ name: 'quakes' })
+    .meta({ name: 'quakes-theme' })   // meta.name ≠ layer name
     .define();
 
 slider.addEventListener('input', function () {
     var endMs   = Number(this.value);
     var startMs = endMs - windowMs;
-    ixmaps.setThemeTimeFrame('quakes', startMs, endMs);  // lightweight — no debounce needed
+    ixmaps.setThemeTimeFrame('quakes-theme', startMs, endMs);  // matches meta.name
 });
 ```
 

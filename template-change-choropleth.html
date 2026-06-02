@@ -301,7 +301,7 @@ ixMap.layer("graticule")
     .data({ obj: graticuleGeoJSON, type: "geojson" })
     .binding({ geo: "geometry" })
     .type("FEATURE")
-    .style({ colorscheme: [STYLE.graticule], fillopacity: 0,
+    .style({ colorscheme: [STYLE.graticule],
              linecolor: STYLE.graticule, linewidth: 0.4, showdata: "true" })
     .meta({ tooltip: "" })
     .define();

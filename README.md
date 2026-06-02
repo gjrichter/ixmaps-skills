@@ -87,19 +87,13 @@ This skill enables Claude to generate complete HTML files with interactive geogr
 
 ### Documentation Files
 
-- **SKILL.md** - Main skill instructions (326 lines, down from 631)
-  - Concise, well-organized skill documentation
-  - Critical rules highlighted at top
+- **SKILL.md** - Main skill instructions (~1,600 lines)
+  - Critical rules + silent-failure hotspots highlighted at top
   - Decision tree for choosing visualization types
+  - Core patterns inline; deeper detail delegated to the reference files below
   - All essential information for Claude
 
-- **SKILL_OLD_BACKUP.md** - Original skill file (backup)
-  - Keep for reference
-  - Can be deleted if not needed
-
-### Documentation Files
-
-- **EXAMPLES.md** - Complete working examples (18 examples)
+- **EXAMPLES.md** - Complete working examples (28 examples)
   - Point data examples
   - GeoJSON/TopoJSON examples
   - Aggregation examples
@@ -118,12 +112,25 @@ This skill enables Claude to generate complete HTML files with interactive geogr
   - Performance tips
   - Browser compatibility
 
+- **RUNTIME_CONTROLS.md** - Interactive controls (filters, region selector, hide/show, mark class, `.on()` events, URL sync)
+- **FACETS_GUIDE.md** - Facet sidebar + overlay-indicator layer patterns
+- **CSS_INTEROP.md** - Avoiding/repairing Bootstrap & dark-basemap CSS conflicts
+
 - **README.md** - This file
+- **MAP_TYPES_GUIDE.md** - Valid basemaps & projections reference
+- **SYMBOLS_GUIDE.md** - Symbol/icon reference for chart layers
+- **DATA_JS_GUIDE.md** - Data preprocessing with data.js (`Data.*` helpers)
+- **DATA_HOSTING_GUIDE.md** - Hosting data on a CDN/host for `url:` layers
+- **example-multi-layer-join.md** - Worked TopoJSON + CSV join example
 - **UI_YAML_GUIDE.md** - Guide to using skill-ui.yaml
+- **CHANGELOG.md** - Version history
 
 ### Utility Files
 
 - **validate-config.js** - Configuration validator (uses skill-ui.yaml)
+- **upload-helper.sh** - Shell helper for uploading data to a CDN/host (see DATA_HOSTING_GUIDE.md)
+
+> Both utility files run via the `Bash` tool (now included in the skill's `allowed-tools`) and are wired into the SKILL.md workflow. `validate-config.js` needs `js-yaml` (`npm install js-yaml`); `upload-helper.sh` needs `IXMAPS_GITHUB_TOKEN` + `IXMAPS_REPO_USER` for automated upload (else it prints manual steps).
 
 ### Template Files
 
@@ -198,12 +205,12 @@ This skill enables Claude to generate complete HTML files with interactive geogr
 
 ### Documentation Improvements
 
-2. ✅ **SKILL.md** - Reduced from 631 to 326 lines (48% reduction)
+2. ✅ **SKILL.md** - Restructured (the v2.0 overhaul cut it to ~326 lines; it has since
+   grown to ~1,600 as new patterns were documented)
    - Added decision tree for choosing visualization types
-   - Consolidated critical rules at top
-   - Removed redundancy
-   - Better organization
-   - Clearer structure
+   - Consolidated critical rules + silent-failure hotspots at top
+   - Better organization and clearer structure
+   - Deeper detail split into the reference files
 
 3. ✅ **EXAMPLES.md** - Comprehensive example library
    - 18 complete working examples
@@ -305,24 +312,32 @@ When invoked, Claude will:
 
 ```
 create-ixmap/
-├── SKILL.md                    # Main skill instructions (read by Claude)
-├── skill-ui.yaml              # UI configuration & parameters ⭐ NEW
-├── README.md                   # This file
-├── CHANGELOG.md               # Version history
-├── EXAMPLES.md                 # Working code examples
-├── API_REFERENCE.md            # Complete API docs
-├── TROUBLESHOOTING.md          # Common issues
-├── UI_YAML_GUIDE.md           # UI YAML usage guide ⭐ NEW
-├── validate-config.js         # Configuration validator ⭐ NEW
-├── template.html               # General purpose (updated)
-├── template-flexible.html      # Advanced template
-├── template-points.html        # Point data specialist
-├── template-geojson.html       # GeoJSON specialist
-├── template-multi-layer.html   # Multi-layer maps
-├── template-change-choropleth.html              # Delta/variation with arrows
-├── template-world-flows.html                    # Origin→destination flows
-├── template-europe-choropleth-sparklines.html   # Map + per-feature sparklines
-└── SKILL_OLD_BACKUP.md         # Original (backup)
+├── SKILL.md                                    # Main skill instructions (read by Claude)
+├── README.md                                   # This file
+├── CHANGELOG.md                                # Version history
+├── API_REFERENCE.md                            # Complete API docs
+├── EXAMPLES.md                                 # Working code examples
+├── TROUBLESHOOTING.md                          # Common issues & fixes
+├── RUNTIME_CONTROLS.md                         # Filters, toggles, .on() events, URL sync
+├── FACETS_GUIDE.md                             # Facet sidebar + overlay indicators
+├── CSS_INTEROP.md                              # Bootstrap / dark-basemap CSS conflicts
+├── MAP_TYPES_GUIDE.md                          # Valid basemaps & projections
+├── SYMBOLS_GUIDE.md                            # Symbol/icon reference
+├── DATA_JS_GUIDE.md                            # data.js preprocessing helpers
+├── DATA_HOSTING_GUIDE.md                       # Hosting data for url: layers
+├── UI_YAML_GUIDE.md                            # skill-ui.yaml usage guide
+├── example-multi-layer-join.md                 # Worked TopoJSON + CSV join
+├── skill-ui.yaml                               # UI configuration & parameters
+├── validate-config.js                          # Configuration validator
+├── upload-helper.sh                            # Data upload helper (CDN/host)
+├── template.html                               # General purpose
+├── template-flexible.html                      # Advanced/config-driven
+├── template-points.html                        # Point data specialist
+├── template-geojson.html                       # GeoJSON/TopoJSON specialist
+├── template-multi-layer.html                   # Multi-layer maps
+├── template-change-choropleth.html             # Delta/variation with arrows
+├── template-world-flows.html                   # Origin→destination flows
+└── template-europe-choropleth-sparklines.html  # Map + per-feature sparklines
 ```
 
 ## Version History
@@ -338,7 +353,7 @@ create-ixmap/
 
 **Documentation:**
 - Reduced SKILL.md by 48% (631 → 326 lines)
-- Created EXAMPLES.md with 18 examples
+- Created EXAMPLES.md with 28 examples
 - Created API_REFERENCE.md with complete API docs
 - Created TROUBLESHOOTING.md with solutions
 

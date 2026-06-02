@@ -46,6 +46,8 @@ myMap.layer("points")
   .define();
 ```
 
+> **`name` + `cache: "true"`** — names the in-memory data object so it is loaded/parsed once. Omit `name` and each theme gets its own copy; give multiple themes the **same** `name` to share one dataset. It's the data-source name only — unrelated to the layer name or `meta.name`. See **API_REFERENCE.md § Data Configuration**.
+
 ### Outside ixmaps — include CDN, then use Data.*
 
 When pre-processing data in your own `<script>` block (before or alongside layer definitions), include the CDN:

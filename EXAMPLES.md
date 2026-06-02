@@ -1783,7 +1783,7 @@ myMap.layer("flows")
         position2: "destination",  // Buyer region (ending point)
         title: "origin"
     })
-    .type("CHART|VECTOR|BEZIER|POINTER|NOSCALE|EXACT|AGGREGATE|SUM")
+    .type("CHART|VECTOR|BEZIER|POINTER|NOSCALE|CATEGORICAL|AGGREGATE|SUM")
     .style({
         // Color palette for regions
         colorscheme: [
@@ -1824,7 +1824,7 @@ myMap.layer("flows")
 - `BEZIER`: Smooth curves instead of straight lines
 - `POINTER`: Adds arrowheads showing direction
 - `NOSCALE`: Keeps arrow thickness constant when zooming
-- `EXACT`: Positions arrows precisely at region centers
+- `CATEGORICAL`: Colors arrows by discrete category (the `colorfield`, e.g. origin region)
 - `AGGREGATE`: Combines multiple records with same origin-destination
 - `SUM`: Sums values when aggregating
 

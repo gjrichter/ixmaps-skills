@@ -1278,6 +1278,26 @@ Complete visualization type reference.
 - The `VALUES` modifier is what activates the text — omit it to suppress labels
 - Use only when the number inside the bubble adds meaningful information
 
+**CHART|BUBBLE|GLOW|CATEGORICAL** (fixed-size colored dots, legend-selectable)
+- Bubbles with **no `size` binding** — every dot is the same fixed size
+- `normalsizevalue` controls the dot diameter: **smaller value = larger dot** (e.g. `"10"` → small dot, `"2"` → larger dot)
+- `scale: 1` is the right baseline — use it as the slider multiplier, not as the size control
+- `GLOW` adds a subtle halo for readability on dense maps
+- **`BUBBLE` is required** (not `DOT`) to enable **legend-item click → filter by category**; `DOT` does not support interactive legend selection
+- Pattern:
+  ```js
+  .type("CHART|BUBBLE|GLOW|CATEGORICAL")
+  .style({
+    colorscheme: ["#cc0000", "#000000"],
+    values:      ["class A", "class B"],
+    label:       ["Label A", "Label B"],
+    normalsizevalue: "10",   // tune for desired dot size; higher = smaller
+    scale:           1,      // neutral baseline; multiply via slider
+    fillopacity:     "0.7",
+    linecolor:       ["none"]
+  })
+  ```
+
 **CHART|PIE**
 - Pie charts at locations
 - Use with: multiple value fields (pipe-separated)
@@ -2161,8 +2181,8 @@ Properties that look similar but are NOT interchangeable. Using the wrong one is
 | Property | Where | What it does |
 |---|---|---|
 | `normalSizeScale` | `.options()` | Map-level: the map zoom scale at which charts render at "normal" size. **Higher = smaller symbols** (reference scale is farther out). Required with `objectscaling: "dynamic"`. |
-| `normalsizevalue` | `.style()` | Layer-level: the data value that maps to the default symbol size. **Higher = smaller symbols** (the reference value is above most data). |
-| `scale` | `.style()` | Layer-level: simple size multiplier on top of both above. Start at `1`. |
+| `normalsizevalue` | `.style()` | Layer-level: the data value that maps to the default symbol size. **Higher = smaller symbols** (the reference value is above most data). Also works **without a `size` binding** — acts as fixed dot diameter for `BUBBLE|CATEGORICAL` themes (e.g. `"10"` → small dot). |
+| `scale` | `.style()` | Layer-level: simple size multiplier on top of both above. Start at `1`. For fixed-size categorical bubbles, keep `scale:1` as the neutral baseline and expose it via a slider. |
 
 ### `lookup` vs `id` vs `geo`
 

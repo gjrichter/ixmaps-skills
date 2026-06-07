@@ -276,6 +276,23 @@ const myMap = ixmaps.Map("map", {
 });
 ```
 
+### `mode`: pan on touch, info on desktop
+
+`mode: "info"` makes a tap/click query features (tooltips) — good for a mouse, but on a touch device it fights with finger-dragging, so the map feels unresponsive to pan. Start touch devices in `"pan"` mode and keep `"info"` for mouse/desktop. Detect the **input type**, not the screen size — a coarse pointer means touch is the primary input (phones, tablets, touch laptops without a mouse):
+
+```javascript
+// touch (coarse pointer) → pan; mouse/desktop (fine pointer) → info
+var MAP_MODE = (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ? "pan" : "info";
+
+var myMap = ixmaps.Map("map", { mapType: "white", mode: MAP_MODE, legend: "closed", tools: true })
+    .view({ center: { lat: 42.5, lng: 12.5 }, zoom: 6 })
+    .options({ /* … */ });
+```
+
+- Use `(pointer: coarse)` — NOT a `max-width` breakpoint. Screen size ≠ input type (a small window on a desktop is still mouse-driven; a large tablet is still touch).
+- Pure CSS media queries can't set `mode` (it's a JS init option), so this branch must run in JS before `ixmaps.Map(...)`.
+- The user can still switch modes at runtime via the ixMaps tools toolbar; this only sets the **initial** mode.
+
 ### Projections
 
 All projections use SVG-based rendering. Omit `mapProjection` for the default Web Mercator / Leaflet tile setup.

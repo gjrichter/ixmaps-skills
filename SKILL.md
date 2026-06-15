@@ -11,21 +11,30 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 
 ## ⚠️ CRITICAL RULES (Never Skip)
 
-1. `ixmaps.Map()` returns a Promise — capture the instance in `.then()`
+1. `ixmaps.Map()` returns a **MapBuilder** — use `.then()` to capture the real map instance
+
+   Simple setup chains work without `.then()` via an internal queue mechanism:
    ```javascript
-   // ✅ correct
-   var mapInstance = null;
+   // ✅ works for initial setup chain
    ixmaps.Map("map", { ... })
        .view({ ... })
        .options({ ... })
-       .then(function(map) {
-           mapInstance = map;
-           // use mapInstance.layer(...) here or later
-       });
+       .layer(theme);
+   ```
+   But `.then()` is **required** whenever you need the real map instance later —
+   in event handlers, dynamic updates, or calls outside the chainable set
+   (`removeTheme`, `changeThemeStyle`, `hideTheme`, `showTheme` etc.):
+   ```javascript
+   // ✅ always safe — prefer this pattern
+   ixmaps.Map("map", { ... }).then(function(map) {
+       map.view({ ... }).options({ ... }).layer(theme);
+       button.onclick = function() { map.layer(newTheme); }; // real map instance available
+   });
 
-   // ❌ WRONG — ixmaps.Map() returns a Promise, not the map instance
+   // ⚠️ works for initial setup only — breaks if myMap is used later in event handlers
    const myMap = ixmaps.Map("map", { ... });
-   myMap.layer(...);  // fails silently — myMap is a Promise
+   myMap.view(...).layer(...);       // fine here — queued and executed on init
+   myMap.layer(newTheme);            // risky if called from an event handler or timeout
    ```
 2. **ALWAYS include `.binding()`** with `geo` and `value`
 3. **ALWAYS include `showdata: "true"`** in `.style()`
@@ -655,7 +664,7 @@ Two distinct patterns depending on data shape:
 
 ## Animated / Timeseries Maps
 
-⚠️ `mapInstance` must be captured inside `.then(function(map) { mapInstance = map; })` — it is NOT the return value of `ixmaps.Map()`, which is a Promise.
+⚠️ `mapInstance` must be captured inside `.then(function(map) { mapInstance = map; })` — it is NOT the return value of `ixmaps.Map()`, which is a **MapBuilder**. The real map instance is only available inside `.then()`.
 
 ### Remove-then-define (needed only when meta.name varies)
 ```javascript

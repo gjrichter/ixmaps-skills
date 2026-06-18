@@ -2434,8 +2434,8 @@ Lets you draw fully custom SVG shapes at each feature centroid using D3.
 ```html
 <script src="https://d3js.org/d3.v3.min.js"></script>
 <!-- pre-built options: -->
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/chart.js"></script>       <!-- pinnacleChart -->
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/arrow_chart.js"></script> <!-- arrowChart -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/usercharts/d3/chart.js"></script>       <!-- pinnacleChart -->
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/usercharts/d3/arrow_chart.js"></script> <!-- arrowChart -->
 ```
 Note: `ixmaps-flat` with **hyphen** (not underscore).
 

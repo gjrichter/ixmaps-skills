@@ -54,7 +54,7 @@ The style properties for hiding a layer outside a scale range are:
 2. **ixMaps library not loaded**
    ```html
    <!-- Make sure this is in <head> -->
-   <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
+   <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js"></script>
    ```
 
 3. **Map container has no height**

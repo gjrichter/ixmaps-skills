@@ -15,7 +15,7 @@
 
 ```html
 <!-- ixmaps only — data.js is bundled, no extra script needed -->
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js"></script>
 
 <!-- Add data.js ONLY if you use Data.* in your own script outside ixmaps callbacks -->
 <script src="https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js"></script>
@@ -53,7 +53,7 @@ myMap.layer("points")
 When pre-processing data in your own `<script>` block (before or alongside layer definitions), include the CDN:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js"></script>
 <script>
 Data.feed({ source: "https://example.com/data.csv", type: "csv" })

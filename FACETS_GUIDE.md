@@ -8,9 +8,9 @@
 A facet sidebar lets users filter the map by clicking category values or dragging range sliders. It auto-updates on every zoom, pan, and filter change. This pattern requires three CDN plugins:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/plugins/format.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/plugins/facet.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/plugins/show_facets.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/plugins/format.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/plugins/facet.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/plugins/show_facets.js"></script>
 ```
 
 ### Sidebar HTML structure
@@ -99,22 +99,106 @@ ixmaps.statistics = function (szId) {
 
     if (facetsA && facetsA.length) {
         ixmaps.data.showFacets(lastFilter, "show-facets-div", facetsA);
-    }
 
-    // update visible-count chip — use your inline DATA array, not theme.indexA
-    myMap.then(function(m) {
-        var bounds = m.getBounds();
-        if (!bounds || bounds.length !== 4) return;
-        var swLat = bounds[0], swLng = bounds[1], neLat = bounds[2], neLng = bounds[3];
-        var vis = 0;
-        DATA.forEach(function(d) {
-            if (d.lat >= swLat && d.lat <= neLat && d.lon >= swLng && d.lon <= neLng) vis++;
-        });
+        // update visible-count chip directly from facets — no DATA.forEach needed
         var el = document.getElementById("count-visible");
-        if (el) el.textContent = vis;
-    });
+        if (el) el.textContent = facetsA[0].nValuesSum || 0;
+    }
 };
 ```
+
+### Facet return value structure
+
+Each element of `facetsA` describes one requested field:
+
+| Property | Type | Contents |
+|----------|------|----------|
+| `facet.values` | `string[]` | Sorted unique values — e.g. `["1","2","3"]`. **Plain string array — not objects.** |
+| `facet.valuesCount` | `{[value]: number}` | Count per unique value — e.g. `{"1": 42, "2": 310, "3": 5820}`. Use this for per-category counts. |
+| `facet.nValuesSum` | `number` | Total visible record count. Use for a grand-total display. |
+
+> **⚠️ Common mistake:** `facet.values` is a plain string array. Iterating it and reading `.nCount` or `.count` from each element always yields `0`. Per-category counts come from `facet.valuesCount[key]`.
+
+```javascript
+var vc = facetsA[0].valuesCount || {};
+document.getElementById("cnt-fatal").textContent   = (vc["1"] || 0).toLocaleString();
+document.getElementById("cnt-serious").textContent = (vc["2"] || 0).toLocaleString();
+document.getElementById("cnt-slight").textContent  = (vc["3"] || 0).toLocaleString();
+document.getElementById("cnt-total").textContent   = (facetsA[0].nValuesSum || 0).toLocaleString();
+```
+
+getFacets works correctly on both plain and `AGGREGATE` layers — no separate non-aggregate stats layer is needed.
+
+---
+
+## Live count display (no sidebar)
+
+When you only need to update numbers in a header or panel — not a full facet sidebar — skip `showFacets` entirely and read `valuesCount` directly.
+
+**Single layer with all categories** (simplest case):
+
+```javascript
+ixmaps.statistics = function(szId) {
+    var themeObj = ixmaps.getThemeObj(szId);
+    if (!themeObj) return;
+
+    ixmaps.data.fShowFacetValues = false;
+    var facetsA = ixmaps.data.getFacets(
+        themeObj.szFilter || "", "live_counts", ["severity"], szId, "map", "NONUMERIC"
+    );
+    if (!facetsA || !facetsA.length) return;
+
+    var vc = facetsA[0].valuesCount || {};
+    document.getElementById("cnt-fatal").textContent   = (vc["1"] || 0).toLocaleString();
+    document.getElementById("cnt-serious").textContent = (vc["2"] || 0).toLocaleString();
+    document.getElementById("cnt-slight").textContent  = (vc["3"] || 0).toLocaleString();
+    document.getElementById("cnt-total").textContent   = (facetsA[0].nValuesSum || 0).toLocaleString();
+};
+
+myMap.on("layerdraw", function(e) {
+    var themeObj = ixmaps.getThemeObj(e.id);
+    if (!themeObj) return;
+    if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND|SILENT/)) return;
+    if (!themeObj.fVisible) return;
+    ixmaps.statistics(e.id);
+});
+```
+
+**Multiple filtered layers** (one per category) — accumulate across `layerdraw` events:
+
+```javascript
+var _counts = { fatal: 0, serious: 0, slight: 0 };
+
+ixmaps.statistics = function(szId) {
+    var themeObj = ixmaps.getThemeObj(szId);
+    if (!themeObj) return;
+    var name = themeObj.szName;
+    var sValue = { slight: "3", serious: "2", fatal: "1" }[name];
+    if (!sValue) return;
+
+    ixmaps.data.fShowFacetValues = false;
+    var facetsA = ixmaps.data.getFacets(
+        themeObj.szFilter || "", "stats_" + name, ["s"], szId, "map", "NONUMERIC"
+    );
+    if (!facetsA || !facetsA.length) return;
+
+    var vc = facetsA[0].valuesCount || {};
+    _counts[name] = vc[sValue] || 0;
+    document.getElementById("cnt-" + name).textContent = _counts[name].toLocaleString();
+    document.getElementById("cnt-total").textContent =
+        (_counts.fatal + _counts.serious + _counts.slight).toLocaleString();
+};
+
+myMap.on("layerdraw", function(e) {
+    var themeObj = ixmaps.getThemeObj(e.id);
+    if (!themeObj) return;
+    if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND|SILENT/)) return;
+    if (!themeObj.fVisible) return;
+    ixmaps.statistics(e.id);
+});
+```
+
+---
 
 ### React to layer draw — `map.on("layerdraw")`
 
@@ -126,7 +210,7 @@ myMap.on("layerdraw", function(e) {
 
     // skip helper/invisible layers
     if (!themeObj) return;
-    if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND/)) return;
+    if (themeObj.szFlag && themeObj.szFlag.match(/NOLEGEND|SILENT/)) return;
     if (!themeObj.fVisible) return;
 
     ixmaps.statistics(e.id);

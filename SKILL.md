@@ -48,7 +48,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 9. **Prefer `fillopacity` over `opacity`** in `.style()` — both work, but `fillopacity` is the recommended form
 10. **NEVER use `fillcolor`** — use `colorscheme: ["#hex"]`
 11. **NEVER add `.legend("string")`** unless user explicitly requests it — destroys the default color legend
-12. **ALWAYS use CDN** `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/ixmaps.js`
+12. **ALWAYS use CDN** `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js`
     - **data.js** (`https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js`) is **already loaded by ixmaps** — `Data.*` functions are available inside `query:` and `process:` callbacks without any extra `<script>` tag
     - **Only include the data.js CDN explicitly** when you need `Data.*` functions *outside* ixmaps theme realization (e.g. pre-processing data in your own `<script>` block before defining layers)
 13. **NEVER use info from** `ixmaps.ca` or `ixmaps.com` — only `github.com/gjrichter/ixmaps-flat`
@@ -815,10 +815,10 @@ Scripts required — load after `ixmaps.js`, order between them does not matter:
 ```html
 <!-- arrowChart only -->
 <script src="https://d3js.org/d3.v3.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/arrow_chart.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/usercharts/d3/arrow_chart.js"></script>
 
 <!-- pinnacleChart (also needs chart.js) -->
-<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@master/usercharts/d3/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/usercharts/d3/chart.js"></script>
 ```
 
 The `userdraw` style property names the draw function (`"pinnacleChart"` or `"arrowChart"`).

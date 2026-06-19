@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}}</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.3/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js"></script>
+    <!-- Turf.js — the extension that computes the KDE polygons -->
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+        #map { width: 100%; height: 100vh; }
+        #kde-panel {
+            position: absolute; top: 12px; right: 12px; z-index: 1000;
+            background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: 6px;
+            font-size: 0.85em; color: #444; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        }
+        #kde-controls { display: none; margin-top: 4px; }
+        #kde-controls div { margin: 3px 0; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 999; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading map...</div>
+    <div id="map"></div>
+
+    <!-- KDE control panel -->
+    <div id="kde-panel">
+        <label>
+            <input id="kdeCheckBox" type="checkbox" style="accent-color:#cc2200;vertical-align:middle" onclick="__toggleKDE(this)">
+            density (KDE)
+            <span style="display:inline-block;width:34px;height:12px;vertical-align:middle;border-radius:6px;background:linear-gradient(90deg,rgba(204,34,0,0.15),rgba(204,34,0,0.85))"></span>
+        </label>
+        <div id="kde-controls">
+            <div>opacity <span id="val-kde" style="font-weight:bold">0.15</span>
+                <input type="range" id="sl-kde" min="0" max="0.6" step="0.01" value="0.15" style="accent-color:#cc2200;vertical-align:middle"></div>
+            <div>bandwidth <span id="val-bw" style="font-weight:bold">×1.00</span>
+                <input type="range" id="sl-bw" min="0.25" max="4" step="0.05" value="1" style="accent-color:#cc2200;vertical-align:middle"></div>
+        </div>
+    </div>
+
+    <script>
+        // ===================================================================
+        //  HOST THEME  — the point layer the KDE is computed from.
+        //  Replace the data + bindings; keep the theme name "chart".
+        // ===================================================================
+
+        var _mapPromise = null;     // captured below — the KDE renderer needs it
+        var __kdeTimer  = null;
+        var __kdeOn     = false;
+
+        try {
+            _mapPromise = ixmaps.Map("map", {
+                    mapService: "leaflet_vt",
+                    mapType:    "{{MAPTYPE}}",          // e.g. VT_BRIGHT_LIGHT
+                    mode:       "pan",
+                    width:      "100%",
+                    height:     window.innerHeight + "px"
+                },
+                map => map
+                    .view([{{CENTER_LAT}}, {{CENTER_LNG}}], {{ZOOM}})
+                    .options({
+                        objectscaling:   "dynamic",
+                        normalSizeScale: "{{NORMAL_SIZE_SCALE}}",
+                        basemapopacity:  0.8,
+                        flushChartDraw:  100000
+                    })
+                    .layer(
+                        ixmaps.layer("host")
+                            .data({ url: "{{DATA_URL}}", type: "{{DATA_TYPE}}" })   // topojson | csv | geojson
+                            .binding({
+                                position: "{{POSITION_BINDING}}",   // "geometry"  (topo/geojson)  OR  "lat|lng" (csv)
+                                value:    "{{VALUE_FIELD}}",
+                                size:     "{{SIZE_FIELD}}"
+                            })
+                            .type("CHART|SYMBOL|CATEGORICAL|AGGREGATE|COUNT|RELOCATE|RECT")
+                            .style({ scale: "1", name: "chart" })
+                            .meta({ name: "chart", title: "{{LAYER_TITLE}}" })
+                    )
+            );
+            setTimeout(() => document.getElementById('loading').style.display = 'none', 1500);
+        } catch (error) {
+            console.error('Map initialization failed:', error);
+            document.getElementById('loading').innerHTML = '<div style="color:#d32f2f">Error: ' + error.message + '</div>';
+        }
+
+        // ===================================================================
+        //  WEIGHTED KDE  (Turf.js extension)
+        //
+        //  Edit TWO things for your data:
+        //   (A) coordinate extraction — topojson/geojson vs CSV  (see below)
+        //   (B) the weight expression __WEIGHT__  (the "index")
+        //       danger/severity : deaths*10 + injured
+        //       frequency       : 1
+        //       single field    : (+rec[iWeight] || 1)
+        //  Full explanation, perf notes, gotchas → EXTENSIONS_GUIDE.md
+        // ===================================================================
+
+        var __removeKDE = function () {
+            if (_mapPromise) _mapPromise.then(api => { try { api.removeTheme("kde"); } catch (e) {} });
+        };
+
+        var __toggleKDE = function (el) {
+            __kdeOn = el.checked;
+            document.getElementById("kde-controls").style.display = __kdeOn ? "block" : "none";
+            if (__kdeOn) { clearTimeout(__kdeTimer); __kdeTimer = setTimeout(__updateKDE, 200); }
+            else         { __removeKDE(); }
+        };
+
+        var __updateKDE = function () {
+            if (!__kdeOn || typeof turf === "undefined") return;
+
+            var objTheme = ixmaps.getThemeObj("chart");
+            if (!objTheme || !objTheme.indexA || !objTheme.itemA || !objTheme.objTheme) return;
+            var dbRecords = objTheme.objTheme.dbRecords;
+            var dbFields  = objTheme.objTheme.dbFields;
+            if (!dbRecords || !dbFields) return;
+
+            // (A) field indices — adjust names to your dataset
+            var iGeo = dbFields.findIndex(f => f.id === "geometry");          // topojson/geojson
+            // var iLat = dbFields.findIndex(f => f.id === "{{LAT_FIELD}}");  // CSV: use these instead
+            // var iLng = dbFields.findIndex(f => f.id === "{{LNG_FIELD}}");
+            var iW1  = dbFields.findIndex(f => f.id === "{{WEIGHT_FIELD_1}}");  // e.g. MORTI_24H
+            var iW2  = dbFields.findIndex(f => f.id === "{{WEIGHT_FIELD_2}}");  // e.g. FERITI
+
+            // collect visible record indices (single + aggregated cells)
+            var recIdx = [];
+            for (var i = 0; i < objTheme.indexA.length; i++) {
+                var item = objTheme.itemA[objTheme.indexA[i]];
+                if (!item) continue;
+                if (item.dbIndex != null) recIdx.push(item.dbIndex);
+                if (Array.isArray(item.dbIndexA)) for (var j = 0; j < item.dbIndexA.length; j++) recIdx.push(item.dbIndexA[j]);
+            }
+
+            var zoom = ixmaps.getZoom() || 12;
+            if (recIdx.length < 5 || zoom < 8) { __removeKDE(); return; }
+
+            // PERF: sample BEFORE parsing geometry
+            var ptCap = zoom >= 16 ? 1500 : zoom >= 14 ? 3000 : zoom >= 13 ? 5000 : 8000;
+            if (recIdx.length > ptCap) {
+                var step = Math.ceil(recIdx.length / ptCap), out = [];
+                for (var s2 = 0; s2 < recIdx.length; s2 += step) out.push(recIdx[s2]);
+                recIdx = out;
+            }
+
+            // build weighted points [lat, lng, weight]
+            var pts = [];
+            for (var k = 0; k < recIdx.length; k++) {
+                var rec = dbRecords[recIdx[k]];
+                if (!rec) continue;
+
+                // (A) coordinate extraction --------------------------------
+                var la, ln;
+                try { var c = JSON.parse(rec[iGeo]).coordinates; ln = +c[0]; la = +c[1]; }  // topojson/geojson
+                catch (e) { continue; }
+                // CSV alternative (comment the two lines above, uncomment these):
+                // la = +rec[iLat]; ln = +rec[iLng];
+                if (isNaN(la) || isNaN(ln)) continue;
+
+                // (B) WEIGHT / index --------------------------------------
+                var w1 = (iW1 >= 0 ? (+rec[iW1] || 0) : 0);
+                var w2 = (iW2 >= 0 ? (+rec[iW2] || 0) : 0);
+                var w  = w1 * 10 + w2;          // __WEIGHT__  (danger index: deaths*10 + injured)
+                if (w <= 0) w = 1;              // every record contributes at least 1
+                pts.push([la, ln, w]);
+            }
+            if (pts.length < 5) { __removeKDE(); return; }
+
+            // zoom-adaptive bandwidth (km) + grid budget, × user bandwidth slider
+            var bwKm, maxCells;
+            if      (zoom >= 16) { bwKm = 0.04; maxCells = 1000000; }
+            else if (zoom >= 15) { bwKm = 0.08; maxCells =  800000; }
+            else if (zoom >= 14) { bwKm = 0.12; maxCells =  600000; }
+            else if (zoom >= 13) { bwKm = 0.30; maxCells =  300000; }
+            else if (zoom >= 12) { bwKm = 0.80; maxCells =  100000; }
+            else if (zoom >= 11) { bwKm = 2.00; maxCells =   40000; }
+            else if (zoom >= 10) { bwKm = 5.00; maxCells =   25000; }
+            else if (zoom >= 9)  { bwKm = 10.0; maxCells =   20000; }
+            else                 { bwKm = 24.0; maxCells =   15000; }
+            bwKm *= (parseFloat(document.getElementById("sl-bw").value) || 1.0);
+
+            var s = Infinity, w0 = Infinity, n = -Infinity, e = -Infinity;
+            pts.forEach(p => { if (p[0]<s)s=p[0]; if (p[0]>n)n=p[0]; if (p[1]<w0)w0=p[1]; if (p[1]>e)e=p[1]; });
+            var midLat = (s + n) / 2;
+            var kmLat = 111.3, kmLng = 111.3 * Math.cos(midLat * Math.PI / 180);
+            s -= bwKm/kmLat*1.5; n += bwKm/kmLat*1.5; w0 -= bwKm/kmLng*1.5; e += bwKm/kmLng*1.5;
+            var BW2 = 2 * bwKm * bwKm;
+
+            var aspect = (e - w0) / Math.max(n - s, 0.001);
+            var nLng = Math.max(Math.round(Math.sqrt(maxCells * aspect)), 5);
+            var nLat = Math.max(Math.round(maxCells / nLng), 5);
+            var stepLat = (n - s) / nLat, stepLng = (e - w0) / nLng;
+
+            var gridPts = [];
+            for (var ila = 0; ila <= nLat; ila++) for (var iln = 0; iln <= nLng; iln++) {
+                var glat = s + ila*stepLat, glng = w0 + iln*stepLng, v = 0;
+                for (var q = 0; q < pts.length; q++) {
+                    var dy = (pts[q][0]-glat)*kmLat, dx = (pts[q][1]-glng)*kmLng;
+                    v += pts[q][2] * Math.exp(-(dx*dx + dy*dy) / BW2);
+                }
+                gridPts.push(turf.point([glng, glat], { v: v }));
+            }
+            var maxV = 0; gridPts.forEach(p => { if (p.properties.v > maxV) maxV = p.properties.v; });
+            if (maxV <= 0) { __removeKDE(); return; }
+
+            var breaks = [0.15, 0.30, 0.50, 0.70].map(r => r * maxV);
+            var iso;
+            try { iso = turf.isobands(turf.featureCollection(gridPts), breaks, { zProperty: "v" }); }
+            catch (err) { return; }
+
+            // keep only outer ring of each band → stacked filled blobs (opacity = density)
+            iso.features.forEach(feat => {
+                if (!feat || !feat.geometry) return;
+                var g = feat.geometry;
+                if (g.type === "Polygon")           g.coordinates = g.coordinates.length ? [g.coordinates[0]] : [];
+                else if (g.type === "MultiPolygon") g.coordinates = g.coordinates.map(p => p.length ? [p[0]] : []);
+            });
+
+            var op = parseFloat(document.getElementById("sl-kde").value) || 0.15;
+            var def = ixmaps.layer("density_polygons")
+                .data({ obj: iso, type: "geojson" })
+                .binding({ geo: "geometry" })
+                .type("FEATURE|CHOROPLETH|SILENT")          // CHOROPLETH → opacity slider works
+                .style({ colorscheme: "#cc2200", fillopacity: op, linewidth: 0.01 })
+                .meta({ name: "kde" })                      // unique name → removeTheme/changeThemeStyle target it
+                .define();
+
+            if (!_mapPromise) return;
+            _mapPromise.then(api => { try { api.removeTheme("kde"); } catch (e) {} api.layer(def); });
+        };
+
+        // ===================================================================
+        //  recompute on pan/zoom (debounced) + slider wiring
+        // ===================================================================
+
+        var old_onDrawTheme = ixmaps.htmlgui_onDrawTheme;
+        ixmaps.htmlgui_onDrawTheme = function (szId) {
+            if (szId === "chart" && __kdeOn) {
+                clearTimeout(__kdeTimer);
+                __kdeTimer = setTimeout(__updateKDE, 300);
+            }
+            try { old_onDrawTheme(szId); } catch (e) {}
+        };
+
+        document.getElementById("sl-bw").addEventListener("input", function () {
+            document.getElementById("val-bw").textContent = "×" + parseFloat(this.value).toFixed(2);
+            if (__kdeOn) { clearTimeout(__kdeTimer); __kdeTimer = setTimeout(__updateKDE, 300); }
+        });
+        document.getElementById("sl-kde").addEventListener("input", function () {
+            document.getElementById("val-kde").textContent = this.value;
+            if (__kdeOn && _mapPromise)
+                _mapPromise.then(api => { try { api.changeThemeStyle("kde", "fillopacity:" + this.value, "set"); } catch (e) {} });
+        });
+    </script>
+</body>
+</html>

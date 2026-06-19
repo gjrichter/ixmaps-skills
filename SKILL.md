@@ -212,6 +212,7 @@ Is your data...
    - `template-points.html` — CSV/JSON with lat/lon
    - `template-geojson.html` — GeoJSON/TopoJSON
    - `template-multi-layer.html` — multiple layers with join
+   - `template-kde.html` — weighted KDE / density heatmap (Turf.js extension)
    - `template.html` — general purpose
 4. **Write** the HTML file
 5. **Validate before writing**:
@@ -954,6 +955,7 @@ myMap.layer("centroids")
 > Complete working examples → **EXAMPLES.md**
 > Data preprocessing (data.js) → **DATA_JS_GUIDE.md**
 > Symbols/icons → **SYMBOLS_GUIDE.md**
+> Computed layers via external libs (Turf.js), weighted KDE heatmap → **EXTENSIONS_GUIDE.md**
 > Troubleshooting → **TROUBLESHOOTING.md**
 
 ---
@@ -971,6 +973,14 @@ A clickable facet panel that auto-updates on every zoom/pan/filter. Requires thr
 A second `CHART|BUBBLE|CATEGORICAL|NOLEGEND` layer drawn over the main bubbles to show a per-item status flag (risk class, alert state) without touching the primary colors. Add a constant `_dot` size field, filter to only meaningful states, use `scale: ~0.1` + `align: "bottom"`. `NOLEGEND` **must** be in the type string so the layerdraw/statistics handler skips it.
 
 > Full pattern, key rules, define-then-add (`ixmaps.layer(...).define()` + `myMap.layer(theme, "direct")`) → **FACETS_GUIDE.md § Overlay Indicator Layer**
+
+---
+
+## Computed Layers via External Libraries (Turf.js) — e.g. weighted KDE heatmap
+
+Use an external geospatial-JS library (Turf.js, d3-contour, …) to **compute a GeoJSON layer at runtime** from the visible records of an existing theme, then inject it as a normal ixMaps layer. Flagship case: a **weighted KDE "danger index" heatmap** — each point weighted by severity (e.g. `morti*10 + feriti`), Gaussian density on a zoom-adaptive grid, rendered as stacked `turf.isobands` polygons. Capture the map promise (`var _mapPromise = ixmaps.Map(...)`), read `objTheme.objTheme.dbRecords/dbFields` + `indexA/itemA/dbIndexA` for visible rows (coords from lat/lng columns for CSV, or `JSON.parse(rec[iGeo]).coordinates` for topojson), compute, then `_mapPromise.then(api => { api.removeTheme("kde"); api.layer(def); })`. The injected layer needs `FEATURE|CHOROPLETH|SILENT` (CHOROPLETH so the opacity slider's `changeThemeStyle` works) and a **unique `meta.name`**. Sample record indices *before* parsing geometry and debounce the recompute (~300 ms) for performance.
+
+> Runnable scaffold → **template-kde.html** (fill placeholders; edit coordinate extraction + weight expression). Concepts, weight choices, stacked-isoband trick, perf & gotchas, general external-library pattern → **EXTENSIONS_GUIDE.md**
 
 ---
 

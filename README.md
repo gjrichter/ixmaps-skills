@@ -372,7 +372,7 @@ create-ixmap/
 
 ## License
 
-MIT License - See LICENSE file in parent directory
+iXMaps-flat is licensed under the [BSD 3-Clause License](LICENSE.txt).
 
 ## Credits
 

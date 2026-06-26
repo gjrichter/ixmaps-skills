@@ -43,6 +43,26 @@ function applyFilter(activeValues) {
 
 > ⚠️ `ixmaps.map().changeThemeStyle()` returns `{szMap: null}` and silently does nothing — that form cannot find the live map instance.
 
+**Other common `changeThemeStyle` uses — opacity and grid size sliders:**
+
+```javascript
+// Opacity slider (fillopacity is 0–1, slider is 0–100)
+opSlider.addEventListener('input', function () {
+  myMap.then(function(api) {
+    api.changeThemeStyle("layerName", "fillopacity:" + (+this.value / 100), "set");
+  }.bind(this));
+});
+
+// Grid cell size slider (px value as plain number string)
+gridSlider.addEventListener('input', function () {
+  myMap.then(function(api) {
+    api.changeThemeStyle("layerName", "gridwidthpx:" + this.value, "set");
+  }.bind(this));
+});
+```
+
+> ❌ Wrong (silently ignored): `api.changeThemeStyle("name", "fillopacity", "0.5")` — the second argument must be `"prop:value"`, not two separate arguments for property and value.
+
 ## Region selector with zoom navigation
 
 Use a `<select>` dropdown to filter all theme layers to a single geographic region **and** pan/zoom to it. The map needs to be declared as `var myMap` (not `const`) in outer scope so both `buildMap()` and `changeRegion()` can access it.

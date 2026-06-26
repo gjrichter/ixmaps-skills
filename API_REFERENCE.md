@@ -1104,6 +1104,20 @@ Complete style property reference.
 - Only used with `|AGGREGATE` types
 - Larger values = coarser aggregation
 
+**gridwidthpx** (string) — pixel-explicit form
+- Same as `gridwidth` but the value is a numeric string without unit: `"30"`, `"50"`, `"100"`
+- Use this form with `changeThemeStyle` — `api.changeThemeStyle("name", "gridwidthpx:40", "set")`
+
+**aggregation** (string) — value reduction function for AGGREGATE layers
+- Sets how multiple source values inside one grid cell are combined into a single display value
+- Values: `"mean"` · `"sum"` · `"count"` · `"max"` · `"min"`
+- Equivalent to adding the modifier to the type string: `AGGREGATE|MEAN`, `AGGREGATE|SUM`, etc.
+- ❌ Do NOT use `dominantfilter` for this — that property is only for `CHOROPLETH|DOMINANT` (dominant category coloring); it is silently ignored on AGGREGATE layers
+
+**scale** (string) — symbol fill fraction within its grid cell
+- `"1.0"` fills the full cell (cells touch), `"0.9"` leaves a small gap between cells
+- Cleaner visual alternative to using `linecolor: "none"` to hide borders
+
 ### Diverging Scale Properties
 
 **rangecentervalue** (number)

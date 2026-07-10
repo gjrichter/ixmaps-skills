@@ -1,5 +1,14 @@
 # ixMaps Skill Changelog
 
+## 2026-07-10 — WMS layers are swappable via the standard meta.name pattern
+
+Confirmed via a live 4-layer Copernicus/EEA showcase (Urban Atlas, Riparian Zones, Corine Land
+Cover, Imperviousness Density switched by button clicks over Milano) that the `WMS|IMAGE` theme
+type swaps cleanly using the same **stable `meta.name` → auto-replace** pattern already documented
+for CHOROPLETH/CHART themes (§ Multi-Layer Join Pattern · B) — no `removeTheme` call needed, no
+stacking/ghosting between layers. Added a short example to SKILL.md § WMS / External Raster
+Overlays.
+
 ## 2026-07-10 — WMS/raster overlay theme documented + pixel-size gotcha
 
 Documented (SKILL.md § WMS / External Raster Overlays) the native `WMS|IMAGE` theme type for

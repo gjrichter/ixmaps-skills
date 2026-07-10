@@ -1103,6 +1103,25 @@ ixmaps.Map("map", {
 >
 > Also don't be alarmed by tiny `width`/`x`/`y` numbers on the `<image>` element in devtools (e.g. `width:1.3`) — those are the engine's internal SVG user-coordinate space, scaled up by the outer `<svg>` viewBox to real pixel size. Verify visibility with a screenshot, not by eyeballing those attribute values.
 
+**Switchable WMS layers (e.g. a dataset picker for several Copernicus/EEA services)** — the same **stable `meta.name` → auto-replace** pattern from § Multi-Layer Join Pattern · B works identically for `WMS|IMAGE` themes, confirmed with a 4-layer Copernicus showcase (Urban Atlas / Riparian Zones / Corine Land Cover / Imperviousness Density) switched via button clicks with no stacking or ghosting:
+
+```javascript
+var WMS_THEME_NAME = "copernicus-wms";   // same name every time = auto-replace, no removeTheme needed
+
+function setLayer(cfg) {
+    myMap.then(function (api) {
+        myMap.layer("copernicus")                    // layer name is arbitrary for WMS|IMAGE (no geometry to bind)
+            .type("WMS|IMAGE|NOLEGEND")
+            .data({ server: cfg.server })
+            .style(Object.assign({ opacity: "0.8" }, cfg.style))
+            .meta({ name: WMS_THEME_NAME })
+            .define();
+    });
+}
+```
+
+Each `setLayer(cfg)` call swaps the raster in place — no `removeTheme` call needed as long as `meta.name` stays constant across all options in the picker.
+
 ---
 
 ## CSS Conflicts with External Frameworks (Bootstrap etc.)

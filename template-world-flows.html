@@ -233,7 +233,8 @@ document.getElementById("legend-size-caption").textContent = LEGEND_SIZE_KEY.cap
 
 // World bounding box: dense polygon around the geographic extent.
 // Draws the ocean background and marks the Equal Earth projection outline.
-// NOTE: { type: "Sphere" } is D3-only and NOT valid GeoJSON — always use this polygon.
+// NOTE: { type: "Sphere" } (no coordinates) is native ixmaps syntax but Orthographic-only —
+// for this Equal Earth map it is a no-op, so use this dense polygon instead.
 var _bboxPts = (function() {
     var n = 90, p = [];
     for (var i = 0; i <= n; i++) p.push([-180 + 360*i/n,  89.99]);

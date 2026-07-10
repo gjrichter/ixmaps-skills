@@ -1,5 +1,40 @@
 # ixMaps Skill Changelog
 
+## 2026-07-10 — WMS/raster overlay theme documented + pixel-size gotcha
+
+Documented (SKILL.md § WMS / External Raster Overlays) the native `WMS|IMAGE` theme type for
+dropping server-rendered raster layers (Copernicus/EEA Urban Atlas, Riparian Zones, etc.) on the
+map via `ixmaps.layer(name).type("WMS|IMAGE|NOLEGEND").data({server: url}).style({opacity, layerupper})`.
+
+- The theme speaks **Esri ArcGIS REST `MapServer/export`** conventions
+  (`?f=image&transparent=true&bbox=...&bboxSR=4326&size=W,H`), not literal OGC WMS `GetMap` — point
+  `server` at the ArcGIS REST `export`/`exportImage` endpoint, not a `WMSServer`/`GetCapabilities` URL.
+- `layerupper`/`layerlower` style props give native scale-gating (e.g. `"1:750000"`) — no custom
+  zoom-threshold JS needed.
+- **Critical gotcha found via live testing:** `width`/`height` in `ixmaps.Map()`/`ixmaps.embed()`
+  options must be explicit pixel strings (`window.innerWidth + "px"`) — `"100%"` silently breaks the
+  theme's internal SVG scale math, shrinking the raster `<image>` to a few invisible SVG-units even
+  though the underlying HTTP request succeeds. Confirmed this is identical across the modern
+  `ixmaps.Map()` loader and the classic `ixmaps.embed()` + `htmlgui_flat.js` path — a sizing-string
+  issue, not an old-vs-new-API issue.
+- Also noted: small `width`/`x`/`y` values on the theme's `<image>` element (e.g. `width:1.3`) are
+  normal internal SVG user-coordinates scaled by the outer viewBox, not a sign of breakage — verify
+  visibility with a screenshot instead of the raw attribute value.
+
+## 2026-06-23 — Sparkline-in-CHOROPLETH-tooltip mechanism
+
+Documented (SKILL.md § Tooltip Mustache Reference) how `{{theme.item.chart}}` on a CHOROPLETH
+renders a **sibling CHART/PLOT theme** rather than the hovered theme's own chart — the native way
+to show a per-feature time-series sparkline *in the tooltip* while keeping it *off the map*.
+
+- Sibling match requires: same base layer name (`szThemes`), a `CHART` flag, **and** the chart
+  theme's `title` binding equal to the choropleth's geo-key value (CHART|PLOT items are keyed by
+  centroid coords, so ixMaps falls back to `szTitle == geoValue`). Binding `title` to the human
+  name instead of the join code silently degrades the tooltip to the class-distribution histogram.
+- Hide the curve on the map but keep it in the tooltip via `chartupper`/`boxupper`/`gridupper`
+  scale thresholds; add `valuescale: "0"` to drop per-point value labels for a clean line.
+- Reference: `flat_multi/.../pages/ACLED/political_violence.html`.
+
 ## Version 2.0 - Complete Overhaul (2026-02-07)
 
 ### 🚨 Critical Fixes

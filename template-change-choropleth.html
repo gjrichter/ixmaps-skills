@@ -226,7 +226,8 @@ document.getElementById("legend-pointer-key").innerHTML =
 // ═══════════════════════════════════════════════════════════════════════════
 
 // World bounding box: dense polygon around geographic extent.
-// NOTE: { type: "Sphere" } is D3-only — NOT valid GeoJSON. Always use this polygon.
+// NOTE: { type: "Sphere" } (no coordinates) is native ixmaps syntax but Orthographic-only —
+// for this Equal Earth map it is a no-op, so use this dense polygon instead.
 var _bboxPts = (function() {
     var n = 90, p = [];
     for (var i = 0; i <= n; i++) p.push([-180 + 360*i/n,  89.99]);

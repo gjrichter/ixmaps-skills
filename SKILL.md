@@ -111,6 +111,8 @@ These produce **no error, no warning, no console message** — the map just sile
 | 12 | `fillopacity: 0` to hide a fill | Silently coerced to `1` (fully opaque) — fill shows at full strength, the opposite of intended | Use `colorscheme: ["none"]` (array) to hide a fill; never `fillopacity: 0` |
 | 13 | Redefining an overlay under a **new** `meta.name` without `removeTheme(prev)` | Old theme stays — themes stack | Reuse the **same** `meta.name` (auto-replaces) **or** call `api.removeTheme(prev)` before `.define()` |
 | 14 | Geometry branch mismatch (main=2026 codes vs data=2024) | Some regions silently unjoined (Sardinia etc.) | Pin geometry to commit `0153a0e` for 2024-compatible ISTAT codes |
+| 15 | Used `geometry:{type:"Sphere"}` on a non-Orthographic projection | Nothing renders; no error, theme reports done | `Sphere` is Orthographic-only — use the dense-polygon world-bounding-box technique for other projections |
+| 16 | Used `geometry:{type:"Sphere"}` against an ixmaps-flat build without native Sphere support | Nothing renders; no error, theme reports done | Confirm the loaded engine build/version includes the fix (added 2026-07-03) before assuming a config mistake |
 
 ---
 
@@ -349,6 +351,37 @@ var myMap = ixmaps.Map("map", {
 .options({ basemapopacity: 0, flushChartDraw: 1000000 });
 ```
 
+#### Orthographic projection (globe view) — ocean/sea background
+```javascript
+var myMap = ixmaps.Map("map", {
+  mapType:       "white",
+  mapProjection: "orthographic",
+  mode:          "info",
+  legend:        "closed",
+  tools:         false
+})
+.view([13.24, 23.2], 2)             // array [lat, lng] — required for orthographic
+.options({ basemapopacity: 0.5, flushChartDraw: 1000000 })
+
+// Ocean/sea background — native engine support, define BEFORE data layers so they draw on top.
+.layer(
+  ixmaps.Layer("Ocean")
+    .data({
+      obj: { type: "FeatureCollection",
+             features: [{ type: "Feature", geometry: { type: "Sphere" }, properties: {} }] },
+      type: "geojson"
+    })
+    .type("FEATURE|NOLEGEND|SILENT")
+    .style({ colorscheme: ["#0a2a4a"], fillopacity: "1", showdata: "true", linecolor: "none", linewidth: "0" })
+    .meta({ name: "Ocean", tooltip: "" })
+    .json()
+);
+```
+- `geometry: {type:"Sphere"}` (no `coordinates` — unlike every other GeoJSON type) draws the full visible-globe disc for the current rotation, and auto-recenters on every pan/zoom/rotate as part of the theme's ordinary redraw cycle — no `moveend`/`zoomend` listeners needed, unlike a hand-rolled geodesic-circle workaround.
+- **Orthographic-only.** For every other projection (`equalearth`, `lambert`, etc.) `Sphere` is a no-op (nothing renders, no error) — those projections need the dense-polygon world-bounding-box technique instead (see the ocean-background layer in the Equal Earth/Lambert-style templates).
+- Do **not** use a full ±180°/±90° world-bounding polygon for the orthographic ocean background (the classic d3 "Sphere hack") — this engine's orthographic renderer does adaptive horizon-clamping per vertex, and a polygon spanning both hemispheres collapses into a degenerate sliver instead of a disc. `{type:"Sphere"}` is the correct native replacement.
+- ⚠️ Requires an ixmaps-flat build with native Sphere support (added 2026-07-03). If the sea silently doesn't render and the theme otherwise reports done with no error, the loaded engine predates this feature — confirm the build/version before assuming a config mistake.
+
 ### Graticule (world grid lines)
 ```javascript
 (function() {
@@ -425,6 +458,61 @@ Tooltips in `.meta({ tooltip: "..." })` use `{{…}}` placeholders. Two prefixes
 > .meta({ tooltip: "<b>{{comune}}</b> ({{provincia}} — {{regione}})<br>N: {{freq}}<br>Tot: {{ammk}} k€<br>{{theme.item.data}}" })
 > // string/number fields via {{field}}; use {{theme.item.data}} for the bound value display
 > ```
+
+### `{{theme.item.chart}}` on a CHOROPLETH → pulls a sibling CHART theme (not a histogram)
+
+`{{theme.item.chart}}` does **not** always render the hovered theme's own chart. For a
+**CHOROPLETH**, ixMaps' `__add_chart` scans all themes for a *sibling* chart theme to render
+instead — so you can show a **per-feature line/sparkline (time series) inside a choropleth
+tooltip** while the choropleth itself only carries a single value for colour. This is the
+correct, native way to get "sparkline in the tooltip, not on the map" (no hand-rolled SVG).
+
+The sibling is matched by **three conditions — all required**:
+
+1. **Same base layer name** — the CHART theme must use the *same* `myMap.layer("NAME")` as the
+   choropleth (so `szThemes` matches). Reuses the base geometry (see § Geometry Reuse).
+2. **`szFlag` is a chart** — `CHART|…|PLOT|LINES` (or any `CHART`/`COMPOSECOLOR`).
+3. **`title` binding == the choropleth's geo-key value** — ⚠️ **the trap.** CHART|PLOT items are
+   keyed by *centroid coordinates*, so the primary key lookup fails and ixMaps falls back to
+   matching the chart item's `szTitle` against the hovered choropleth's geo value
+   (`hoveredItemId.split("::")[1]`). If you join on a **code** (base `id:"ISO3_CODE"`, choropleth
+   `lookup:"countryiso3code"` → hovered item `…::IND`), the chart theme must bind
+   **`title:"countryiso3code"`** (→ `szTitle "IND"`), **not** the human name. With the name the
+   match silently fails and the tooltip shows the **class-distribution histogram** instead of the line.
+
+**Switch the sparkline OFF the map but keep it in the tooltip** — give the CHART theme
+scale-visibility thresholds so it isn't drawn at the working zoom, yet still feeds the tooltip:
+
+```javascript
+// choropleth: colour by latest year; its {{theme.item.chart}} will render the line below
+myMap.layer("World_countries")
+  .data({ obj: pivot, type: "jsondb" })
+  .binding({ lookup: "countryiso3code", value: latestYear, title: "country_value" })
+  .type("CHOROPLETH|QUANTILE|DOPACITYMAX")
+  .style({ colorscheme: ["25","#F7FAF2","#669900"], showdata: "true", name: "choro" })
+  .meta({ name: "choro", tooltip: "<b>{{country_value}}</b><br>{{theme.item.chart}}" })
+  .define();
+
+// sibling sparkline: SAME layer name, title == the join code, scale-gated off the map
+myMap.layer("World_countries")
+  .data({ obj: pivot, type: "jsondb" })
+  .binding({ lookup: "countryiso3code", value: years.join("|"), title: "countryiso3code" }) // ← title = code
+  .type("CHART|SYMBOL|SEQUENCE|PLOT|LINES|SIZE|AREA|LASTPOP|NOCLIP|BOX|BOTTOMTITLE|FAST")
+  .style({
+    colorscheme: ["#669900"], fillopacity: "0.1", scale: "0.06", linewidth: "10",
+    maxvalue: "auto", xaxis: years.map(y => Number(y)%5===0 ? String(y) : " "),
+    chartupper: "1:30000000", boxupper: "1:10000000", gridupper: "1:100000", // hidden at world zoom
+    valuescale: "0",          // ← suppress per-point value labels → clean line (else cluttered)
+    showdata: "true", name: "curves"
+  })
+  .meta({ name: "curves", tooltip: "{{theme.item.chart}}" })
+  .define();
+```
+
+- `chartupper`/`boxupper`/`gridupper` keep the curve off the map until you zoom in; the tooltip
+  chart renders regardless of those thresholds.
+- If the choropleth join is by **name** instead of code, set the chart `title` to that same name field.
+- Reference implementation: `flat_multi/.../pages/ACLED/political_violence.html`.
 
 ---
 
@@ -981,6 +1069,39 @@ A second `CHART|BUBBLE|CATEGORICAL|NOLEGEND` layer drawn over the main bubbles t
 Use an external geospatial-JS library (Turf.js, d3-contour, …) to **compute a GeoJSON layer at runtime** from the visible records of an existing theme, then inject it as a normal ixMaps layer. Flagship case: a **weighted KDE "danger index" heatmap** — each point weighted by severity (e.g. `morti*10 + feriti`), Gaussian density on a zoom-adaptive grid, rendered as stacked `turf.isobands` polygons. Capture the map promise (`var _mapPromise = ixmaps.Map(...)`), read `objTheme.objTheme.dbRecords/dbFields` + `indexA/itemA/dbIndexA` for visible rows (coords from lat/lng columns for CSV, or `JSON.parse(rec[iGeo]).coordinates` for topojson), compute, then `_mapPromise.then(api => { api.removeTheme("kde"); api.layer(def); })`. The injected layer needs `FEATURE|CHOROPLETH|SILENT` (CHOROPLETH so the opacity slider's `changeThemeStyle` works) and a **unique `meta.name`**. Sample record indices *before* parsing geometry and debounce the recompute (~300 ms) for performance.
 
 > Runnable scaffold → **template-kde.html** (fill placeholders; edit coordinate extraction + weight expression). Concepts, weight choices, stacked-isoband trick, perf & gotchas, general external-library pattern → **EXTENSIONS_GUIDE.md**
+
+---
+
+## WMS / External Raster Overlays (Copernicus, EEA, Esri REST services)
+
+ixMaps has a native `WMS|IMAGE` theme type for dropping a **server-rendered raster image** on the map (e.g. Copernicus Land Monitoring Service layers — Urban Atlas, Riparian Zones — hosted by EEA):
+
+```javascript
+var wmsLayer =
+    ixmaps.layer("urban_atlas")
+        .type("WMS|IMAGE|NOLEGEND")
+        .data({ server: "https://image.discomap.eea.europa.eu/arcgis/rest/services/UrbanAtlas/UA_UrbanAtlas_2018/MapServer/export" })
+        .style({ opacity: "0.8", layerupper: "1:750000" })   // layerupper = scale-gate; hides layer when zoomed out past this denominator
+        .define();
+
+ixmaps.Map("map", {
+        mapType: "VT_TONER_LITE",
+        mode:    "pan",
+        width:   window.innerWidth + "px",     // ⚠️ MUST be explicit pixels — see gotcha below
+        height:  window.innerHeight + "px",
+        legend:  "closed"
+    },
+    map => map.view([45.4642, 9.1900], 12).options({ basemapopacity: "0.6" }).layer(wmsLayer)
+);
+```
+
+- **`type("WMS|IMAGE|...")`** — the `data({server: url})` value goes to an internal `szServer`/Esri REST **`MapServer/export`** (or `ImageServer/exportImage`) endpoint — `?f=image&transparent=true&bbox=...&bboxSR=4326&size=W,H` gets appended automatically. This is **not** literal OGC `WMS GetMap` syntax — a true OGC WMS endpoint (`SERVICE=WMS&REQUEST=GetMap&...`) will not work here. EEA hosts Copernicus datasets on Esri ArcGIS Server, so their REST `export` endpoints are the correct URLs to use (find one via the ArcGIS REST metadata: `.../MapServer?f=json`, or by dropping `/WMSServer` and appending nothing to the base `MapServer` URL).
+- **`layerupper` / `layerlower`** (style props) — scale-string gates (`"1:750000"`) that hide the theme above/below a given map-scale denominator; use this instead of hand-rolled zoom-threshold JS.
+- No `.data({url:...})`/`.binding()` needed — this theme type draws one image per redraw, not per-record data.
+
+> ⚠️ **Critical gotcha:** `width`/`height` in the `ixmaps.Map()`/`ixmaps.embed()` options **must be explicit pixel strings** (`window.innerWidth + "px"`), never `"100%"`. Percentage sizing breaks this theme's internal SVG scale math — the image request still fires and succeeds (confirm via network tab), but the `<image>` element renders a few SVG-units across, i.e. invisible. This affects both the modern `ixmaps.Map()` loader and the classic `ixmaps.embed()` + `htmlgui_flat.js` path identically — it is a sizing-string issue, not an old-API-vs-new-API issue.
+>
+> Also don't be alarmed by tiny `width`/`x`/`y` numbers on the `<image>` element in devtools (e.g. `width:1.3`) — those are the engine's internal SVG user-coordinate space, scaled up by the outer `<svg>` viewBox to real pixel size. Verify visibility with a screenshot, not by eyeballing those attribute values.
 
 ---
 

@@ -288,6 +288,8 @@ const myMap = ixmaps.Map("map", {
 });
 ```
 
+> ⚠️ **Custom top-left overlay (e.g. your own legend/layer panel) vs `tools`** — if you're placing your own HTML panel (not ixMaps' built-in legend) in the map's top-left corner, set `tools: false`. With `tools: true`, ixMaps creates its own UI overlay in that same corner, which visually collides with a custom panel there. This is independent of the "tools" link in the map's bottom footer (`.map-footer` chrome) — that stays regardless of this option.
+
 ### `mode`: pan on touch, info on desktop
 
 `mode: "info"` makes a tap/click query features (tooltips) — good for a mouse, but on a touch device it fights with finger-dragging, so the map feels unresponsive to pan. Start touch devices in `"pan"` mode and keep `"info"` for mouse/desktop. Detect the **input type**, not the screen size — a coarse pointer means touch is the primary input (phones, tablets, touch laptops without a mouse):

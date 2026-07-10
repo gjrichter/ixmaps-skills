@@ -1,5 +1,14 @@
 # ixMaps Skill Changelog
 
+## 2026-07-10 — `tools: false` needed alongside a custom top-left panel
+
+Documented (SKILL.md § Map Init Pattern) that a custom HTML overlay (e.g. a legend/layer-picker
+panel) placed in the map's top-left corner needs `tools: false` in the map options — otherwise
+ixMaps creates its own UI overlay in that same corner, colliding with the custom panel. Noted
+this is unrelated to the "tools" link in the bottom `.map-footer` chrome, which is unaffected by
+this option (found while building the Copernicus WMS coexisting-layers map, which uses a custom
+top-left legend).
+
 ## 2026-07-10 — WMS layers are swappable via the standard meta.name pattern
 
 Confirmed via a live 4-layer Copernicus/EEA showcase (Urban Atlas, Riparian Zones, Corine Land

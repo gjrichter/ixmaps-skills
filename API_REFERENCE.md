@@ -365,7 +365,7 @@ var loadData = function(themeObj, options) {
         .addSource("https://example.com/data_2022.csv.gz", "csv")
         .addSource("https://example.com/data_2023.csv.gz", "csv")
         .addSource("https://example.com/data_2024.csv.gz", "csv")
-        .realize(function(dataA) {
+        .load(function(dataA) {   // .realize() is an older alias for the same method
             // Keep only needed columns (saves memory with large datasets)
             for (var i = 0; i < dataA.length; i++) {
                 dataA[i] = dataA[i].subtable({ fields: ['lat', 'lon', 'category', 'value'] });
@@ -404,7 +404,7 @@ myMap.layer("accidents")
 - `name: "themeDataObj"` — fixed sentinel name; tells ixmaps the data comes via `setExternalData`
 - `query: fn.toString()` — serialized function string; the function receives `(themeObj, options)` and must call `ixmaps.setExternalData(data, options)` when ready
 - **`options.type` must be set before calling `setExternalData`** — two valid values:
-  - `options.type = "dbtable"` — when passing a Data.js table (from `Data.provider().realize()`)
+  - `options.type = "dbtable"` — when passing a Data.js table (from `Data.provider().load()`)
   - `options.type = "json"` — when passing a plain JSON array of objects (e.g. from `fetch()` + manual CSV parse)
 - `ixmaps.setExternalData(data, options)` — injects the data into the waiting layer
 - `cache: "true"` — multiple layers sharing the same `name` reuse one load (efficient for overlays)

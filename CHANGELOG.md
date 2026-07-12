@@ -1,5 +1,26 @@
 # ixMaps Skill Changelog
 
+## 2026-07-11 — data.js: `.load()`/`.merge()` aliases, Data.Merger, remote-parquet bbox
+
+Synced DATA_JS_GUIDE.md and API_REFERENCE.md with three data.js changes (bumped documented
+version 1.62 → 1.63):
+
+- `Data.Broker` (`Data.provider()`) gained a `.load(callback)` alias for `.realize(callback)` —
+  matches `Data.feed(...).load(...)`'s naming. Updated all `Data.provider()` code examples to use
+  it; `.realize()` still works and is noted as the older name.
+- `Data.Merger` (`Data.merger()`) similarly gained a `.merge(callback)` alias for `.realize()`.
+  **`Data.Merger` itself was previously undocumented in this skill** — added a full `## Data.Merger`
+  section (constructor, `addSource(table, {lookup, columns, label})`, `setOutputColumns()`,
+  `merge()`, `error()`) plus a namespace-level `Data.merger()` entry, so an agent joining two
+  already-loaded tables by a shared key knows this exists instead of hand-rolling a lookup.
+- **Remote parquet by bounding box was entirely undocumented** — data.js's `parquet` loader now
+  supports `bbox`/`columns`/`crs`/`proj4`/`maxRows` options: with `bbox` set, it queries a remote
+  GeoParquet URL directly via DuckDB WASM's `httpfs` extension (genuine HTTP range reads) instead
+  of downloading the whole file, with automatic CRS detection/reprojection (built-in proj4 defs for
+  EPSG 3035/3857/2154/25832/25833/32632/32633) and a 2GB fallback gate if `httpfs` fails to load.
+  Added a full "Remote parquet by bounding box" subsection to DATA_JS_GUIDE.md, linking to the
+  new full guide at gjrichter.github.io/docs/data.js/docs/remote_parquet_bbox.html.
+
 ## 2026-07-10 — `tools: false` needed alongside a custom top-left panel
 
 Documented (SKILL.md § Map Init Pattern) that a custom HTML overlay (e.g. a legend/layer-picker

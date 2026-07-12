@@ -1,7 +1,7 @@
 # data.js API Reference
 
 **CDN:** `https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js`
-**Version:** 1.62
+**Version:** 1.63
 **Overview:** JavaScript library for loading, parsing, selection, transforming, and caching data tables. Loaded data is stored in a **Data.Table** (jsonDB format). Supports CSV, JSON, GeoJSON, KML, GML, RSS, Parquet, GeoPackage, FlatGeobuf, Geobuf, TopoJSON, JSON-stat, and jsonDB.
 
 > **data.js is already loaded by the ixmaps framework.** `Data.*` functions are available inside `query:` and `process:` callbacks without any extra `<script>` tag.
@@ -30,7 +30,7 @@ var myQueryFn = function(themeObj, options) {
   Data.provider()
     .addSource("https://example.com/2022.csv", "csv")
     .addSource("https://example.com/2023.csv", "csv")
-    .realize(function(tables) {
+    .load(function(tables) {
       var combined = tables[0].append(tables[1]);
       options.type = "jsondb";
       ixmaps.setExternalData(combined, options);
@@ -82,7 +82,8 @@ Data.feed({ source: "https://example.com/data.csv", type: "csv" })
 4. [Data.Table](#datatable)
 5. [Data.Column](#datacolumn)
 6. [Data.Broker](#databroker)
-7. [Supported source types](#supported-source-types)
+7. [Data.Merger](#datamerger)
+8. [Supported source types](#supported-source-types)
 
 ---
 
@@ -221,7 +222,7 @@ var a = table.column("column name").values();
 
 #### `Data.provider()` ✅ preferred
 
-Create a **Data.Broker** to load multiple sources and run a callback when all are loaded.
+Create a **Data.Broker** to load multiple sources in parallel and run a callback when all are loaded.
 
 - **Returns:** Data.Broker
 
@@ -231,22 +232,47 @@ Create a **Data.Broker** to load multiple sources and run a callback when all ar
 Data.provider()
   .addSource("https://example.com/a.csv", "csv")
   .addSource("https://example.com/b.json", "json")
-  .realize(function(dataA) {
+  .load(function(dataA) {
     var tableA = dataA[0], tableB = dataA[1];
   });
 ```
+
+> **`.load(callback)`** is the method to call — `.realize(callback)` is an older alias for the exact same method, still works, but `.load()` is what to reach for in new code (matches `Data.feed(...).load(...)`'s naming).
 
 ---
 
 #### `Data.broker()` ⚠️ deprecated
 
-Older form of `Data.provider()`. Still works but prefer `Data.provider()`.
+Older name for `Data.provider()`. Both return the same **Data.Broker** instance — still works, but `Data.provider()` is the current, unambiguous name.
 
 ---
 
 #### `new Data.Broker()` ⚠️ deprecated
 
 Constructor form. Prefer `Data.provider()`.
+
+---
+
+#### `Data.merger()` ✅ preferred
+
+Create a **Data.Merger** to join two or more *already-loaded* `Data.Table`s by a shared lookup key — different from `Data.provider()`, which loads sources but does not join them.
+
+- **Returns:** Data.Merger
+
+**Example:**
+
+```javascript
+Data.merger()
+  .addSource(prezzi,   { lookup: "idImpianto", columns: ["descCarburante", "prezzo"] })
+  .addSource(impianti, { lookup: "idImpianto", columns: ["Bandiera", "Latitudine"] })
+  .merge(function(mergedTable) {
+    // mergedTable has prezzi's rows enriched with impianti's columns
+  });
+```
+
+> **`.merge(callback)`** — `.realize(callback)` is an older alias for the same method, still works.
+
+See [Data.Merger](#datamerger) below for the full method list.
 
 ---
 
@@ -646,12 +672,14 @@ Set the success callback (alternative to passing it to **realize()**). *Deprecat
 
 ---
 
-#### `realize([callback])`
+#### `load([callback])`
 
 Start loading all added sources. When all are done, calls the callback with an array of **Data.Table** (same order as **addSource**).
 
 - **Parameters:** `callback` (function, optional) – `function(dataA)`
 - **Returns:** this
+
+> `realize([callback])` is an older alias for this exact method — still works, identical behavior.
 
 ---
 
@@ -673,6 +701,70 @@ Set a notify handler (e.g. progress).
 
 ---
 
+## Data.Merger
+
+Joins two or more **already-loaded** `Data.Table`s by a shared lookup key column — a join, not a parallel-load (that's [Data.Broker](#databroker) / `Data.provider()`). Use **Data.merger()** to create.
+
+### Constructor
+
+`new Data.Merger()`
+
+### Methods
+
+#### `addSource(table, option)`
+
+Register a loaded table as a merge source.
+
+- **Parameters:** `table` (Data.Table or 2D array), `option` (object) – `{ lookup, columns, label }`:
+  - `lookup` (string) – join key column name, present in every source
+  - `columns` (array) – which columns from this source to pull into the merged result
+  - `label` (array, optional) – rename incoming columns; positionally matched to `columns`
+- **Returns:** this
+
+The **first** `addSource` call provides the row backbone; every subsequent source is looked up by matching `lookup` values.
+
+---
+
+#### `setOutputColumns(columnsA)`
+
+Restrict/order the final merged table's columns to a subset of the labels defined via `addSource`.
+
+- **Parameters:** `columnsA` (array of strings)
+- **Returns:** this
+
+---
+
+#### `merge([callback])`
+
+Perform the join. Calls the callback with the merged **Data.Table**.
+
+- **Parameters:** `callback` (function, optional) – `function(mergedTable)`
+- **Returns:** this
+
+> `realize([callback])` is an older alias for this exact method — still works, identical behavior.
+
+**Example:**
+
+```javascript
+Data.merger()
+  .addSource(prezzi,   { lookup: "idImpianto", columns: ["descCarburante", "prezzo"] })
+  .addSource(impianti, { lookup: "idImpianto", columns: ["Bandiera", "Latitudine"] })
+  .merge(function(mergedTable) {
+    var selection = mergedTable.select('WHERE tipo_riga == "LI"');
+  });
+```
+
+---
+
+#### `error(onError)`
+
+Set the error handler.
+
+- **Parameters:** `onError` (function) – `function(exception)`
+- **Returns:** this
+
+---
+
 ## Supported source types
 
 | type        | Description |
@@ -684,7 +776,7 @@ Set a notify handler (e.g. progress).
 | `jsonl` / `ndjson` | Newline-delimited JSON |
 | `jsonDB` / `jsondb` | ixmaps internal table format |
 | `jsonstat` | [JSON-stat](https://json-stat.org/format/) 2.0 dataset or bundle |
-| `parquet`  | Parquet (via DuckDB WASM) |
+| `parquet`  | Parquet (via DuckDB WASM). With `bbox` set, queries a remote URL directly instead of downloading it — see [Remote parquet by bounding box](#remote-parquet-by-bounding-box) below |
 | `geoparquet` | GeoParquet (via DuckDB WASM → GeoJSON) |
 | `gpkg` / `geopackage` | GeoPackage (via DuckDB WASM spatial → GeoJSON) |
 | `flatgeobuf` / `fgb` | FlatGeobuf (binary → GeoJSON) |
@@ -692,6 +784,43 @@ Set a notify handler (e.g. progress).
 | `rss`      | XML RSS feed |
 | `kml`      | Keyhole Markup Language |
 | `gml`      | Geography Markup Language |
+
+---
+
+### Remote parquet by bounding box
+
+Large GeoParquet files (a country's worth of buildings, for example) don't need to be downloaded in full just to show what's in the current map viewport. Pass `bbox` on a `parquet` feed and data.js queries the remote URL directly with DuckDB WASM, reading only the row groups/columns that intersect the box — instead of downloading the whole file first.
+
+```javascript
+Data.feed({
+    source:  "https://s3.eubucco.com/eubucco/v0.2/buildings/parquet/nuts_id=ITC4/ITC4.parquet",
+    type:    "parquet",
+    bbox:    [9.185, 45.460, 9.198, 45.468],   // [minX, minY, maxX, maxY], always EPSG:4326
+    columns: ["id", "subtype", "height"],
+    maxRows: 50000
+}).load(function (mydata) {
+    // mydata.records — only the buildings inside bbox
+}).error(function (e) {
+    // e.g. "bbox selects N rows (limit 50000) - zoom in or raise maxRows" if the box is too wide
+});
+```
+
+**Options (bbox mode only):**
+
+| Option | Type | Description |
+|---|---|---|
+| `bbox` | `[minX, minY, maxX, maxY]` | Required for bbox mode. Always EPSG:4326 (plain lon/lat), regardless of the source file's own CRS |
+| `columns` | array of strings | Restrict the result to these columns (geometry is always included). Omit to get every non-list column |
+| `crs` | string, e.g. `"EPSG:3035"` | Override the auto-detected source CRS |
+| `proj4` | proj4 definition string | Override with a raw proj4 definition — takes precedence over `crs` |
+| `maxRows` | number | Abort with a clear error instead of running the query if the bbox would select more rows than this |
+
+**How it works:**
+- Requires the source file to have a GeoParquet bbox helper column (the `covering.bbox` convention) — if it doesn't, data.js logs a warning and falls back to a full download.
+- Automatically loads DuckDB WASM's `httpfs` extension for genuine HTTP range reads. Without `httpfs`, remote files ≥ 2 GB are rejected outright rather than risking an in-memory download that crashes; this only matters as a fallback if `httpfs` fails to load.
+- Many real-world GeoParquet datasets use a projected CRS, not plain lon/lat — [EUBUCCO](https://eubucco.com/) v0.2, for example, uses EPSG:3035. data.js auto-detects this from the file's GeoParquet metadata, transforms your `bbox` into that CRS before querying (using all four corners, since projections curve straight edges), and transforms returned geometries back to EPSG:4326. Built-in proj4 definitions cover EPSG 3035, 3857, 2154, 25832/25833, 32632/32633; pass `crs` or `proj4` explicitly for anything else.
+
+Full guide with more detail: [Remote Parquet by Bounding Box](https://gjrichter.github.io/docs/data.js/docs/remote_parquet_bbox.html) in the data.js documentation.
 
 For **Data.feed()**, `source` is a URL (or path). For **Data.object()** / **Data.import()**, `source` is the in-memory object or string. Parquet/GeoParquet/GeoPackage can also accept an **ArrayBuffer** (e.g. from File API) when used with **Data.object()**.
 

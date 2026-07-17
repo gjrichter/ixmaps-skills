@@ -1,5 +1,15 @@
 # ixMaps Skill Changelog
 
+## 2026-07-17 — `|SILENT` on a FEATURE base silently kills overlay tooltips
+
+Promoted Silent Failure Hotspot #10 to a top-level critical rule (16a): `FEATURE|SILENT` on a
+base layer suppresses tooltips for any CHOROPLETH/CHART overlay reusing its geometry, since the
+overlay has no hover of its own — it relies on the base theme. This was easy to miss because it
+was documented only in the hotspot table; an agent following the skill still produced a
+choropleth with dead tooltips by copying `FEATURE|SILENT` out of habit. Also fixed the
+"Swappable themes" example in § Multi-Layer Join Pattern, which used `FEATURE|SILENT` as its base
+despite its own swappable overlays carrying tooltips — a contradiction within the skill itself.
+
 ## 2026-07-11 — data.js: `.load()`/`.merge()` aliases, Data.Merger, remote-parquet bbox
 
 Synced DATA_JS_GUIDE.md and API_REFERENCE.md with three data.js changes (bumped documented

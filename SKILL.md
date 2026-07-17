@@ -70,6 +70,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 16. **NO `FEATURE` on overlay layers** — base layer gets `FEATURE`; choropleth/chart overlays do not:
     - ✅ `myMap.layer("x").type("FEATURE")` → `myMap.layer("x").type("CHOROPLETH|CATEGORICAL")`
     - ❌ `myMap.layer("x").type("FEATURE")` → `myMap.layer("x").type("FEATURE|CHOROPLETH|CATEGORICAL")`
+16a. **`|SILENT` on a `FEATURE` base kills tooltips for every overlay reusing its geometry** — `SILENT` suppresses tooltips/legend/statistics for the theme it's attached to, but a CHOROPLETH/CHART overlay on the same layer name has no hover of its own; it relies on the base. Default to plain `FEATURE` (no `|SILENT`) whenever the overlay needs hover tooltips — which is the common case. Only add `|SILENT` to a base if you deliberately want the whole join (base + overlay) to have no tooltip at all (e.g. a decorative graticule with no overlay). See Silent Failure Hotspot #10.
 17. **`objectscaling: "dynamic"` requires `normalSizeScale`** — set to map scale denominator:
     zoom 4→30M · 5→15M · 6→8M · 8→2M · 10→500k · 12→100k
 18. **`lookup` goes in `.binding()`**, not in `.data()`
@@ -635,11 +636,13 @@ same flag also works as a mode on `changeThemeStyle`.
 
 ```javascript
 // ONE FEATURE base — defined once, no meta.name so it's never removed
+// ⚠️ NO |SILENT here: the swappable overlays below carry tooltips, and |SILENT
+// on this base would kill hover for all of them (see Rule 16a).
 myMap.layer("comuni")
     .data({ url: GEO_URL, type: "topojson" })
     .binding({ geo: "geometry", id: "com_istat_code_num", title: "name" })
     .filter("WHERE reg_istat_code_num == 1")
-    .type("FEATURE|SILENT")
+    .type("FEATURE")
     .style({ colorscheme: ["#d9e4dc"], fillopacity: 0.55, linecolor: "#8a9d8c", linewidth: 0.2, showdata: "true" })
     .define();
 

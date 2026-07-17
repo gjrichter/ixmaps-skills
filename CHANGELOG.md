@@ -1,5 +1,21 @@
 # ixMaps Skill Changelog
 
+## 2026-07-17 — `highlightThemeItems`/`clearHighlight`, and z-index for custom panels
+
+Documented two findings from building an Italy regions choropleth with a legend-hover-highlights-
+map interaction (mirroring a Leaflet/MapLibre `feature-state` hover):
+
+- **`ixmaps.highlightThemeItems(themeName, itemId)` / `ixmaps.clearHighlight()`** — a native
+  highlight API, previously undocumented anywhere in this skill, found by inspecting `htmlgui.js`
+  directly. Added a new § Highlighting a single item to RUNTIME_CONTROLS.md and a quick-ref line
+  to SKILL.md § Runtime Controls. The gotcha: `itemId` must be the full SVG group id
+  `"<layerName>::<lookupValue>"`, not the bare lookup value — the bare value silently no-ops.
+- **Custom HTML panels need `z-index: 1000`+** — ixMaps' own Leaflet panes top out around
+  `z-index: 700`; a custom legend/info panel left at a low z-index (e.g. the common default `10`)
+  renders underneath the map instead of on top of it. `#tooltip` is `10000` and `#contextmenu` is
+  `99999`, so `1000`–`2000` is the safe range. Added alongside the existing `tools:false` note in
+  § Map Init Pattern, since both concern a custom panel coexisting with the map.
+
 ## 2026-07-17 — `|SILENT` on a FEATURE base silently kills overlay tooltips
 
 Promoted Silent Failure Hotspot #10 to a top-level critical rule (16a): `FEATURE|SILENT` on a

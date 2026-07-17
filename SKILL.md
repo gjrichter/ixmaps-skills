@@ -290,6 +290,8 @@ const myMap = ixmaps.Map("map", {
 ```
 
 > ⚠️ **Custom top-left overlay (e.g. your own legend/layer panel) vs `tools`** — if you're placing your own HTML panel (not ixMaps' built-in legend) in the map's top-left corner, set `tools: false`. With `tools: true`, ixMaps creates its own UI overlay in that same corner, which visually collides with a custom panel there. This is independent of the "tools" link in the map's bottom footer (`.map-footer` chrome) — that stays regardless of this option.
+>
+> ⚠️ **Custom panel/legend needs `z-index: 1000` or higher** — ixMaps' own map surface (Leaflet panes: tile pane, marker pane, etc.) tops out around `z-index: 700`, so a custom overlay with a low z-index (e.g. the CSS default `10`) can render **underneath** the map instead of on top of it. Give any custom HTML panel `z-index: 1000`+ to sit above the map surface. Stay below ixMaps' own floating chrome (`#tooltip` is `10000`, `#contextmenu` is `99999`) so native tooltips/context menus can still render on top of your panel if they ever overlap it — `1000`–`2000` is a safe range.
 
 ### `mode`: pan on touch, info on desktop
 
@@ -847,11 +849,12 @@ Interactive controls that modify the map after load. What's available:
 - **Region selector + zoom** — a `<select>` that filters all named themes and pans/zooms via `myMap.view()`; `<option value="">` is the "show all" sentinel.
 - **Toggle visibility** — `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)`; start a layer hidden with `visible: false` in `.style()` (never call `hideTheme` from `myMap.then()`).
 - **Isolate categories** — `ixmaps.markThemeClass(name, idx)` / `unmarkThemeClass(name, idx)` for clickable legends (idx = position in the `values:` array).
+- **Highlight a single item** — `ixmaps.highlightThemeItems(name, itemId)` / `ixmaps.clearHighlight()`; e.g. legend-row hover highlighting its map feature. `itemId` is the full SVG group id `"<layerName>::<lookupValue>"`, not the bare lookup value — passing the bare value silently no-ops.
 - **React to zoom/pan/click** — `myMap.on("zoomend moveend click mouseover …", handler)`. `ixmaps.getZoom()` / `getCenter()` are global (no `.then()`); `getBounds()` returns a flat `[swLat, swLng, neLat, neLng]` array.
 - **Persist view in URL** — read `lat/lng/zoom` params on init, write back with `history.replaceState` (debounced); wrap (don't overwrite) an existing `htmlgui_onZoomAndPan`.
 
 > ⚠️ `ixmaps.map().changeThemeStyle()` returns `{szMap:null}` and silently no-ops — always go through `myMap.then(map => …)`.
-> Full patterns + copy-paste code (filter helper, region selector + overlay CSS, hide/show, mark/unmark, `.on()` event tables, URL-sync wrapper) → **RUNTIME_CONTROLS.md**
+> Full patterns + copy-paste code (filter helper, region selector + overlay CSS, hide/show, mark/unmark, highlight, `.on()` event tables, URL-sync wrapper) → **RUNTIME_CONTROLS.md**
 
 ---
 

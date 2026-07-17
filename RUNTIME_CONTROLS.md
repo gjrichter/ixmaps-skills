@@ -226,6 +226,34 @@ function toggleClass(classIdx) {
 
 > Multiple classes can be marked simultaneously — all marked classes show together. The `themeName` must match `name` in `.meta()` (same rule as `changeThemeStyle`).
 
+## Highlighting a single item — `highlightThemeItems` / `clearHighlight`
+
+Use this to draw a bold outline over one specific feature (e.g. a legend row hover highlighting
+its region on the map, mirroring a Leaflet/MapLibre `feature-state` hover pattern). Undocumented
+elsewhere in the ixMaps API surface — found by inspecting `htmlgui.js` directly.
+
+```javascript
+ixmaps.highlightThemeItems(themeName, itemId);   // draws the outline
+ixmaps.clearHighlight();                         // removes it (global — clears any theme's highlight)
+```
+
+- `themeName` — the theme's `name` from `.meta()` (same rule as `changeThemeStyle` / `hideTheme`).
+- `itemId` — **the full SVG group id, not the bare lookup/join value.** ixMaps renders each choropleth
+  feature as an SVG group `id="<layerName>::<lookupValue>"` (e.g. a layer `myMap.layer("regions")`
+  joined on code `"19"` renders as `id="regions::19"`). Passing just `"19"` silently does nothing —
+  no error, the call just no-ops. Build the id as `layerName + "::" + code`.
+- `clearHighlight()` takes no arguments and clears whatever is currently highlighted, regardless of
+  theme — there is no per-theme clear.
+
+**Legend-hover pattern:**
+```javascript
+document.querySelectorAll(".rank-row").forEach(function (row) {
+  var itemId = "regions::" + row.dataset.code;   // "<layerName>::<code>"
+  row.addEventListener("mouseenter", function () { ixmaps.highlightThemeItems("tfr-choropleth", itemId); });
+  row.addEventListener("mouseleave", function () { ixmaps.clearHighlight(); });
+});
+```
+
 ## Reacting to zoom / pan — `.on()` events
 
 Use `.on(events, handler)` to subscribe to view events. Multiple space-separated events are accepted in one call.

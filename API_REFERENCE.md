@@ -1031,11 +1031,24 @@ Complete style property reference.
 ### Color Properties
 
 **colorscheme** (array)
-- Static colors: hex codes
+- Static single color: `colorscheme: ["#0066cc"]`
+- **Multi-stop palette** — `colorscheme: ["#ffffcc", "#ff9800", "#ff0000"]` (no leading count): each
+  color maps 1:1 to a class, in order — 3 colors → 3 classes, **no interpolation**. Use with an
+  explicit `ranges` array (`n+1` breaks for `n` colors) for full control over where breaks fall, or
+  with `QUANTILE`/`EQUIDISTANT` if `ranges` is omitted.
+- **2/3-color gradient (auto-interpolated)** — `["N", colorA, colorB]` sweeps N classes from
+  `colorA` to `colorB` through an automatically-computed middle tone. `["N", colorA, colorB,
+  colorC]` uses `colorC` as an **explicit** middle color instead — this is how to get a smooth
+  red→yellow→green-style ramp from one `.style()` call:
   ```javascript
-  colorscheme: ["#0066cc"]  // Single color
-  colorscheme: ["#ffffcc", "#ff9800", "#ff0000"]  // Gradient
+  colorscheme: ["24", "#c94f35", "#4f9153"]              // red → auto pale middle → green
+  colorscheme: ["24", "#c94f35", "#4f9153", "#f2d16b"]   // red → yellow → green
   ```
+  ⚠️ This form caps out at 3 anchor colors (start/middle/end) — passing 5 explicit hex colors here
+  does **not** produce a 5-stop gradient; colors past the 2nd/3rd slot are read as shape-tuning
+  keywords (`linear`, `dynamic`, `2low`/`2high`, `2narrow`/`2wide`, `shift`, ...), not more anchors.
+  For a genuine multi-hue (4+) palette, use the Multi-stop palette form above instead. Full
+  reference → **[Colors & Classification](https://gjrichter.github.io/docs/ixmaps/colors_classification.html)**.
 - Dynamic colors: count + palette
   ```javascript
   colorscheme: ["100", "tableau"]  // Up to 100 colors from tableau palette

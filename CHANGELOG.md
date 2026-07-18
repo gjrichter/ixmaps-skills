@@ -1,5 +1,22 @@
 # ixMaps Skill Changelog
 
+## 2026-07-18 — Corrected colorscheme gradient docs: 3-color sweep, not a bug
+
+Initially misdiagnosed `colorscheme: ["N", c1, c2, c3, c4, c5]` (5 explicit anchor colors after
+the leading count) as a broken/unreliable ixMaps feature, after testing it against a red→green
+choropleth and seeing it only interpolate between the first two colors. Studying the actual
+`colorscheme.js` source and the official docs (`colors_classification.qmd`) showed this was a
+misuse, not a bug: the leading-count gradient form caps at **3** anchor colors (start, middle,
+end) — extra hex strings past the 3rd are parsed as shape-tuning keywords, not more anchors.
+
+- Corrected API_REFERENCE.md § Color Properties: the old text labeled a 3-explicit-color array
+  (no leading count) as "Gradient", which is wrong — that's the multi-stop palette form (1:1
+  mapping, no interpolation). Added the actual 3-color sweep form (`["N", colorA, colorB,
+  colorC]` — explicit middle color) with a worked red→yellow→green example.
+- Added the same clarification to SKILL.md § Key Style Properties.
+- Filed the same gap against the official docs (`gjrichter/docs`, `ixmaps/colors_classification.qmd`)
+  — the 2-color gradient section there never documented the 3rd/4th array slots either.
+
 ## 2026-07-17 — `highlightThemeItems`/`clearHighlight`, and z-index for custom panels
 
 Documented two findings from building an Italy regions choropleth with a legend-hover-highlights-

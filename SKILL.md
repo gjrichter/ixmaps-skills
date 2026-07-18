@@ -802,7 +802,7 @@ embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`. The
 
 | Property | Notes |
 |----------|-------|
-| `colorscheme` | Array of hex colors. `["100","tableau"]` for auto-palette. A bare string (`colorscheme: "#0066cc"`) is accepted **only** for a single color — **always use the array form** (`["#0066cc"]`, `["none"]`) as best practice |
+| `colorscheme` | Array of hex colors. `["100","tableau"]` for auto-palette. `["N", colorA, colorB, colorC]` = N-class gradient auto-swept start→middle→end (middle auto-computed if `colorC` omitted) — caps at 3 anchor colors, does NOT extend to more; a bare list of colors with no leading count (`["c1","c2","c3","c4","c5"]`) maps 1:1 to classes instead (no interpolation) — see API_REFERENCE.md § Color Properties. A bare string (`colorscheme: "#0066cc"`) is accepted **only** for a single color — **always use the array form** (`["#0066cc"]`, `["none"]`) as best practice |
 | `fillopacity` | 0–1. NEVER use `opacity` |
 | `linecolor` / `linewidth` | NEVER `strokecolor` / `strokewidth`; `linecolor` accepts a single string **or** an array `["#c1","#c2"]` — array form required for `VECTOR\|GRADIENT` |
 | `scale` | Uniform size multiplier (start at 1) |

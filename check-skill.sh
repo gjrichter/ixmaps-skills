@@ -184,6 +184,29 @@ for t in template*.html; do
   grep -qE 'height:[[:space:]]*(100vh|[0-9]+px|100%)' "$t" || warn "$t: #map may have no height"
   grep -q 'var map\b\|const map =\|let map =' "$t" && err "$t: uses reserved variable name 'map'"
 
+  # Map call sequence: Map -> view -> options -> layer. Checked for EVERY template,
+  # including placeholder-driven ones — the sequence is independent of where the
+  # layers come from, so this must run before the {{LAYERS}} exemption below.
+  # .view() must precede every .layer() (layer symbols size against the current
+  # view) and, by convention, .options() too.
+  seq=$(grep -o 'ixmaps\.Map(\|\.view(\|\.options(\|\.layer(' "$t" \
+        | sed 's/ixmaps\.Map(/M/;s/\.view(/V/;s/\.options(/O/;s/\.layer(/L/' \
+        | awk '!seen[$0]++' | tr -d '\n')
+  # Evaluate in order of severity — the first matching condition wins.
+  if [ -z "$seq" ]; then
+    warn "$t: no ixmaps.Map/.view/.options/.layer calls found — cannot determine sequence"
+  elif case "$seq" in *M*) false;; *) true;; esac; then
+    warn "$t: no ixmaps.Map( call found (sequence '$seq')"
+  elif case "$seq" in *V*) false;; *) true;; esac; then
+    err "$t: no .view() at all (sequence '$seq') — the map never gets a defined view"
+  elif case "$seq" in *L*V*) true;; *) false;; esac; then
+    err "$t: sequence $seq — .layer() precedes .view(); layer symbols would size against an unset view"
+  elif case "$seq" in *O*V*) true;; *) false;; esac; then
+    warn "$t: sequence $seq — .options() precedes .view(); canonical is M>V>O>L (§ Map call sequence)"
+  else
+    ok "$t: map call sequence $seq (view before options and layers)"
+  fi
+
   # A template whose layers arrive via a placeholder ({{LAYERS}}) legitimately
   # contains no .define() / showdata of its own — the filler supplies them.
   # Requiring them here would be a false failure.

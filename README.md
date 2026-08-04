@@ -87,13 +87,13 @@ This skill enables Claude to generate complete HTML files with interactive geogr
 
 ### Documentation Files
 
-- **SKILL.md** - Main skill instructions (~1,600 lines)
+- **SKILL.md** - Main skill instructions (~1,150 lines)
   - Critical rules + silent-failure hotspots highlighted at top
   - Decision tree for choosing visualization types
   - Core patterns inline; deeper detail delegated to the reference files below
   - All essential information for Claude
 
-- **EXAMPLES.md** - Complete working examples (28 examples)
+- **EXAMPLES.md** - Complete working examples (23 examples)
   - Point data examples
   - GeoJSON/TopoJSON examples
   - Aggregation examples
@@ -115,6 +115,7 @@ This skill enables Claude to generate complete HTML files with interactive geogr
 - **RUNTIME_CONTROLS.md** - Interactive controls (filters, region selector, hide/show, mark class, `.on()` events, URL sync)
 - **FACETS_GUIDE.md** - Facet sidebar + overlay-indicator layer patterns
 - **CSS_INTEROP.md** - Avoiding/repairing Bootstrap & dark-basemap CSS conflicts
+- **EXTENSIONS_GUIDE.md** - Computed layers via external libs (Turf.js), weighted KDE heatmap
 
 - **README.md** - This file
 - **MAP_TYPES_GUIDE.md** - Valid basemaps & projections reference
@@ -156,6 +157,10 @@ This skill enables Claude to generate complete HTML files with interactive geogr
   - Multiple data layers
   - Layer toggle controls
   - More complex visualizations
+
+- **template-kde.html** - Weighted KDE / density heatmap (Turf.js extension)
+  - Runnable scaffold for a computed-layer heatmap
+  - See EXTENSIONS_GUIDE.md for the underlying pattern
 
 - **template-change-choropleth.html** - Period-over-period change maps
   - Choropleth fill + signed pointer arrows at centroids
@@ -206,14 +211,14 @@ This skill enables Claude to generate complete HTML files with interactive geogr
 ### Documentation Improvements
 
 2. ✅ **SKILL.md** - Restructured (the v2.0 overhaul cut it to ~326 lines; it has since
-   grown to ~1,600 as new patterns were documented)
+   grown to ~1,150 as new patterns were documented)
    - Added decision tree for choosing visualization types
    - Consolidated critical rules + silent-failure hotspots at top
    - Better organization and clearer structure
    - Deeper detail split into the reference files
 
 3. ✅ **EXAMPLES.md** - Comprehensive example library
-   - 18 complete working examples
+   - 23 complete working examples
    - Covers all common use cases
    - Copy-paste ready code
    - Annotated with explanations
@@ -353,7 +358,7 @@ create-ixmap/
 
 **Documentation:**
 - Reduced SKILL.md by 48% (631 → 326 lines)
-- Created EXAMPLES.md with 28 examples
+- Created EXAMPLES.md with 23 examples
 - Created API_REFERENCE.md with complete API docs
 - Created TROUBLESHOOTING.md with solutions
 

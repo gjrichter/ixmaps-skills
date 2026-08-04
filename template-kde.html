@@ -59,7 +59,7 @@
                     height:     window.innerHeight + "px"
                 },
                 map => map
-                    .view([{{CENTER_LAT}}, {{CENTER_LNG}}], {{ZOOM}})
+                    .view({ center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} }, zoom: {{ZOOM}} })
                     .options({
                         objectscaling:   "dynamic",
                         normalSizeScale: "{{NORMAL_SIZE_SCALE}}",

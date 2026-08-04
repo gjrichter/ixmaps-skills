@@ -66,6 +66,7 @@ The correct approach is to style the tooltip **inside the template itself** usin
   '<div style="font-size:12px;color:#cbd5e1">{{field}}</div>',
   '</div>'
 ].join('') })
+```
 
 ## Tooltip and context menu fix
 

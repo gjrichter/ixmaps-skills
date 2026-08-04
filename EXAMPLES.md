@@ -2,6 +2,13 @@
 
 Complete working examples for common use cases.
 
+> **Reading the snippets:** many examples below are **fragments** showing a single layer
+> definition in isolation via `ixmaps.layer("name")....define()` — the define-then-add form.
+> That is a valid way to build a theme before adding it to a map; the attaching call
+> (`myMap.layer(theme)` / `myMap.layer(theme, "direct")`) is simply outside the excerpt.
+> Fragments using `myMap.layer("name")....define()` show the inline form, which builds and
+> attaches in one step. Both are correct — see SKILL.md § Two Modes and Rule 1a.
+
 **🆕 NEW EXAMPLE:** See **[example-multi-layer-join.md](example-multi-layer-join.md)** for a complete real-world case study of multi-layer mapping with external CSV data join (MEPA 2024 Italian procurement visualization with choropleth + bubbles).
 **🆕 NEW TEMPLATE:** See **`template-europe-choropleth-sparklines.html`** for a projected Europe map that combines a country choropleth with fixed-size time-series sparklines and an interactive custom legend.
 
@@ -110,13 +117,15 @@ Palermo,38.1157,13.3615,657000,city
 <body>
     <div id="map"></div>
     <script>
-        ixmaps.Map("map", {
+        // Capture the map instance in a variable — never call ixmaps.layer() globally
+        // and discard the result, or the layer builds but never attaches (see SKILL.md
+        // § CRITICAL RULES, Rule 1a).
+        const myMap = ixmaps.Map("map", {
             mapType: "VT_TONER_LITE",
             mode: "info"
         })
+        .view({ center: { lat: 42.5, lng: 12.5 }, zoom: 6 })
         .options({
-            center: { lat: 42.5, lng: 12.5 },
-            zoom: 6,
             objectscaling: "dynamic",
             normalSizeScale: "1000000",
             basemapopacity: 0.6,
@@ -124,7 +133,9 @@ Palermo,38.1157,13.3615,657000,city
         });
 
         // External hosted data - production approach
-        ixmaps.layer("cities")
+        // Inline form: .layer() called directly on the captured instance builds AND
+        // attaches in one step — no separate attach call needed.
+        myMap.layer("cities")
             .data({
                 url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/by-date/2026-02/cities.csv",
                 type: "csv"
@@ -137,7 +148,7 @@ Palermo,38.1157,13.3615,657000,city
             .type("CHART|BUBBLE|SIZE|VALUES")
             .style({
                 colorscheme: ["#0066cc"],
-                opacity: 0.7,
+                fillopacity: 0.7,
                 scale: 1.5,
                 showdata: "true"
             })
@@ -298,7 +309,7 @@ ixmaps.layer("regions")
             "#cc4c02",
             "#8c2d04"   // Dark brown (high GDP)
         ],
-        opacity: 0.8,           // Base opacity
+        fillopacity: 0.8,           // Base opacity
         dopacitypow: 1,         // Interpolation curve (default: 1 = linear)
         dopacityscale: 1.1,     // Intensity multiplier (default: 1)
         linecolor: "#333",
@@ -365,7 +376,7 @@ Combine colorblind-safe colors with dynamic opacity for maximum accessibility.
 
 ```javascript
 // MEPA 2024 Italian procurement data (colorblind-safe)
-map.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "https://s3.fr-par.scw.cloud/ixmaps.data/test%20only/mepa-2024-processed.csv",
         type: "csv"
@@ -385,7 +396,7 @@ map.layer("provinces")
             "#bd0026",  // Dark red
             "#800026"   // Very dark red (highest values)
         ],
-        opacity: 0.85,
+        fillopacity: 0.85,
         dopacitypow: 1,         // Linear curve
         dopacityscale: 1,       // Normal intensity
         linecolor: "#000000",   // Black borders for high contrast
@@ -435,21 +446,21 @@ Use DOPACITYMAX on choropleth layers when combining with bubbles or other overla
 
 ```javascript
 // Layer 1: Base FEATURE (geometry only)
-map.layer("provinces")
+myMap.layer("provinces")
     .data({ url: "topojson-url", type: "topojson", name: "limits" })
     .binding({ geo: "geometry", id: "prov_acr", title: "prov_name" })
     .type("FEATURE")
-    .style({ colorscheme: ["none"], linecolor: "#666", linewidth: 0.5 })
+    .style({ colorscheme: ["none"], linecolor: "#666", linewidth: 0.5, showdata: "true" })
     .define();
 
 // Layer 2: CHOROPLETH with DOPACITYMAX (uses Layer 1 geometry)
-map.layer("provinces")
+myMap.layer("provinces")
     .data({ url: "data.csv", type: "csv" })
     .binding({ lookup: "province_code", value: "economic_value" })
     .type("CHOROPLETH|QUANTILE|DOPACITYMAX")  // ← NO FEATURE! Uses existing geometry
     .style({
         colorscheme: ["#ffffb2", "#bd0026"],
-        opacity: 0.85,
+        fillopacity: 0.85,
         dopacitypow: 1,
         dopacityscale: 1.2,    // Slightly more opaque for multi-layer
         showdata: "true"
@@ -457,15 +468,16 @@ map.layer("provinces")
     .define();
 
 // Layer 3: BUBBLE overlay
-map.layer("provinces")
+myMap.layer("provinces")
     .data({ url: "data.csv", type: "csv" })
     .binding({ lookup: "province_code", value: "order_count" })
     .type("CHART|BUBBLE|SIZE|VALUES")
     .style({
         colorscheme: ["#006d77"],  // Contrasting color
-        opacity: 0.75,
+        fillopacity: 0.75,
         linecolor: "#000",
-        linewidth: 2
+        linewidth: 2,
+        showdata: "true"
     })
     .define();
 ```
@@ -561,7 +573,7 @@ ixmaps.layer("countries")
             "#f46d43",  // Orange (hot)
             "#a50026"   // Dark red (very hot)
         ],
-        opacity: 0.8,
+        fillopacity: 0.8,
         dopacitypow: 0.8,       // Steep U-curve (strong emphasis on extremes)
         dopacityscale: 1.1,     // Slightly more opaque overall
         linecolor: "#333",
@@ -604,7 +616,7 @@ ixmaps.layer("sales_regions")
             "#a6d96a",  // Light green (above average: 60-80)
             "#1a9641"   // Dark green (best: 80-100)
         ],
-        opacity: 0.85,
+        fillopacity: 0.85,
         dopacitypow: 1,         // Linear U-curve (balanced)
         dopacityscale: 1.2,     // More opaque (stronger visibility)
         linecolor: "#000",
@@ -676,7 +688,7 @@ dopacityscale: 1.3   // 30% more opaque overall
 
 ```javascript
 // Manufacturing: Highlight parts outside tolerance (too small OR too large)
-map.layer("production_batches")
+myMap.layer("production_batches")
     .data({
         url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/qc/part-dimensions.csv",
         type: "csv"
@@ -696,7 +708,7 @@ map.layer("production_batches")
             "#e41a1c"   // Red (too large: > 52mm)
         ],
         rangecentervalue: 50,  // Center on target dimension
-        opacity: 0.8,
+        fillopacity: 0.8,
         dopacitypow: 0.7,      // Strong U-curve (emphasize defects)
         dopacityscale: 1.15,
         showdata: "true"
@@ -740,20 +752,20 @@ Combine DOPACITYMINMAX choropleth with bubble overlay:
 
 ```javascript
 // Layer 1: Base geometry
-map.layer("regions")
+myMap.layer("regions")
     .data({ url: "geometry.topojson", type: "topojson" })
     .binding({ geo: "geometry", id: "region_code", title: "name" })
     .type("FEATURE")
     .define();
 
 // Layer 2: DOPACITYMINMAX choropleth (outliers)
-map.layer("regions")
+myMap.layer("regions")
     .data({ url: "deviation-data.csv", type: "csv" })
     .binding({ lookup: "region_code", value: "deviation_from_target" })
     .type("CHOROPLETH|QUANTILE|DOPACITYMINMAX")  // ← NO FEATURE
     .style({
         colorscheme: ["#0571b0", "#f7f7f7", "#ca0020"],
-        opacity: 0.8,
+        fillopacity: 0.8,
         dopacitypow: 0.8,
         dopacityscale: 1.1,
         showdata: "true"
@@ -761,13 +773,14 @@ map.layer("regions")
     .define();
 
 // Layer 3: Bubble overlay (sample size)
-map.layer("regions")
+myMap.layer("regions")
     .data({ url: "deviation-data.csv", type: "csv" })
     .binding({ lookup: "region_code", value: "sample_size" })
     .type("CHART|BUBBLE|SIZE|VALUES")
     .style({
         colorscheme: ["#984ea3"],  // Purple (contrasts with blue-red)
-        opacity: 0.6
+        fillopacity: 0.6,
+        showdata: "true"
     })
     .define();
 ```
@@ -897,7 +910,7 @@ myMap.layer("regions")
     .type("CHOROPLETH|QUANTILE")
     .style({
         colorscheme: ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"],
-        opacity: 0.8,
+        fillopacity: 0.8,
         showdata: "true"
     })
     .meta({
@@ -936,7 +949,7 @@ myMap.layer("supply_flows")
         type: "csv",
         process: addCrossRegionalFlag.toString()  // ← String representation!
     })
-    .filter("is_cross_regional = 'true'")  // ← Use derived field!
+    .filter("WHERE is_cross_regional == true")  // ← derived field; WHERE + == , never single quotes
     .binding({
         position: "origin_region",
         position2: "destination_region",
@@ -946,7 +959,7 @@ myMap.layer("supply_flows")
     .style({
         colorscheme: ["#1f77b4", "#ff7f0e", "#2ca02c"],
         colorfield: "origin_region",
-        opacity: 0.67,
+        fillopacity: 0.67,
         showdata: "true"
     })
     .meta({
@@ -994,7 +1007,7 @@ myMap.layer("regions")
     .type("FEATURE")
     .style({
         colorscheme: ["#e0e0e0"],
-        opacity: 0.7,
+        fillopacity: 0.7,
         linecolor: "#666666",
         linewidth: 1.0,
         showdata: "true"
@@ -1054,7 +1067,7 @@ myMap.layer("sales_regions")
     .style({
         colorscheme: ["#d32f2f", "#ff9800", "#4caf50", "#2e7d32"],
         colorfield: "performance",  // ← Use computed category!
-        opacity: 0.75,
+        fillopacity: 0.75,
         showdata: "true"
     })
     .meta({
@@ -1147,7 +1160,9 @@ var __mepa_process = function(data, options) {
         }
 
         // Compute derived field for filtering
-        record["fuori regione"] =
+        // NOTE: no space in the derived field name — a space would make it
+        // unaddressable in a .filter() WHERE expression.
+        record.fuori_regione =
             (record.Regione_PA !== record.Regione_Fornitore) ? "true" : "false";
     });
     return data;
@@ -1160,7 +1175,7 @@ myMap.layer("flows")
         type: "csv",
         process: __mepa_process.toString()  // ← String representation!
     })
-    .filter("fuori regione = 'true'")  // Only cross-regional flows
+    .filter("WHERE fuori_regione == true")  // Only cross-regional flows
     .binding({
         position: "Regione_Fornitore",
         position2: "Regione_PA",
@@ -1252,7 +1267,7 @@ ixmaps.layer("population")
     .style({
         colorscheme: ["#0066cc"],
         normalsizevalue: 100000,  // 100k population = 30px
-        opacity: 0.7,
+        fillopacity: 0.7,
         showdata: "true"
     })
     .meta({
@@ -1287,7 +1302,7 @@ ixmaps.layer("poi")
     .style({
         colorscheme: ["100", "tableau"],  // Dynamic colors
         scale: 1.5,
-        opacity: 0.8,
+        fillopacity: 0.8,
         showdata: "true"
     })
     .meta({
@@ -1368,7 +1383,7 @@ ixmaps.layer("population_density")
     .type("FEATURE|CHOROPLETH|EQUIDISTANT")
     .style({
         colorscheme: ["#ffffcc", "#ffeda0", "#feb24c", "#f03b20"],
-        opacity: 0.7,
+        fillopacity: 0.7,
         linecolor: "#ffffff",
         linewidth: 2,
         showdata: "true"
@@ -1523,9 +1538,9 @@ ixmaps.layer("incident_density")
     .type("CHART|BUBBLE|SIZE|AGGREGATE")
     .style({
         colorscheme: ["#ffeb3b", "#ff9800", "#f44336", "#b71c1c"],
-        gridwidth: "5px",  // 5 pixel grid cells
+        gridwidthpx: "5",  // 5 pixel grid cells
         scale: 1.5,
-        opacity: 0.7,
+        fillopacity: 0.7,
         showdata: "true"
     })
     .meta({
@@ -1547,12 +1562,13 @@ ixmaps.layer("crime_heatmap")
         value: "$item$",
         title: "type"
     })
-    .type("CHART|GRID|AGGREGATE")
+    .type("CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE")
     .style({
         colorscheme: ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"],
-        gridwidth: "10px",  // Larger cells
+        symbols: "square",     // required for square cells
+        gridwidthpx: "10",     // Larger cells
         scale: 2,
-        opacity: 0.8,
+        fillopacity: 0.8,
         showdata: "true"
     })
     .meta({
@@ -1625,7 +1641,7 @@ ixmaps.Map("map", {
         .style({
             colorscheme: ["#ff5722"],
             normalsizevalue: 500000,
-            opacity: 0.7,
+            fillopacity: 0.7,
             showdata: "true"
         })
         .meta({
@@ -1761,7 +1777,7 @@ myMap.layer("regions")
     .type("FEATURE")
     .style({
         colorscheme: ["#e0e0e0"],  // Light gray background
-        opacity: 0.07,              // Very subtle
+        fillopacity: 0.07,              // Very subtle
         linecolor: "#666666",
         linewidth: 1.0,
         showdata: "true"
@@ -1792,7 +1808,7 @@ myMap.layer("flows")
         ],
         colorfield: "origin",      // Color arrows by supplier region
         sizefield: "value",        // Arrow thickness by trade value
-        opacity: 0.67,
+        fillopacity: 0.67,
         rangescale: 5,             // Thickness variation range
         units: "€",
         showdata: "true"
@@ -1908,7 +1924,7 @@ ixmaps.Map("map", {
         .style({
             colorscheme: ["#ffeb3b", "#ff5722", "#e91e63", "#9c27b0", "#3f51b5"],
             scale: 1.5,
-            opacity: 0.9,
+            fillopacity: 0.9,
             showdata: "true"
         })
         .meta({
@@ -2021,7 +2037,7 @@ ixmaps.Map("map", {
                     .style({
                         colorscheme: ["#0066cc"],
                         normalsizevalue: 1000000,
-                        opacity: 0.7,
+                        fillopacity: 0.7,
                         showdata: "true"
                     })
                     .meta({
@@ -2092,7 +2108,7 @@ const myMap = ixmaps.Map("map", {
     legend: "closed",
     tools: true
 })
-.view([53.4, 16.9], 3.7)
+.view({ center: { lat: 53.4, lng: 16.9 }, zoom: 3.7 })
 .options({
     objectscaling: "dynamic",
     normalSizeScale: "15000000",
@@ -2122,7 +2138,8 @@ myMap.layer("countries")
         fillopacity: "0.96",
         linecolor: "#f7fbf5",
         linewidth: "0.7",
-        decimals: "1"
+        decimals: "1",
+        showdata: "true"
     })
     .meta({
         name: "latest-choropleth",
@@ -2149,7 +2166,8 @@ myMap.layer("sparks")
         normalsizevalue: "100",
         scale: "0.48",
         linewidth: "5",
-        markersize: "1"
+        markersize: "1",
+        showdata: "true"
     })
     .meta({
         name: "trend-sparklines",

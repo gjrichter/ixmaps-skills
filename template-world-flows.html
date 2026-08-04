@@ -283,7 +283,7 @@ var destData = FLOW_SERIES.map(function(s) {
 // MAP INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-var ixMap = ixmaps.Map("map", {
+var myMap = ixmaps.Map("map", {
     mapType:       "white",        // SVG projection — no tile basemap
     mapProjection: "equalearth",   // Equal Earth projection
     mode:          "info",
@@ -300,7 +300,7 @@ var ixMap = ixmaps.Map("map", {
 
 
 // ── Layer 0: ocean background / bounding box ──────────────────────────────
-ixMap.layer("bbox")
+myMap.layer("bbox")
     .data({ obj: worldBBox, type: "geojson" })
     .binding({ geo: "geometry" })
     .type("FEATURE")
@@ -310,7 +310,7 @@ ixMap.layer("bbox")
     .define();
 
 // ── Layer 0b: graticule ───────────────────────────────────────────────────
-ixMap.layer("graticule")
+myMap.layer("graticule")
     .data({ obj: graticuleGeoJSON, type: "geojson" })
     .binding({ geo: "geometry" })
     .type("FEATURE")
@@ -320,7 +320,7 @@ ixMap.layer("graticule")
     .define();
 
 // ── Layer 1: world countries (GISCO 60M — recommended for world overview) ─
-ixMap.layer("world")
+myMap.layer("world")
     .data({
         url:  "https://gisco-services.ec.europa.eu/distribution/v2/countries/topojson/CNTR_RG_60M_2020_4326.json",
         type: "topojson"
@@ -347,7 +347,7 @@ FLOW_SERIES.forEach(function(s) {
 
     // ── Flow arrows: origin → destination ────────────────────────────────
     // Uses direct lat|lon binding — no FEATURE base layer required.
-    ixMap.layer("flows_" + s.id)
+    myMap.layer("flows_" + s.id)
         .data({ obj: vectors, type: "json" })
         .binding({
             position:  "olat|olon",   // origin lat|lon (direct — no FEATURE needed)
@@ -374,7 +374,7 @@ FLOW_SERIES.forEach(function(s) {
         .define();
 
     // ── Proportional bubbles at origins ──────────────────────────────────
-    ixMap.layer("bubbles_" + s.id)
+    myMap.layer("bubbles_" + s.id)
         .data({ obj: s.data, type: "json" })
         .binding({ geo: "lat|lon", value: "value", title: "name" })
         .type("CHART|BUBBLE|SIZE|VALUES")
@@ -400,7 +400,7 @@ FLOW_SERIES.forEach(function(s) {
 });
 
 // ── Destination marker dots ───────────────────────────────────────────────
-ixMap.layer("destinations")
+myMap.layer("destinations")
     .data({ obj: destData, type: "json" })
     .binding({ geo: "lat|lon", title: "name" })
     .type("CHART|DOT")

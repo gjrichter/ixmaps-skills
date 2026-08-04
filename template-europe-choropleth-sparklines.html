@@ -372,7 +372,7 @@
                 legend: "closed",
                 tools: true
             })
-            .view([53.4, 16.9], 3.7)
+            .view({ center: { lat: 53.4, lng: 16.9 }, zoom: 3.7 })
             .options({
                 objectscaling: "dynamic",
                 normalSizeScale: "15000000",
@@ -423,7 +423,8 @@
                     linecolor: "#f7fbf5",
                     linewidth: "0.7",
                     units: "{{UNIT_SUFFIX}}",
-                    decimals: "1"
+                    decimals: "1",
+                    showdata: "true"
                 })
                 .meta({
                     name: "latest-choropleth",
@@ -462,7 +463,8 @@
                     textscale: "5",
                     textcolor: "#1f5a43",
                     linewidth: "5",
-                    markersize: "1"
+                    markersize: "1",
+                    showdata: "true"
                 })
                 .meta({
                     name: "trend-sparklines",

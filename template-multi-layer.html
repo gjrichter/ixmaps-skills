@@ -69,12 +69,16 @@
             document.getElementById('loading').innerHTML = '<div style="color: #d32f2f;">Error: ' + error.message + '</div>';
         }
 
-        // Layer toggle functionality
-        function toggleLayer(layerId, checkbox) {
+        // Layer toggle functionality.
+        // NOTE: themes are addressed by their meta.name, NOT by the layer name —
+        // every toggleable layer in {{LAYERS}} must set .meta({ name: "<themeName>" }),
+        // and that themeName is what you pass here.
+        // Usage: <input type="checkbox" checked onchange="toggleTheme('my-theme', this)">
+        function toggleTheme(themeName, checkbox) {
             if (checkbox.checked) {
-                ixmaps.showLayer(layerId);
+                ixmaps.showTheme(themeName);
             } else {
-                ixmaps.hideLayer(layerId);
+                ixmaps.hideTheme(themeName);
             }
         }
     </script>

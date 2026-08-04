@@ -162,6 +162,12 @@ mapType: "CartoDB - Positron"
 - **API_REFERENCE.md** - Complete API reference
 - **EXAMPLES.md** - Working code examples
 - **TROUBLESHOOTING.md** - Common issues and fixes
+- **UI_YAML_GUIDE.md** - `maptype`/`basemapopacity`/`mapProjection` as `skill-ui.yaml` parameters
+- **CSS_INTEROP.md** - Dark-basemap tooltip contrast fix
+- **RUNTIME_CONTROLS.md** - Runtime style/opacity changes after load
+- **DATA_JS_GUIDE.md** - Data loading (unrelated to basemap choice, but same reference set)
+- **FACETS_GUIDE.md** - Facet sidebar patterns layered on top of a chosen basemap
+- **EXTENSIONS_GUIDE.md** - Computed overlay layers (Turf.js, KDE) rendered above the basemap
 
 ## 🔄 Updates
 

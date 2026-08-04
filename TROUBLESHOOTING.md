@@ -2,19 +2,31 @@
 
 Solutions to common issues when creating ixMaps visualizations.
 
+> **Diagnosing an existing map?** Every entry here describes something that actually **fails** —
+> renders nothing, or does the opposite of what was intended. A map that merely uses a different
+> accepted form than this skill teaches (`.view([lat,lng], zoom)`, `gridwidth:"5px"`, a bare
+> `colorscheme:"#hex"`, a global `ixmaps.layer(…).define()` that *is* attached elsewhere) is not
+> broken — see SKILL.md § Two Modes. Confirm a symptom is real before "fixing" style.
+
 ## Table of Contents
 
-1. [Map Not Displaying](#map-not-displaying)
-2. [Data Not Showing](#data-not-showing)
-3. [Data Hosting Issues](#data-hosting-issues)
+1. [Scale-Dependent Visibility](#scale-dependent-visibility)
+2. [Map Not Displaying](#map-not-displaying)
+3. [Data Not Showing](#data-not-showing)
 4. [Tooltips Not Working](#tooltips-not-working)
 5. [Performance Issues](#performance-issues)
 6. [Styling Issues](#styling-issues)
 7. [GeoJSON Issues](#geojson-issues)
-8. [Coordinate Problems](#coordinate-problems)
-9. [Browser Issues](#browser-issues)
-10. [Runtime API Issues (Filters & Layer Toggles)](#runtime-api-issues-filters--layer-toggles) ⭐ NEW
-11. [Scale-Dependent Visibility](#scale-dependent-visibility) ⭐ NEW
+8. [Type Modifier Issues](#type-modifier-issues)
+9. [Coordinate Problems](#coordinate-problems)
+10. [Browser Issues](#browser-issues)
+11. [Reserved HTML Element IDs](#reserved-html-element-ids)
+12. [Debugging Checklist](#debugging-checklist)
+13. [Getting Help](#getting-help)
+14. [Common Error Messages](#common-error-messages)
+15. [Data Hosting Issues](#data-hosting-issues)
+16. [Best Practices to Avoid Issues](#best-practices-to-avoid-issues)
+17. [Runtime API Issues (Filters & Layer Toggles)](#runtime-api-issues-filters--layer-toggles)
 
 ---
 
@@ -130,6 +142,26 @@ The style properties for hiding a layer outside a scale range are:
    - Point data: Use `CHART|...` types
    - GeoJSON: Use `FEATURE` or `FEATURE|CHOROPLETH` types
 
+### Problem: Legend populates with the correct value range, but nothing renders on the map
+
+> **Why it fails silently:** the global `ixmaps.layer(name)....define()` form (not called on a captured map instance) only *builds* a theme — it loads the data, computes the value range, and can register the theme with the legend UI. But the actual SVG render group only gets mounted onto a specific map's Leaflet overlay pane when that theme is explicitly attached to a map instance. If the `.define()` call's return value is discarded and never passed anywhere, the theme is fully built and "looks done" (legend shows the right numbers) but is orphaned — nothing is ever drawn.
+
+**Diagnostic signature:** legend shows a plausible value range, but `document.querySelector('#map svg').querySelectorAll('circle').length` (or `path`, depending on chart type) is `0`.
+
+**Fix — two valid patterns:**
+```javascript
+// ✅ Inline — build and attach in one step (default; use this unless you have a reason not to)
+myMap.layer("name").data({...}).binding({...}).type(...).style({...}).meta({...}).define();
+
+// ✅ Define-then-add — only when you deliberately need a reusable/swappable theme object
+var theme = ixmaps.layer("name").data({...}).binding({...}).type(...).style({...}).meta({...}).define();
+myMap.layer(theme, "direct");   // <-- this is the attach step; skipping it is the bug
+
+// ❌ Broken — global call, return value discarded, never attached to any map
+ixmaps.layer("name").data({...}).binding({...}).type(...).style({...}).define();
+```
+See SKILL.md § CRITICAL RULES, Rule 1a.
+
 ### Problem: Some data shows, some doesn't
 
 **Solutions:**
@@ -195,6 +227,26 @@ The style properties for hiding a layer outside a scale range are:
 - For GeoJSON: use property names directly
 - For point data: use exact field names from data object
 
+### Problem: Tooltips missing on a CHOROPLETH/CHART overlay, but the base layer alone works fine
+
+> **Why it fails silently:** `|SILENT` on a `FEATURE` base layer suppresses tooltips/legend/statistics for that theme — but any CHOROPLETH or CHART overlay sharing the same layer name has no hover of its own and relies entirely on the base for hit-detection. Add `|SILENT` to the base and every overlay reusing its geometry loses hover, with no error anywhere.
+
+**Solution:** Default to plain `FEATURE` (no `|SILENT`) for a base layer whenever any overlay on it needs hover tooltips — which is the common case.
+
+```javascript
+// WRONG — kills tooltips for every overlay built on this base:
+myMap.layer("provinces")
+    .type("FEATURE|SILENT")
+    .define();
+
+// CORRECT:
+myMap.layer("provinces")
+    .type("FEATURE")
+    .define();
+```
+
+Only use `|SILENT` on a base if you deliberately want the whole join (base + every overlay) to have no tooltip at all — e.g. a decorative graticule with no overlay. See SKILL.md Critical Rule 16a.
+
 ### Problem: Tooltip text is dark / unreadable on dark basemaps
 
 ixmaps renders tooltips in a `#tooltip` element whose text color is inherited from the page. On dark basemaps (`CartoDB - Dark matter`, etc.) the inherited color is often dark, making text invisible.
@@ -229,7 +281,7 @@ Always include this rule when using dark basemaps (`CartoDB - Dark matter`, `Car
 
    // Use aggregation:
    .type("CHART|BUBBLE|SIZE|AGGREGATE")
-   .style({ gridwidth: "5px" })
+   .style({ gridwidthpx: "5" })
    ```
 
 3. **Simplify GeoJSON geometry**
@@ -269,7 +321,7 @@ Always include this rule when using dark basemaps (`CartoDB - Dark matter`, `Car
 
 ### Problem: Colors not applying
 
-> **Why it fails silently:** `fillcolor` is not a valid ixMaps property — it's inherited naming from other mapping libraries. ixMaps uses `colorscheme` for fills and `linecolor` for borders. Passing `fillcolor` is silently ignored; ixMaps falls back to its default gray. (Note: `opacity` is accepted as an alias for `fillopacity`, so it's not a silent-failure case — `fillopacity` is just preferred for clarity.)
+> **Why it fails silently:** `fillcolor` is not a valid ixMaps property — it's inherited naming from other mapping libraries. ixMaps uses `colorscheme` for fills and `linecolor` for borders. Passing `fillcolor` is silently ignored; ixMaps falls back to its default gray. (Note: `opacity` and `fillopacity` are **not** aliases — `fillopacity` fades only the fill, while `opacity` fades the whole SVG element including the stroke/border. Use `fillopacity` unless you intend the border to fade too.)
 
 **Solutions:**
 
@@ -367,6 +419,22 @@ Always include this rule when using dark basemaps (`CartoDB - Dark matter`, `Car
 })
 ```
 
+### Problem: Custom top-left HTML panel visually collides with ixMaps' own UI
+
+**Why it happens:** With `tools: true` (the default), ixMaps creates its own UI overlay in the map's top-left corner. A custom legend/layer panel placed in that same corner overlaps it.
+
+**Solution:** Set `tools: false` in the Map constructor when you're placing your own panel there.
+
+```javascript
+ixmaps.Map("map", {
+    mapType: "VT_TONER_LITE",
+    mode: "info",
+    tools: false   // suppress ixMaps' own top-left UI overlay
+})
+```
+
+This is independent of the "tools" link in the map's bottom footer (`.map-footer` chrome) — that stays regardless of this option.
+
 ---
 
 ## GeoJSON Issues
@@ -379,10 +447,13 @@ Always include this rule when using dark basemaps (`CartoDB - Dark matter`, `Car
 
 1. **Wrong visualization type**
    ```javascript
-   // WRONG for GeoJSON:
+   // WRONG for GeoJSON — CHART types expect point data, not geometry:
+   .type("CHART|BUBBLE|SIZE|VALUES")
 
-   // CORRECT:
+   // CORRECT — polygon/feature types:
+   .type("FEATURE")                        // uniform fill, geometry only
    // or
+   .type("FEATURE|CHOROPLETH|QUANTILE")    // colored by a numeric value
    ```
 
 2. **Missing `value: "$item$"` for simple features**
@@ -612,18 +683,26 @@ ixMaps internally creates and manages several DOM elements by fixed ID. **Never 
 
 ## Debugging Checklist
 
-When something doesn't work, check in order:
+**First, establish whether anything rendered at all** — a clean console proves nothing, because
+ixMaps fails silently:
 
-1. ✅ Open browser console (F12) - check for errors
-2. ✅ Verify ixMaps script loaded
-3. ✅ Check map container has height
-4. ✅ Verify `showdata: "true"` in style
-5. ✅ Confirm `.binding()` is present and correct
-6. ✅ Check `.meta()` is present
-7. ✅ Verify `.define()` at end of layer
-8. ✅ Validate data format and coordinates
-9. ✅ Check visualization type matches data
-10. ✅ Verify map center/zoom shows data area
+```javascript
+document.querySelectorAll('#map svg circle, #map svg path, #map svg rect, #map svg image').length
+```
+
+`0` means nothing drew. Then walk the stages of **SKILL.md § The Render Contract** in order — the
+first one that fails is the cause:
+
+| Stage | Check |
+|---|---|
+| **1. Page** | ixMaps `<script>` loaded? `#map` div has non-zero height? No reserved ids (`loading-div`, `tooltip`, `contextmenu`) reused? Console errors (F12)? |
+| **2. Init** | `ixmaps.Map()` result captured in a variable (named `myMap`, not `map`)? First arg matches the div id? |
+| **3. Data** | Data actually arrived? Inline `obj:`, or a CORS-reachable `url:` (not `file://`)? `type:` matches the payload? |
+| **4. Layer** | `.binding()` present and correct? `.define()` closes the chain? Theme **attached** to the map — inline, or a global define whose result was passed to `myMap.layer(theme)`? |
+| **5. Draw** | `showdata: "true"` present? viztype matches the data shape? `normalSizeScale` set if `objectscaling:"dynamic"`? Join overlay's layer name identical to its FEATURE base's? |
+| **6. Visible** | Center/zoom over the data? lat/lng transposed? `fillopacity:0` (silently becomes `1`)? A `chartupper`/`chartlower` gate excluding this zoom? `values:` entries strings? |
+
+A non-zero count with nothing visible points at stage 6 — it drew, somewhere you aren't looking.
 
 ---
 
@@ -927,7 +1006,7 @@ export IXMAPS_REPO_USER="your-username"
    // Instead of 100,000 individual points
    .type("CHART|BUBBLE|SIZE|AGGREGATE")
    .style({
-       gridwidth: "5px",  // Aggregate into grid
+       gridwidthpx: "5",  // Aggregate into grid
        showdata: "true"
    })
    ```

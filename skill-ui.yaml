@@ -4,7 +4,7 @@
 
 skill:
   name: create-ixmap
-  version: 2.0
+  version: "2.0"
   description: Create interactive maps using the ixMaps framework
   icon: 🗺️
   category: visualization
@@ -47,7 +47,7 @@ parameters:
   # Visualization parameters
   - name: viztype
     type: select
-    default: "CHART|BUBBLE|SIZE|VALUES"
+    default: "CHART|BUBBLE|SIZE"
     description: "Visualization type"
     required: false
     group: visualization
@@ -59,9 +59,12 @@ parameters:
         - value: "CHART|DOT|CATEGORICAL"
           label: "Categorical Dots"
           description: "Dots colored by category"
-        - value: "CHART|BUBBLE|SIZE|VALUES"
+        - value: "CHART|BUBBLE|SIZE"
           label: "Sized Bubbles"
-          description: "Bubbles sized by data values"
+          description: "Bubbles sized by data values, no labels (preferred default)"
+        - value: "CHART|BUBBLE|SIZE|VALUES"
+          label: "Sized Bubbles (with value labels)"
+          description: "Bubbles sized by data values, numeric label inside each circle"
         - value: "CHART|PIE"
           label: "Pie Charts"
           description: "Pie charts at locations"
@@ -69,8 +72,17 @@ parameters:
           label: "Bar Charts"
           description: "Bar charts at locations"
         - value: "CHART|BUBBLE|SIZE|AGGREGATE"
-          label: "Density Heatmap"
-          description: "Grid-based density visualization"
+          label: "Density Heatmap (bubbles)"
+          description: "Grid-based density visualization, circles sized by count"
+        - value: "CHART|DOT|AGGREGATE"
+          label: "Density Heatmap (dots)"
+          description: "Grid-based density visualization with dots"
+        - value: "CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE"
+          label: "Density Heatmap (square cells)"
+          description: "Filled square grid cells; also set symbols: \"square\""
+        - value: "CHART|VECTOR|BEZIER|POINTER"
+          label: "Flow Arrows"
+          description: "Origin → destination bezier flows; needs position + position2 bindings"
       geometry_data:
         - value: "FEATURE"
           label: "Simple Features"
@@ -87,6 +99,18 @@ parameters:
         - value: "FEATURE|CHOROPLETH|CATEGORICAL"
           label: "Categorical Choropleth"
           description: "Color-coded by categories"
+      join_overlay:
+        # Overlays that reuse a FEATURE base layer's geometry — NO FEATURE flag.
+        # Use the same layer name as the base, and bind with lookup (not geo).
+        - value: "CHOROPLETH|QUANTILE"
+          label: "Choropleth Overlay (join)"
+          description: "Joins external data onto an existing FEATURE base's geometry"
+        - value: "CHOROPLETH|QUANTILE|DOPACITYMAX"
+          label: "Choropleth Overlay + dynamic opacity"
+          description: "Opacity rises with value, emphasizing the high end"
+        - value: "CHOROPLETH|QUANTILE|DOPACITYMINMAX"
+          label: "Choropleth Overlay + min/max opacity"
+          description: "U-shaped opacity curve, emphasizing both extremes"
 
   # Map configuration
   - name: maptype
@@ -159,6 +183,44 @@ parameters:
       - "11-14: City"
       - "15-18: Street/Building"
 
+  - name: mapProjection
+    type: select
+    description: "Map projection. Omit for default Web Mercator (Leaflet tiles); any other value renders as SVG with no tile layer."
+    required: false
+    group: map_config
+    options:
+      - value: "mercator"
+        label: "Mercator (SVG)"
+        description: "Mercator, no tile layer"
+      - value: "winkel"
+        label: "Winkel Tripel"
+      - value: "equalearth"
+        label: "Equal Earth"
+      - value: "albersequalarea"
+        label: "Albers Equal-Area Conic"
+        description: "Alias: albers. Tune with projectionParams in map options."
+      - value: "lambertazimuthalequalarea"
+        label: "Lambert Azimuthal Equal-Area"
+        description: "Alias: lambert (EPSG:3035)"
+      - value: "orthographic"
+        label: "Orthographic (globe)"
+    hint: "Case-insensitive; unknown values fall back to Mercator. Non-default projections render as SVG with no tile layer, so set the background via maptype (hex or a keyword like dark/white) rather than CSS. World-scale projections want a low zoom (0-1)."
+
+  - name: mode
+    type: select
+    description: "Map interaction mode"
+    required: false
+    group: map_config
+    default: "info"
+    options:
+      - value: "info"
+        label: "Info (tooltips on hover)"
+        description: "Show tooltips on mouseover (recommended)"
+      - value: "pan"
+        label: "Pan (no tooltips)"
+        description: "Pan/zoom only, no tooltips"
+    hint: "Omit for default behavior"
+
   # Data binding
   - name: geo_field
     type: string
@@ -193,13 +255,43 @@ parameters:
     group: data_binding
     example: "name"
 
-  - name: category_field
+  # Join bindings — for overlays that reuse a FEATURE base layer's geometry.
+  # The base sets `id`; the overlay sets `lookup`. Values must match exactly (case-sensitive).
+  - name: id_field
     type: string
-    description: "Field for categorical coloring (if using categorical visualization)"
+    description: "FEATURE base only: geometry field whose value identifies each feature for the join"
+    required: false
+    group: data_binding
+    examples:
+      - "prov_acr"
+      - "reg_code"
+    hint: "Pairs with lookup_field on the overlay layer. Omit on non-join layers."
+
+  - name: lookup_field
+    type: string
+    description: "Join overlay only: data field whose value matches the base layer's id_field"
     required: false
     group: data_binding
     depends_on:
-      viztype: ["CHART|DOT|CATEGORICAL", "FEATURE|CHOROPLETH|CATEGORICAL"]
+      viztype: ["CHOROPLETH|QUANTILE", "CHOROPLETH|QUANTILE|DOPACITYMAX", "CHOROPLETH|QUANTILE|DOPACITYMINMAX"]
+    examples:
+      - "Sigla_Provincia"
+      - "region_code"
+    hint: "Use INSTEAD of geo_field on a join overlay — the geometry comes from the FEATURE base."
+
+  - name: timefield
+    type: string
+    description: "Field containing date/time values — enables an interactive time slider in the legend panel"
+    required: false
+    group: data_binding
+    depends_on: data
+    examples:
+      - "time"
+      - "date"
+    special_values:
+      - value: "$index$"
+        description: "Frame-based animation using row index instead of a real time field"
+    hint: "Accepts Unix ms timestamps, ISO date, or ISO datetime strings. Requires legend: 'open' in map options for the built-in slider to be visible."
 
   # Styling
   - name: colorscheme
@@ -231,15 +323,32 @@ parameters:
           - name: "set2"
             description: "ColorBrewer Set2 (8 colors)"
             colors: 8
+          - name: "set3"
+            description: "ColorBrewer Set3 (12 colors)"
+            colors: 12
           - name: "pastel1"
             description: "ColorBrewer Pastel1 (9 colors)"
             colors: 9
+          - name: "pastel2"
+            description: "ColorBrewer Pastel2 (8 colors)"
+            colors: 8
           - name: "dark2"
             description: "ColorBrewer Dark2 (8 colors)"
+            colors: 8
+          - name: "accent"
+            description: "ColorBrewer Accent (8 colors)"
             colors: 8
         examples:
           - ["100", "tableau"]
           - ["50", "paired"]
+
+  - name: showdata
+    type: boolean
+    default: true
+    description: "REQUIRED on data-driven layers — emits showdata:\"true\" in .style(). Omitting it renders the layer invisible."
+    required: true
+    group: styling
+    hint: "Only omit on a FEATURE|SILENT backdrop/graticule layer."
 
   - name: scale
     type: number
@@ -247,20 +356,31 @@ parameters:
     description: "Symbol size multiplier"
     required: false
     group: styling
-    min: 0.1
+    min: 0.05
     max: 10.0
-    step: 0.1
-    hint: "1.0 = normal, 2.0 = double size, 0.5 = half size"
+    step: 0.05
+    hint: "1.0 = normal, 2.0 = double size. Symbol (SVG icon) layers need much smaller values — 0.05–0.2 typical."
 
-  - name: opacity
+  - name: normalsizevalue
     type: number
-    default: 0.7
-    description: "Symbol opacity (0.0 = transparent, 1.0 = opaque)"
+    description: "Data value that maps to \"normal\" display size on sized layers. HIGHER = SMALLER symbols."
     required: false
     group: styling
-    min: 0.0
+    depends_on:
+      viztype: ["CHART|BUBBLE|SIZE", "CHART|BUBBLE|SIZE|VALUES", "CHART|BAR|VALUES"]
+    example: 500000
+    hint: "The primary sizing control for bubble maps — prefer tuning this over scale. Avoid with |AGGREGATE types (unknown max values)."
+
+  - name: fillopacity
+    type: number
+    default: 1.0
+    description: "Symbol fill opacity (0.0 = transparent, 1.0 = opaque). Fades the fill only — the separate `opacity` style property fades fill and stroke together and is rarely what you want."
+    required: false
+    group: styling
+    min: 0.05
     max: 1.0
-    step: 0.1
+    step: 0.05
+    hint: "Do NOT use 0 to hide a fill — ixMaps silently coerces fillopacity:0 to 1 (fully opaque). Use colorscheme: [\"none\"] instead."
 
   - name: linecolor
     type: color
@@ -281,20 +401,20 @@ parameters:
     step: 0.5
 
   # Aggregation settings
-  - name: gridwidth
+  - name: gridwidthpx
     type: string
-    default: "5px"
-    description: "Grid cell size for aggregation (requires AGGREGATE viztype)"
+    default: "5"
+    description: "Grid cell size in pixels for aggregation (requires AGGREGATE viztype); unitless number, not a CSS-style px string"
     required: false
     group: aggregation
     depends_on:
-      viztype: ["CHART|BUBBLE|SIZE|AGGREGATE", "CHART|GRID|AGGREGATE", "CHART|DOT|AGGREGATE"]
+      viztype: ["CHART|BUBBLE|SIZE|AGGREGATE", "CHART|SYMBOL|AGGREGATE|RECT|SUM|GRIDSIZE", "CHART|DOT|AGGREGATE"]
     options:
-      - "3px"
-      - "5px"
-      - "10px"
-      - "15px"
-      - "20px"
+      - "3"
+      - "5"
+      - "10"
+      - "15"
+      - "20"
     hint: "Larger values = coarser aggregation"
 
   # Advanced options
@@ -317,7 +437,7 @@ parameters:
       - "<strong>{{title}}</strong><br>Value: {{value}}"
     hint: "Use {{FIELD_NAME}} for field placeholders"
 
-  - name: basemap_opacity
+  - name: basemapopacity
     type: number
     default: 0.6
     description: "Base map opacity (0.0 = invisible, 1.0 = opaque)"
@@ -333,6 +453,48 @@ parameters:
     description: "Enable hover tooltips"
     required: false
     group: advanced
+
+  - name: legend
+    type: select
+    default: "closed"
+    description: "Built-in legend panel state on load"
+    required: false
+    group: advanced
+    options:
+      - value: "closed"
+        label: "Closed"
+        description: "Legend panel collapsed on load"
+      - value: "open"
+        label: "Open"
+        description: "Legend panel expanded — REQUIRED for the built-in time slider to be visible"
+    hint: "Distinct from legend_title, which sets the legend's heading text via .legend(title)."
+
+  - name: objectscaling
+    type: select
+    description: "How symbol sizes respond to zoom"
+    required: false
+    group: advanced
+    options:
+      - value: "dynamic"
+        label: "Dynamic (scale with zoom)"
+        description: "Symbols grow/shrink with zoom — REQUIRES normalSizeScale"
+      - value: "fix"
+        label: "Fixed (constant pixel size)"
+        description: "Symbols keep the same screen size at every zoom"
+    hint: "Selecting 'dynamic' makes normalSizeScale mandatory."
+
+  - name: normalSizeScale
+    type: string
+    description: "Map scale denominator at which charts render at normal size. HIGHER = SMALLER symbols."
+    required: false
+    group: advanced
+    depends_on:
+      objectscaling: ["dynamic"]
+    examples:
+      - "30000000"
+      - "1000000"
+      - "100000"
+    hint: "Required when objectscaling is 'dynamic'. Never below 10000. Roughly: zoom 4 → 30M, zoom 6 → 10M, zoom 8 → 1M, zoom 12 → 100k."
 
   - name: animation
     type: select
@@ -379,6 +541,18 @@ parameters:
       - value: "template-multi-layer.html"
         label: "Multi-Layer"
         description: "Multiple data layers"
+      - value: "template-kde.html"
+        label: "KDE / Density Heatmap"
+        description: "Weighted KDE density heatmap (Turf.js extension)"
+      - value: "template-change-choropleth.html"
+        label: "Change Choropleth"
+        description: "Delta/variation between two periods (arrows)"
+      - value: "template-world-flows.html"
+        label: "World Flows"
+        description: "Origin → destination flow arrows"
+      - value: "template-europe-choropleth-sparklines.html"
+        label: "Choropleth + Sparklines"
+        description: "Choropleth with per-feature sparkline"
 
 # Parameter groups for UI organization
 groups:
@@ -395,29 +569,29 @@ groups:
   - name: map_config
     label: "Map Configuration"
     icon: "🗺️"
-    parameters: [maptype, center, zoom]
+    parameters: [maptype, center, zoom, mapProjection, mode]
 
   - name: data_binding
     label: "Data Binding"
     icon: "🔗"
-    parameters: [geo_field, value_field, title_field, category_field]
+    parameters: [geo_field, value_field, title_field, id_field, lookup_field, timefield]
     description: "Map data fields to visualization properties"
 
   - name: styling
     label: "Styling"
     icon: "🎨"
-    parameters: [colorscheme, scale, opacity, linecolor, linewidth]
+    parameters: [colorscheme, showdata, scale, normalsizevalue, fillopacity, linecolor, linewidth]
 
   - name: aggregation
     label: "Aggregation"
     icon: "📍"
-    parameters: [gridwidth]
+    parameters: [gridwidthpx]
     description: "Settings for density/heatmap visualizations"
 
   - name: advanced
     label: "Advanced Options"
     icon: "⚙️"
-    parameters: [legend_title, tooltip_template, basemap_opacity, enable_tooltips, animation, template]
+    parameters: [legend_title, legend, tooltip_template, basemapopacity, objectscaling, normalSizeScale, enable_tooltips, animation, template]
     collapsible: true
     collapsed: true
 
@@ -462,7 +636,7 @@ presets:
       viztype: "CHART|BUBBLE|SIZE|AGGREGATE"
       maptype: "CartoDB - Positron"
       colorscheme: ["#ffeb3b", "#ff9800", "#f44336"]
-      gridwidth: "5px"
+      gridwidthpx: "5"
       scale: 1.5
 
   - name: choropleth
@@ -473,7 +647,7 @@ presets:
       viztype: "FEATURE|CHOROPLETH|EQUIDISTANT"
       maptype: "white"
       colorscheme: ["#ffffcc", "#ffeda0", "#feb24c", "#f03b20"]
-      opacity: 0.7
+      fillopacity: 0.7
       linecolor: "#ffffff"
       linewidth: 2
 
@@ -485,7 +659,7 @@ presets:
       viztype: "FEATURE|CHOROPLETH|CATEGORICAL"
       maptype: "white"
       colorscheme: ["100", "tableau"]
-      opacity: 0.7
+      fillopacity: 0.7
       linecolor: "#ffffff"
       linewidth: 2
 
@@ -496,8 +670,8 @@ presets:
     parameters:
       maptype: "CartoDB - Dark matter"
       colorscheme: ["#ffeb3b", "#ff5722", "#e91e63"]
-      basemap_opacity: 1.0
-      opacity: 0.9
+      basemapopacity: 1.0
+      fillopacity: 0.9
 
   - name: minimal_white
     label: "Minimal White Map"
@@ -506,7 +680,7 @@ presets:
     parameters:
       maptype: "white"
       colorscheme: ["100", "pastel1"]
-      opacity: 0.7
+      fillopacity: 0.7
       linecolor: "#ffffff"
       linewidth: 3
 
@@ -523,22 +697,31 @@ validation:
       requires: [geo_field]
       message: "Feature visualizations require GeoJSON/TopoJSON geometry"
 
+    - name: lookup_for_join_overlay
+      # Bare CHOROPLETH|… (no FEATURE prefix) is a join overlay: it takes its geometry
+      # from a FEATURE base of the same layer name and binds via lookup, not geo.
+      condition: "viztype starts with 'CHOROPLETH'"
+      requires: [lookup_field]
+      message: "A join overlay needs lookup_field matching the FEATURE base's id_field — not geo_field"
+
     - name: value_for_sizing
-      condition: "viztype contains 'SIZE'"
+      # Match the standalone |SIZE modifier only — must NOT fire on GRIDSIZE or FIXSIZE,
+      # which contain "SIZE" as a substring but need no value field.
+      condition: "viztype has modifier 'SIZE'"
       requires: [value_field]
       message: "Sized visualizations require a value field"
 
     - name: category_for_categorical
       condition: "viztype contains 'CATEGORICAL'"
-      requires: [category_field]
+      requires: [value_field]
       suggests: {colorscheme: ["100", "tableau"]}
-      message: "Categorical visualizations work best with dynamic color schemes"
+      message: "Categorical visualizations put the category field in value_field (there is no separate category binding), and work best with dynamic color schemes"
 
     - name: gridwidth_for_aggregate
       condition: "viztype contains 'AGGREGATE'"
-      requires: [gridwidth]
+      requires: [gridwidthpx]
       suggests: {value_field: "$item$"}
-      message: "Aggregation requires gridwidth; use value: '$item$' to count items"
+      message: "Aggregation requires gridwidthpx; use value: '$item$' to count items"
 
     - name: dynamic_colors_for_categorical
       condition: "viztype contains 'CATEGORICAL'"

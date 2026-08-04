@@ -1,7 +1,7 @@
 # data.js API Reference
 
 **CDN:** `https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js`
-**Version:** 1.63
+**Version:** 1.62
 **Overview:** JavaScript library for loading, parsing, selection, transforming, and caching data tables. Loaded data is stored in a **Data.Table** (jsonDB format). Supports CSV, JSON, GeoJSON, KML, GML, RSS, Parquet, GeoPackage, FlatGeobuf, Geobuf, TopoJSON, JSON-stat, and jsonDB.
 
 > **data.js is already loaded by the ixmaps framework.** `Data.*` functions are available inside `query:` and `process:` callbacks without any extra `<script>` tag.
@@ -48,6 +48,22 @@ myMap.layer("points")
 
 > **`name` + `cache: "true"`** — names the in-memory data object so it is loaded/parsed once. Omit `name` and each theme gets its own copy; give multiple themes the **same** `name` to share one dataset. It's the data-source name only — unrelated to the layer name or `meta.name`. See **API_REFERENCE.md § Data Configuration**.
 
+### Direct URL loading — `.data({url:, type:})`
+
+For the common case of loading a hosted file straight into a layer (no `Data.*` preprocessing needed), skip `Data.provider()`/`Data.feed()` entirely and pass the URL directly in `.data()`:
+
+```javascript
+myMap.layer("points")
+  .data({ url: "https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/cities.csv", type: "csv" })
+  .binding({ geo: "lat|lon", value: "population" })
+  .type("CHART|BUBBLE|SIZE|VALUES")
+  .style({ colorscheme: ["#0066cc"], fillopacity: 0.7, showdata: "true" })
+  .meta({ tooltip: "{{name}}: {{population}}" })
+  .define();
+```
+
+ixMaps fetches and parses the file itself — this is the pattern used throughout **DATA_HOSTING_GUIDE.md** for CDN-hosted data. Reach for `Data.provider()`/`Data.feed()` (above) only when you need to combine, transform, or cache multiple sources before the theme sees them.
+
 ### Outside ixmaps — include CDN, then use Data.*
 
 When pre-processing data in your own `<script>` block (before or alongside layer definitions), include the CDN:
@@ -69,8 +85,6 @@ Data.feed({ source: "https://example.com/data.csv", type: "csv" })
   });
 </script>
 ```
-
----
 
 ---
 

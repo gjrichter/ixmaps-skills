@@ -190,7 +190,7 @@ to show a per-feature time-series sparkline *in the tooltip* while keeping it *o
 
 **Impact:** Claude can process skill instructions faster and more accurately.
 
-#### EXAMPLES.md - New File (18 Examples)
+#### EXAMPLES.md - New File (18 Examples at the time; 23 today)
 
 Extracted all examples from SKILL.md into dedicated file:
 
@@ -436,7 +436,7 @@ Overview document covering:
 
 **For Developers:**
 - Better documentation (4 new docs)
-- Working examples (18 examples)
+- Working examples (18 examples at the time of the v2.0 overhaul; 23 today)
 - Complete API reference
 - Clear file structure
 - Easy to contribute
@@ -505,4 +505,4 @@ Potential enhancements for future versions:
 ---
 
 **Changelog maintained by:** Claude Sonnet 4.5
-**Last updated:** 2026-02-07
+**Last updated:** 2026-07-18

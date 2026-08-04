@@ -12,9 +12,20 @@ Complete reference for the ixMaps JavaScript API.
 6. [Binding Configuration](#binding-configuration)
 7. [Style Properties](#style-properties)
 8. [Visualization Types](#visualization-types)
-9. [Color Schemes](#color-schemes)
-10. [Meta Configuration](#meta-configuration)
-11. [View-Dependent Statistics](#view-dependent-statistics--ixmapsdatagetfacets)
+9. [Multi-Variable Charts](#multi-variable-charts)
+10. [CHART|SYMBOL|SEQUENCE — Categorical Symbol Stack](#chartsymbolsequence--categorical-symbol-stack)
+11. [CHART|SYMBOL|PLOT|LINES — Time-Series Curve Chart](#chartsymbolplotlines--time-series-curve-chart)
+12. [CHART|SYMBOL|PLOT|LINES — Curves Anchored to Geo-Points](#chartsymbolplotlines--curves-anchored-to-geo-points-no-grid)
+13. [CHART|SYMBOL|PLOT|LINES — Pattern A vs Pattern B](#chartsymbolplotlines--pattern-a-vs-pattern-b-choosing-the-right-shape)
+14. [Color Schemes](#color-schemes)
+15. [Meta Configuration](#meta-configuration)
+16. [Complete API Flow](#complete-api-flow)
+17. [Common Property Conflicts](#common-property-conflicts)
+18. [View-Dependent Statistics](#view-dependent-statistics--ixmapsdatagetfacets)
+19. [Quick Reference Card](#quick-reference-card)
+20. [Time Slider](#time-slider--timefield-in-binding)
+21. [Programmatic Time Control](#programmatic-time-control--ixmapssetthemetimeframe)
+22. [CHART|USER — Custom Draw Functions](#chartuser--custom-draw-functions)
 
 ---
 
@@ -57,7 +68,7 @@ Creates a new map instance.
 | `"orthographic"` | — | Orthographic (globe view) |
 
 - Lookup is **case-insensitive**; unknown values fall back to Mercator
-- ⚠️ For **any** projection: `.view()` **must use array syntax** `.view([lat, lng], zoom)` — object `{center,zoom}` does NOT work
+- `.view({center: {lat, lng}, zoom})` works under every projection — use the object form, not the positional array (see § `.view()`). For world-scale projections use a low `zoom` (0–1)
 - Set background color directly in `mapType` (hex or keyword): `mapType: "#0a1929"`, `"dark"`, `"black"`, `"white"` — do **not** use CSS `background` on `#map`
 - **Albers only:** `projectionParams` in map options tunes standard parallels / center
 
@@ -148,9 +159,9 @@ Configure map behavior and rendering.
 
 ### `.view(config)`
 
-Set initial map view (center and zoom).
+Set initial map view (center and zoom). Works with every projection, including the SVG ones.
 
-**Parameters:**
+**Always use the object form:**
 ```javascript
 {
     center: { lat: 42.5, lng: 12.5 },  // Center coordinates
@@ -165,6 +176,11 @@ Set initial map view (center and zoom).
     zoom: 11
 })
 ```
+
+> ℹ️ A positional array form `.view([lat, lng], zoom)` also works and you may encounter it in
+> older code — but **do not write it**. Its order is `[lat, lng]`, the opposite of GeoJSON's
+> `[lng, lat]`, so a transposed pair silently centres the map in the wrong place with no error.
+> The named `center: {lat, lng}` keys make that mistake impossible.
 
 **Zoom levels guide:**
 - `1-3` - World/continent view
@@ -1102,24 +1118,28 @@ Complete style property reference.
 ### Opacity Properties
 
 **fillopacity** (number) — preferred
-- Fill transparency: `0.0` (invisible) to `1.0` (opaque)
+- Fill transparency only: `0.0` (invisible) to `1.0` (opaque)
 - Default: `1.0`
 
-**opacity** (number) — accepted, but `fillopacity` is preferred
-- Equivalent to `fillopacity` for fill transparency
-- New code should use `fillopacity` for clarity
+**opacity** (number) — a different property, not an alias for `fillopacity`
+- Overall element transparency: fades the fill **and** the stroke/border together
+- Use `fillopacity` unless you specifically want the border/outline to fade too
 
 ### Aggregation Properties
 
-**gridwidth** (string)
-- Grid cell size for aggregation
-- Format: `"5px"`, `"10px"`, `"20px"`
+**gridwidthpx** (string) — ✅ canonical; write this form
+- Grid cell size for aggregation, as a **unitless** numeric string: `"5"`, `"30"`, `"100"`
 - Only used with `|AGGREGATE` types
 - Larger values = coarser aggregation
+- This is the same name `changeThemeStyle` uses — `api.changeThemeStyle("name", "gridwidthpx:40", "set")`
+  — so a layer written this way needs no rename when runtime control is added later. It also
+  supports `"factor"` mode there for zoom-scaling.
 
-**gridwidthpx** (string) — pixel-explicit form
-- Same as `gridwidth` but the value is a numeric string without unit: `"30"`, `"50"`, `"100"`
-- Use this form with `changeThemeStyle` — `api.changeThemeStyle("name", "gridwidthpx:40", "set")`
+**gridwidth** (string) — accepted variant
+- Identical effect, but the value carries a `px` unit: `"5px"`, `"10px"`, `"20px"`
+- Valid, and common in existing maps — leave it alone when reading or adapting one (see
+  SKILL.md § Two Modes). Prefer `gridwidthpx` in new code: `changeThemeStyle` only recognises
+  `gridwidthpx`, so starting with `gridwidth` means renaming it the moment you add a slider.
 
 **aggregation** (string) — value reduction function for AGGREGATE layers
 - Sets how multiple source values inside one grid cell are combined into a single display value
@@ -1246,7 +1266,7 @@ Complete style property reference.
 ```javascript
 .style({
     colorscheme: ["#ffeb3b", "#ff9800", "#f44336"],
-    gridwidth: "5px",
+    gridwidthpx: "5",
     scale: 1.5,
     fillopacity: 0.7,
     showdata: "true"
@@ -1271,11 +1291,11 @@ Complete style property reference.
 - `symbolsize` - Use `scale` or `normalsizevalue`
 - `strokecolor` - Use `linecolor`
 - `strokewidth` - Use `linewidth`
-- `bordercolor` - Use `linecolor`
+- `bordercolor` - for a **geometry** outline, use `linecolor`. (⚠️ `bordercolor` *is* valid, but only for the **background box** of chart themes — see § CHART|SYMBOL|PLOT|LINES. Don't reach for it to outline polygons.)
 - `borderwidth` - Use `linewidth`
 
-ℹ️ **Accepted but not preferred (use the canonical name in new code):**
-- `opacity` works — but `fillopacity` is the preferred form
+ℹ️ **Not an alias — a distinct property:**
+- `opacity` fades fill + stroke together; `fillopacity` fades only the fill. They are not interchangeable — use `fillopacity` unless the border should fade too (see § Opacity Properties)
 
 ---
 
@@ -1338,7 +1358,7 @@ Complete visualization type reference.
 - Stacked/grouped bar charts at locations; add `|SIZE|GRID|BOX|VALUES` for full styled display
 - `gridx: N` in `.style()` — N values per bar group (e.g. `gridx:2` → pairs of M/F per bar; `gridx:3` → 3 separate bars)
 - `colorscheme` array maps to binding `value` array in the same order
-- Extra style: `xaxis:[]`, `maxvalue`, `normalsizevalue`, `boxcolor`, `boxopacity`, `boxradius`, `boxmargin`
+- Extra style: `xaxis:[]`, `maxvalue`, `normalsizevalue`, `boxcolor`, `boxopacity`, `bordercolor`, `borderradius`, `boxmargin` — these style the chart's **background box**, not the map geometry
 
 **CHART|BUBBLE|SIZE|AGGREGATE**
 - Density grid with sized bubbles
@@ -1774,7 +1794,7 @@ myMap.layer("sparks")
     .style({
         colorscheme:     ["#00e5ff"],
         fillopacity:     0.3,
-        gridwidth:       "100px",
+        gridwidthpx:       "100",
         normalsizevalue: "100",   // tune this: larger = smaller sparks
         showdata:        "true"
     })
@@ -1793,7 +1813,7 @@ myMap.layer("sparks")
     .style({
         colorscheme:     ["#00e5ff"],
         fillopacity:     0.3,
-        gridwidth:       "100px",
+        gridwidthpx:       "100",
         normalsizevalue: "100",
         showdata:        "true"
     })
@@ -1980,8 +2000,9 @@ const color = name => regionColors[name];
 const ixNames  = Object.keys(nameMap).filter(k => regionColors[k]).map(k => nameMap[k]);
 const ixColors = Object.keys(nameMap).filter(k => regionColors[k]).map(k => regionColors[k]);
 
-// 4. Apply to VECTOR layer
-ixmaps.layer("regions")
+// 4. Apply to VECTOR layer — call on the already-captured `myMap` instance, not the
+//    global `ixmaps.layer()`, or the theme builds but never attaches (SKILL.md Rule 1a)
+myMap.layer("regions")
     .data({ obj: flowData, type: "json" })
     .binding({ position: "origin", position2: "destination" })
     .type("CHART|VECTOR|BEZIER|POINTER|AGGREGATE|SUM")
@@ -1996,7 +2017,7 @@ ixmaps.layer("regions")
     .define();
 
 // 5. Apply identically to BUBBLE layer — same colorscheme + values
-ixmaps.layer("regions")
+myMap.layer("regions")
     .data({ obj: bubbleData, type: "json" })
     .binding({ position: "region" })
     .type("CHART|BUBBLE|SIZE|VALUES|CATEGORICAL")
@@ -2190,8 +2211,8 @@ Properties that look similar but are NOT interchangeable. Using the wrong one is
 | Goal | Preferred | Wrong (silently ignored) |
 |---|---|---|
 | Set fill color | `colorscheme: ["#hex"]` | `fillcolor`, `color`, `fill` |
-| Set border/outline color | `linecolor: "#hex"` | `strokecolor`, `bordercolor` |
-| Set fill transparency | `fillopacity: 0.7` (or `opacity` — both work, `fillopacity` preferred) | `alpha`, `fillOpacity` (camelCase) |
+| Set geometry border/outline color | `linecolor: "#hex"` | `strokecolor` (`bordercolor` is a *chart-box* border, not a geometry outline) |
+| Set fill transparency | `fillopacity: 0.7` (`opacity` fades fill + stroke together — not the same property) | `alpha`, `fillOpacity` (camelCase) |
 | Set border thickness | `linewidth: 1` | `strokewidth`, `borderwidth` |
 | Make fill invisible | `colorscheme: ["none"]` | `fillopacity: 0` (ixMaps bug: silently coerced to `1` — fill shows fully opaque, the opposite of intended) |
 
@@ -2357,7 +2378,7 @@ ixmaps.layer(id)
 ```javascript
 .binding({ geo: "lat|lon", value: "$item$", title: "location" })
 .type("CHART|BUBBLE|SIZE|AGGREGATE")
-.style({ gridwidth: "5px", showdata: "true" })
+.style({ gridwidthpx: "5", showdata: "true" })
 ```
 
 ---

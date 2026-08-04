@@ -21,7 +21,7 @@ This YAML file enables:
 ```yaml
 skill:
   name: create-ixmap
-  version: 2.0
+  version: "2.0"          # string, per the schema below — quote it
   description: Create interactive maps using the ixMaps framework
   icon: 🗺️
   category: visualization
@@ -47,7 +47,8 @@ parameters:
 - `number` - Numeric value
 - `boolean` - True/false
 - `select` - Dropdown with options
-- `colors` - Color scheme
+- `color` - Single color value (e.g. a hex string for `linecolor`)
+- `colors` - Color scheme (array of colors or dynamic palette, e.g. `colorscheme`)
 - `coordinates` - Lat/lng pair
 - `data` - Data source
 
@@ -60,8 +61,18 @@ parameters:
 - `group` - Organizational group
 - `depends_on` - Conditional dependencies
 - `validation` - Validation rules
-- `examples` - Example values
-- `options` - Available choices (for select type)
+- `example` / `examples` - a single example value, or a list of them
+- `hint` / `hints` - a usage note, or a list of them
+- `options` - Available choices (for `select` type). Either a flat list of
+  `{value, label, description}` entries, a **mapping of named subgroups** to such lists
+  (as `viztype` does with `point_data:` / `geometry_data:` / `join_overlay:`), or a bare
+  list of strings for simple enumerations
+- `min` / `max` / `step` - numeric bounds (for `number` type)
+- `pattern` - regex the value must match (for `string` type)
+- `formats` - accepted input formats (for `data` type)
+- `types` - sub-type definitions (used by `colors` for static vs. dynamic palettes)
+- `special_values` - reserved values with their own meaning (e.g. `$item$`, `$index$`)
+- `preview` - short display glyph for an option in a picker UI
 
 ### 3. Groups
 
@@ -374,7 +385,7 @@ The UI YAML itself can be validated against a JSON Schema:
         "required": ["name", "type"],
         "properties": {
           "name": {"type": "string"},
-          "type": {"enum": ["string", "number", "boolean", "select", "colors", "coordinates", "data"]},
+          "type": {"enum": ["string", "number", "boolean", "select", "color", "colors", "coordinates", "data"]},
           "default": {},
           "description": {"type": "string"}
         }
@@ -412,7 +423,10 @@ The UI YAML itself can be validated against a JSON Schema:
 
 ## Example Tools Using UI YAML
 
-### 1. Web Form Generator
+> ⚠️ Sections 1–3 below are **illustrative sketches** of what this schema makes possible — those
+> scripts/extensions are not part of this skill. Section 4 is the one tool that actually ships.
+
+### 1. Web Form Generator (illustrative — not shipped)
 
 ```bash
 npm install yaml
@@ -434,11 +448,13 @@ create-ixmap --preset simple_points  # Apply preset
 - Preset snippets
 - Validation on save
 
-### 4. Validation Tool
+### 4. Validation Tool (ships with this skill)
 
 ```bash
-validate-config myconfig.json skill-ui.yaml
-# Checks: required fields, types, valid values
+node validate-config.js myconfig.json
+# Checks: required fields, types, ranges, valid options, dependencies
+# Reads ./skill-ui.yaml implicitly — run from the skill directory.
+# One-time setup if missing: npm install js-yaml
 ```
 
 ## Future Enhancements

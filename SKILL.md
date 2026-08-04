@@ -9,7 +9,61 @@ allowed-tools: Write, Read, AskUserQuestion, Bash
 
 Creates complete HTML files with interactive ixMaps visualizations for geographic data.
 
+## 📐 Two Modes: Authoring vs. Reading
+
+This skill is used both to **write new maps** and to **read, adapt, explain, or review existing
+ones**. The rules below are written for authoring. Applying them as pass/fail checks against
+existing code produces false failures, because ixMaps accepts several equivalent forms and this
+skill deliberately teaches only one of each.
+
+| Mode | What the rules mean |
+|---|---|
+| **Authoring** (writing a new map, or new code in an existing one) | Follow the canonical form. Where two forms both work, the canonical one is chosen to make a silent error unrepresentable. |
+| **Reading / adapting / reviewing** (learning from a map, porting one, changing part of one) | The canonical form is **not** a correctness criterion. Accepted variants are correct code — do not rewrite them, and do not report them as defects. Match the surrounding file's existing style when adding to it. |
+
+**Three categories — only the third is a defect:**
+
+| Category | In existing code | Examples |
+|---|---|---|
+| **Accepted variant** — works, equivalent | ✅ Leave it. Not a bug, not a style violation to "fix" unasked. | `.view([lat,lng], zoom)` vs `.view({center,zoom})` · `gridwidth:"5px"` vs `gridwidthpx:"5"` · `colorscheme:"#hex"` vs `["#hex"]` · global `ixmaps.layer(…).define()` + attach vs inline `myMap.layer(…).define()` |
+| **Deprecated** — works, discouraged | ⚠️ Mention if relevant; replace only when asked or when already editing that line. | `\|EXACT` → `CATEGORICAL` · `Data.broker()` / `new Data.Broker()` → `Data.provider()` |
+| **Actually broken** — silently fails | ❌ Flag and fix. Renders nothing, or does the opposite of what's intended. | missing `showdata:"true"` · `fillopacity:0` (coerced to `1`) · `.tooltip()`, `fillcolor`, `strokecolor` (don't exist) · `CHART\|GRID\|AGGREGATE` (doesn't exist) · single quotes in `.filter()` · `ixmaps.showLayer/hideLayer` (don't exist) · a global `ixmaps.layer(…).define()` whose result is **never** attached anywhere |
+
+> Not variants at all: `fillopacity` and `opacity` are **different properties** (fill only vs.
+> fill + stroke), as are `linecolor` (geometry outline) and `bordercolor` (chart background box).
+> Seeing the less common one is not evidence of a mistake — check what's being styled.
+
+**When examining a map, judge against "does this work?", not "is this how I'd write it?"**
+
+---
+
+## ✅ The Render Contract (the one guarantee this skill must keep)
+
+**Every map generated from scratch must actually render — data visible on screen, not a blank
+map.** This is the skill's single hard guarantee. Style preferences are negotiable; this is not.
+
+ixMaps fails **silently**: a map missing any item below loads without a single console error,
+reports the theme as done, and can even populate the legend with a correct value range — while
+drawing nothing. So "no errors" is **not** evidence of success. Only seeing rendered elements is.
+
+Stages a map must clear, in order. If output is blank, the first failing stage tells you where:
+
+| Stage | Must be true | If false |
+|---|---|---|
+| **1. Page** | ixmaps CDN `<script>` present; `#map` div exists with a non-zero **height** (`height:100vh` or fixed px); no reserved ids (`loading-div`, `tooltip`, `contextmenu`) reused | Blank page / zero-height map |
+| **2. Init** | `ixmaps.Map("map", …)` result captured — `var myMap = …`, never named `map`; first arg matches the div id | Partial init; later calls no-op |
+| **3. Data** | `.data()` resolves: inline `obj:` **or** a CORS-reachable `url:` (never `file://`); `type:` matches the payload | No rows; nothing to draw |
+| **4. Layer** | `.binding()` present with `geo` (data-driven layers also need `value`); chain closed by `.define()`; theme **attached** — inline `myMap.layer(…)`, or global `ixmaps.layer(…).define()` whose result is passed to `myMap.layer(theme)` | Layer skipped or orphaned — legend may still look right |
+| **5. Draw** | `showdata: "true"` in every data-driven `.style()`; viztype matches data shape (`CHART\|…` for points, `FEATURE\|…` for geometry); `normalSizeScale` set whenever `objectscaling:"dynamic"`; a join overlay's layer name **exactly** equals its FEATURE base's | Invisible, or oversized/undersized to nothing |
+| **6. Visible** | `.view()` centred over the data at a sensible zoom; lat/lng not transposed; fill not accidentally hidden (`fillopacity:0` silently becomes `1`; use `colorscheme:["none"]` to hide deliberately); no `chartupper`/`chartlower` gate excluding the current zoom; `values:` entries are strings | Renders off-screen or clipped away |
+
+**Gate:** do not report a map as done until stage 6 is satisfied *and* verified — see Workflow
+step 6. If verification isn't possible in the current environment, say the map is unverified
+rather than implying it works.
+
 ## ⚠️ CRITICAL RULES (Never Skip)
+
+> These are **authoring** rules — see § Two Modes above before applying them to existing code.
 
 1. `ixmaps.Map()` returns a **MapBuilder** — use `.then()` to capture the real map instance
 
@@ -22,8 +76,10 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
        .layer(theme);
    ```
    But `.then()` is **required** whenever you need the real map instance later —
-   in event handlers, dynamic updates, or calls outside the chainable set
-   (`removeTheme`, `changeThemeStyle`, `hideTheme`, `showTheme` etc.):
+   in event handlers, dynamic updates, or calls that live on the Api rather than the
+   chainable builder (`removeTheme`, `changeThemeStyle` etc.). Note `hideTheme` /
+   `showTheme` / `getZoom` / `getCenter` are **global** `ixmaps.*` calls and need no
+   `.then()` — see § Runtime Controls:
    ```javascript
    // ✅ always safe — prefer this pattern
    ixmaps.Map("map", { ... }).then(function(map) {
@@ -36,7 +92,13 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
    myMap.view(...).layer(...);       // fine here — queued and executed on init
    myMap.layer(newTheme);            // risky if called from an event handler or timeout
    ```
-2. **ALWAYS include `.binding()`** with `geo` and `value`
+1a. **The global `ixmaps.layer(name)....define()` form only BUILDS a theme — it does NOT put it on any map.** There are exactly two safe ways to end a layer definition; never leave it in neither:
+    - **Inline (default — use this unless you have a specific reason not to):** call `.layer("name")` directly on the captured map instance/builder, e.g. `myMap.layer("name").data(...).binding(...).type(...).style(...).meta(...).title(...).define();` — this builds **and** attaches in one step.
+    - **Define-then-add (only for a deliberate reason — reusable theme object, or a multi-theme map where layers are loaded/swapped on demand):** `var theme = ixmaps.layer("name")....define();` **followed by** `myMap.layer(theme)` or `myMap.layer(theme, "direct")` (`"direct"` skips the loading spinner). The second call is what actually attaches it — skipping it is the mistake.
+    - ❌ **Broken, no error — in a finished program:** `ixmaps.layer("name")....define();` where the return value is discarded and *never* passed to `myMap.layer(...)` anywhere. Data loads, the theme registers, the legend can even populate with a correct value range — but zero elements ever render (`document.querySelector('#map svg').querySelectorAll('circle').length` stays `0`). When copying a standalone `ixmaps.layer(...).define();` into real code, make sure you also add where its result gets attached.
+      > ⚠️ The bug is the **missing attachment**, not the global form. A doc fragment or excerpt showing only `ixmaps.layer(...).define()` is the accepted define-then-add variant with the attach call outside the excerpt — see § Two Modes. Flag it only when you can see the whole program and the theme is never attached.
+    - **Only use the global/define-then-add form when explicitly asked for a swappable/dynamic multi-theme setup** (sidebar picker, time slider, KDE recompute-on-slider — see § Multi-Layer Join Pattern · B). For a normal single always-visible layer, always use the inline form on the captured instance.
+2. **ALWAYS include `.binding()`**, with `geo` **and** `value` on any data-driven layer (CHART/CHOROPLETH). Exception: a `FEATURE` base that carries only geometry omits `value` (use `id` there instead, for the join) — see API_REFERENCE.md § `value` field on FEATURE layers
 3. **ALWAYS include `showdata: "true"`** in `.style()`
 4. **ALWAYS include `.meta()`** with tooltip (default: `{ tooltip: "{{theme.item.chart}}{{theme.item.data}}" }`)
    - **Also include `name`** whenever you plan to use `changeThemeStyle` at runtime (see rule 21)
@@ -45,7 +107,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
 7. **NEVER use `|EXACT` classification** — deprecated; use `CATEGORICAL`
 8. **NEVER use `map` as variable name** — conflicts with internals; use `myMap`
 8a. **NEVER use reserved HTML element IDs** — ixMaps owns `loading-div`, `tooltip`, `contextmenu`. Using them causes visible artifacts (a white box stuck on the map). Use `app-loading` or any other non-conflicting name for your own overlays.
-9. **Prefer `fillopacity` over `opacity`** in `.style()` — both work, but `fillopacity` is the recommended form
+9. **Use `fillopacity`, not `opacity`, to control transparency** in `.style()` — `fillopacity` fades only the fill; `opacity` fades the whole SVG element (fill *and* stroke/border). `fillopacity` is what most map styling calls for
 10. **NEVER use `fillcolor`** — use `colorscheme: ["#hex"]`
 11. **NEVER add `.legend("string")`** unless user explicitly requests it — destroys the default color legend
 12. **ALWAYS use CDN** `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js`
@@ -89,6 +151,7 @@ Creates complete HTML files with interactive ixMaps visualizations for geographi
     - **Layer name** (`myMap.layer("comuni")`) = geometry bucket; shared by a FEATURE base and the overlays that reuse its geometry, and **not unique**. A standalone CHART layer with its own geo data can use any arbitrary name (even `"generic"`).
     - **`meta.name`** = the **unique** theme id used by `changeThemeStyle` / `hideTheme` / `showTheme` / `removeTheme`.
     Keep them distinct — e.g. layer `"comuni"` + `meta.name: "comuni-choropleth"`.
+25. **ALWAYS write `.view()` in the object form** — `.view({ center: { lat: L, lng: G }, zoom: Z })`. A positional array form `.view([lat, lng], zoom)` also works and appears in some older code, but never emit it: its order is `[lat, lng]`, the **opposite** of GeoJSON's `[lng, lat]`, so a transposed pair silently centres the map somewhere else with no error. Named keys make that mistake unrepresentable.
 
 ---
 
@@ -99,6 +162,7 @@ These produce **no error, no warning, no console message** — the map just sile
 | # | What you did | What happens | Fix |
 |---|---|---|---|
 | 1 | Omitted `showdata: "true"` | Layer loads, data processes, nothing renders — completely invisible | Add `showdata: "true"` to every `.style()` |
+| 1a | Omitted `showdata: "true"` on an AGGREGATE layer that already has a `datafields` + `tooltip: "{{theme.item.data}}"` | The chart itself (`{{theme.item.chart}}`) still draws fine — bubbles/squares appear normally, so it doesn't look broken. Only the `{{theme.item.data}}` listing is silently empty | `showdata` gates the whole data-display phase, not just initial rendering — required even when the chart is already visibly working |
 | 2 | Used different layer name for overlay vs FEATURE base | Overlay renders nothing; no error | Overlay name must exactly match the FEATURE base name |
 | 3 | Omitted the `ixmaps.Map()` assignment (`var myMap = …`) | Map may partially init; further calls fail or do nothing | Always capture the instance in a variable named `myMap` (never `map`). Use `var`/outer scope if it's reassigned in `buildMap()` or shared across functions; `const` is fine for a single self-contained block |
 | 4 | Omitted `name` in `.meta()` | `changeThemeStyle` / `hideTheme` / `showTheme` silently no-op | Add `name: "themeName"` to every `.meta()` you'll reference at runtime |
@@ -114,6 +178,7 @@ These produce **no error, no warning, no console message** — the map just sile
 | 14 | Geometry branch mismatch (main=2026 codes vs data=2024) | Some regions silently unjoined (Sardinia etc.) | Pin geometry to commit `0153a0e` for 2024-compatible ISTAT codes |
 | 15 | Used `geometry:{type:"Sphere"}` on a non-Orthographic projection | Nothing renders; no error, theme reports done | `Sphere` is Orthographic-only — use the dense-polygon world-bounding-box technique for other projections |
 | 16 | Used `geometry:{type:"Sphere"}` against an ixmaps-flat build without native Sphere support | Nothing renders; no error, theme reports done | Confirm the loaded engine build/version includes the fix (added 2026-07-03) before assuming a config mistake |
+| 17 | Called global `ixmaps.layer(name)....define()` and never passed the result to `myMap.layer(theme)` | Data loads, theme registers, legend can even populate with the correct value range — but zero elements render (0 `<circle>`/`<path>` in the map SVG) | Use `myMap.layer(name)....define()` inline on the captured instance, **or** if using define-then-add, follow it with `myMap.layer(theme)` / `myMap.layer(theme, "direct")` — see Rule 1a |
 
 ---
 
@@ -142,8 +207,8 @@ Is your data...
 │  ├─ Just locations?                    → CHART|DOT
 │  ├─ Colored by category (legend-selectable)? → CHART|BUBBLE|CATEGORICAL  ⚠️ NOT DOT|CATEGORICAL
 │  ├─ Sized by value?                    → CHART|BUBBLE|SIZE|VALUES
-│  ├─ Density heatmap (circles)?         → CHART|BUBBLE|SIZE|AGGREGATE  + gridwidth:"5px"
-│  ├─ Density heatmap (squares)?         → CHART|SYMBOL|GRIDSIZE|AGGREGATE|RECT|SUM|DOPACITY|VALUES  + symbols:["square"] + gridwidth:"80px"
+│  ├─ Density heatmap (circles)?         → CHART|BUBBLE|SIZE|AGGREGATE  + gridwidthpx:"5"
+│  ├─ Density heatmap (squares)?         → CHART|SYMBOL|GRIDSIZE|AGGREGATE|RECT|SUM|DOPACITY|VALUES  + symbols:["square"] + gridwidthpx:"80"
 │  ├─ Sparklines per grid cell?          → CHART|SYMBOL|PLOT|LINES  (see Sparklines below)
 │  ├─ Flows origin→destination?          → CHART|VECTOR|BEZIER|POINTER
 │  ├─ Multi-value per point?             → CHART|SYMBOL|SEQUENCE  (|STAR for 5+ categories)
@@ -216,14 +281,23 @@ Is your data...
    - `template-geojson.html` — GeoJSON/TopoJSON
    - `template-multi-layer.html` — multiple layers with join
    - `template-kde.html` — weighted KDE / density heatmap (Turf.js extension)
+   - `template-change-choropleth.html` — delta/variation between two periods (arrows)
+   - `template-world-flows.html` — origin → destination flows
+   - `template-europe-choropleth-sparklines.html` — choropleth + per-feature sparkline
+   - `template-flexible.html` — fully configurable, complex logic
    - `template.html` — general purpose
-4. **Write** the HTML file
-5. **Validate before writing**:
+4. **Check against the Render Contract — before writing.** Walk stages 1–6 of § The Render
+   Contract against the code you are about to emit. Concretely:
+   - [ ] ixmaps CDN `<script>` present; `#map` div has non-zero height; no reserved ids reused
    - [ ] `myMap = ixmaps.Map(...)` — instance captured in a variable (`var` if reassigned/shared, `const` for a single block; never name it `map`)
-   - [ ] `.binding()` has `geo` + `value`
-   - [ ] `.style()` has `showdata: "true"`
-   - [ ] `.meta()` present with tooltip
+   - [ ] `.data()` resolves — inline `obj:`, or a CORS-reachable `url:` (never `file://`)
+   - [ ] `.binding()` has `geo` (plus `value` on data-driven layers; a FEATURE base uses `id` instead)
+   - [ ] `.style()` has `showdata: "true"` on every data-driven layer
+   - [ ] Every layer chain is closed by `.define()` **and** attached — inline `myMap.layer(name)....define()`, or (only for a deliberately swappable/multi-theme map) a global `ixmaps.layer(name)....define()` whose result is passed to `myMap.layer(theme)` / `myMap.layer(theme, "direct")`. Never leave a global define's return value discarded — see Rule 1a
+   - [ ] viztype matches the data shape; join overlay's layer name == its FEATURE base's name
    - [ ] If `objectscaling:"dynamic"` → `normalSizeScale` set
+   - [ ] `.view()` centred over the data (object form, Rule 25); lat/lng not transposed
+   - [ ] `.meta()` present with tooltip; `name` in `.meta()` for anything addressed at runtime
    - [ ] Start with `scale: 1` — let user request size adjustments
 
    **Optional programmatic check** — for parameter-driven maps, validate a JSON config
@@ -232,7 +306,27 @@ Is your data...
    node validate-config.js config.json    # checks types, ranges, valid options, deps
    # one-time setup if missing: npm install js-yaml
    ```
-6. **Confirm** file created; explain what it shows; offer to enhance
+   > Full `skill-ui.yaml` parameter/type/schema reference → **UI_YAML_GUIDE.md**
+5. **Write** the HTML file
+6. **Verify it renders — do not skip, and do not substitute "file created" for this.**
+   A written file is not a working map; ixMaps fails silently, so an unverified map is an
+   unknown one.
+   Verification is **host-dependent by design** — this skill declares no browser tool of its
+   own. Use whatever preview/browser capability the calling environment provides (an in-app
+   browser pane, a Playwright/Chrome tool, a local preview server). Its absence is a property
+   of the environment, not a misconfiguration to fix.
+   - With such a tool: open the file, then confirm **rendered elements exist**:
+     ```javascript
+     document.querySelectorAll('#map svg circle, #map svg path, #map svg rect, #map svg image').length
+     // must be > 0 — if it's 0 the map is blank; walk § The Render Contract stages in order
+     ```
+     Also check the console is clean and the data sits inside the current view. A screenshot is
+     good supporting evidence, but the element count is the actual test — a map can look
+     plausible while showing only the basemap.
+   - **Without one:** re-walk the step-4 checklist, then say plainly that the map is written
+     but **unverified**, and give the user the one-line check above to run themselves. Never
+     report it as working — an unverified map is exactly where a silent failure hides.
+7. **Explain** what the map shows; offer to enhance
 
 > **Hosting local data** — if the user's data is a local file but a layer needs a `data({url:…})`
 > (CORS blocks `file://`), upload it to get a CDN URL:
@@ -325,7 +419,7 @@ All projections use SVG-based rendering. Omit `mapProjection` for the default We
 | `"orthographic"` | — | Orthographic (globe view) |
 
 - Lookup is **case-insensitive**; unknown values fall back to Mercator
-- For **any** projected map: use **array** `.view([lat, lng], zoom)` — object `{center,zoom}` does NOT work with projections
+- `.view({center: {lat, lng}, zoom})` works with every projection — always use this object form (never the positional `[lat, lng]` array; see Rule 25). For world-scale projections use a low `zoom` (0–1).
 - Set `mapType` to the background/sea color instead of using CSS: `mapType: "#0a1929"` (dark), `mapType: "black"`, `mapType: "dark"`, `mapType: "white"`, or any hex color. Do **not** use `mapType: "white"` + CSS `background` on `#map` — set it directly in `mapType`.
 - Add a graticule layer **before** data layers for smooth curves (see Graticule below)
 - **Albers only:** pass `projectionParams` in map options to set custom standard parallels / center for conic tuning
@@ -339,7 +433,7 @@ var myMap = ixmaps.Map("map", {
   legend:        "closed",
   tools:         false
 })
-.view([53.4, 16.9], 3.7)
+.view({ center: { lat: 53.4, lng: 16.9 }, zoom: 3.7 })
 .options({ basemapopacity: 0, flushChartDraw: 1000000 });
 ```
 
@@ -352,7 +446,7 @@ var myMap = ixmaps.Map("map", {
   legend:        "closed",
   tools:         false
 })
-.view([0, 0], 1)                // zoom: 0–1 for world-scale projections
+.view({ center: { lat: 0, lng: 0 }, zoom: 1 })   // zoom: 0–1 for world-scale projections
 .options({ basemapopacity: 0, flushChartDraw: 1000000 });
 ```
 
@@ -365,21 +459,22 @@ var myMap = ixmaps.Map("map", {
   legend:        "closed",
   tools:         false
 })
-.view([13.24, 23.2], 2)             // array [lat, lng] — required for orthographic
+.view({ center: { lat: 13.24, lng: 23.2 }, zoom: 2 })
 .options({ basemapopacity: 0.5, flushChartDraw: 1000000 })
 
 // Ocean/sea background — native engine support, define BEFORE data layers so they draw on top.
 .layer(
-  ixmaps.Layer("Ocean")
+  ixmaps.layer("Ocean")
     .data({
       obj: { type: "FeatureCollection",
              features: [{ type: "Feature", geometry: { type: "Sphere" }, properties: {} }] },
       type: "geojson"
     })
+    .binding({ geo: "geometry" })
     .type("FEATURE|NOLEGEND|SILENT")
     .style({ colorscheme: ["#0a2a4a"], fillopacity: "1", showdata: "true", linecolor: "none", linewidth: "0" })
-    .meta({ name: "Ocean", tooltip: "" })
-    .json()
+    .meta({ name: "ocean-backdrop", tooltip: "" })   // meta.name ≠ layer name (Rule 24)
+    .define()
 );
 ```
 - `geometry: {type:"Sphere"}` (no `coordinates` — unlike every other GeoJSON type) draws the full visible-globe disc for the current rotation, and auto-recenters on every pan/zoom/rotate as part of the theme's ordinary redraw cycle — no `moveend`/`zoomend` listeners needed, unlike a hand-rolled geodesic-circle workaround.
@@ -409,7 +504,7 @@ var myMap = ixmaps.Map("map", {
     .define();
 })();
 ```
-**Note:** `FEATURE|SILENT` layers do not need `value` in `.binding()` or `showdata` in `.style()` — omit both to avoid 'type not found' load errors.
+**Note:** `FEATURE|SILENT` layers do not need `value` in `.binding()` or `showdata` in `.style()` — omit both to avoid 'type not found' load errors. This is a scoped exception to Critical Rules 2/3 for `|SILENT` bases with no overlay (e.g. this decorative graticule) — see Rule 16a for why `|SILENT` on a base with an overlay is different (it kills the overlay's tooltip) and TROUBLESHOOTING.md § Tooltips Not Working.
 
 Intermediate points every 2° ensure smooth curves in Lambert projection. Define graticule **before** the countries layer so it renders underneath.
 
@@ -586,6 +681,8 @@ Scales: `60M` (default/world) · `20M` · `10M` · `3M` · `1M` (country zoom)
 When joining external data to geometry (e.g. TopoJSON + CSV statistics), the overlay layer
 **must reuse the FEATURE base's name** so it joins onto its geometry (see critical rule 15).
 
+> Full real-world worked example (TopoJSON + CSV, 3-layer choropleth + bubble join) → **example-multi-layer-join.md**
+
 ### A. Static overlay (base + one data-driven layer)
 
 ```javascript
@@ -718,7 +815,7 @@ Two distinct patterns depending on data shape:
 .binding({ geo: "lat|lon", value: "year" })   // year field = categorical x-axis
 .type("CHART|SYMBOL|PLOT|LINES|AREA|FADE|LASTARROW|NOCLIP|GRIDSIZE|CATEGORICAL|AGGREGATE|RECT|SUM|FIXSIZE")
 .style({
-  gridwidth: "100px", normalsizevalue: "30", markersize: 2,
+  gridwidthpx: "100", normalsizevalue: "30", markersize: 2,
   colorscheme: ["#00e5ff"], fillopacity: 0.5,
   values: ["2020","2021","2022","2023"],  // ordered x-axis categories (also controls sort)
   showdata: "true"
@@ -803,11 +900,11 @@ embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`. The
 | Property | Notes |
 |----------|-------|
 | `colorscheme` | Array of hex colors. `["100","tableau"]` for auto-palette. `["N", colorA, colorB, colorC]` = N-class gradient auto-swept start→middle→end (middle auto-computed if `colorC` omitted) — caps at 3 anchor colors, does NOT extend to more; a bare list of colors with no leading count (`["c1","c2","c3","c4","c5"]`) maps 1:1 to classes instead (no interpolation) — see API_REFERENCE.md § Color Properties. A bare string (`colorscheme: "#0066cc"`) is accepted **only** for a single color — **always use the array form** (`["#0066cc"]`, `["none"]`) as best practice |
-| `fillopacity` | 0–1. NEVER use `opacity` |
+| `fillopacity` | 0–1. Fades only the fill. `opacity` also exists but fades the whole element (fill + stroke) — use `fillopacity` unless the border should fade too |
 | `linecolor` / `linewidth` | NEVER `strokecolor` / `strokewidth`; `linecolor` accepts a single string **or** an array `["#c1","#c2"]` — array form required for `VECTOR\|GRADIENT` |
 | `scale` | Uniform size multiplier (start at 1) |
 | `normalsizevalue` | Data value that maps to "normal" display size. **Higher = SMALLER bubbles** — a larger reference value means most real data values fall below it, so bubbles render smaller. E.g. `"1000"` → smaller bubbles than `"300"`. |
-| `gridwidth` | Grid cell size for aggregate layers (e.g. `"5px"`) |
+| `gridwidthpx` | Grid cell size for aggregate layers, unitless string (e.g. `"5"`). Canonical form — same name `changeThemeStyle` uses. (`gridwidth: "5px"` is an accepted variant you'll see in existing maps.) |
 | `rangecentervalue` | Diverging center; requires EVEN number of colors |
 | `ranges` | Explicit class breaks (n+1 values for n colors) |
 | `values` | Category list for CATEGORICAL (must be **strings**) |
@@ -827,7 +924,7 @@ embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`. The
 | `sizefield` | Data column that drives symbol SIZE independently from the `value` (color) field — use with `CATEGORICAL` to combine category color + numeric size on one layer |
 | `dopacitypow` | Power curve exponent for `DOPACITY` opacity mapping (default ≈ 1; `2` = quadratic, exaggerates contrast) |
 | `dopacityscale` | Multiplier applied after opacity calculation — stretches the opacity range |
-| `gridwidthpx` | Grid cell width in pixels; supports `"factor"` mode in `changeThemeStyle` for runtime zoom-scaling |
+| `gridwidthpx` | (see Key Style Properties) supports `"factor"` mode in `changeThemeStyle` for runtime zoom-scaling |
 
 **Trees (street-level) sizing baseline with `|GLOW`:**
 - Use this as a reliable starting point for urban tree inventories (diameter in cm):
@@ -847,7 +944,7 @@ Interactive controls that modify the map after load. What's available:
 
 - **Filter across layers** — `changeThemeStyle(themeName, "filter:WHERE …", "set")` via `myMap.then(map => …)`; aggregate layers (grids, sparklines) re-aggregate. Every responsive layer needs `name` in `.meta()`.
 - **Region selector + zoom** — a `<select>` that filters all named themes and pans/zooms via `myMap.view()`; `<option value="">` is the "show all" sentinel.
-- **Toggle visibility** — `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)`; start a layer hidden with `visible: false` in `.style()` (never call `hideTheme` from `myMap.then()`).
+- **Toggle visibility** — `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)` are global, so a user-triggered toggle (button, checkbox) can call them directly without `.then()`. To start a layer **hidden on load**, use `visible: false` in `.style()` — do **not** try to achieve it by calling `hideTheme` from `myMap.then()` at init time (the theme may not exist yet). See RUNTIME_CONTROLS.md § Initially hidden layer.
 - **Isolate categories** — `ixmaps.markThemeClass(name, idx)` / `unmarkThemeClass(name, idx)` for clickable legends (idx = position in the `values:` array).
 - **Highlight a single item** — `ixmaps.highlightThemeItems(name, itemId)` / `ixmaps.clearHighlight()`; e.g. legend-row hover highlighting its map feature. `itemId` is the full SVG group id `"<layerName>::<lookupValue>"`, not the bare lookup value — passing the bare value silently no-ops.
 - **React to zoom/pan/click** — `myMap.on("zoomend moveend click mouseover …", handler)`. `ixmaps.getZoom()` / `getCenter()` are global (no `.then()`); `getBounds()` returns a flat `[swLat, swLng, neLat, neLng]` array.
@@ -1085,13 +1182,7 @@ Use an external geospatial-JS library (Turf.js, d3-contour, …) to **compute a 
 ixMaps has a native `WMS|IMAGE` theme type for dropping a **server-rendered raster image** on the map (e.g. Copernicus Land Monitoring Service layers — Urban Atlas, Riparian Zones — hosted by EEA):
 
 ```javascript
-var wmsLayer =
-    ixmaps.layer("urban_atlas")
-        .type("WMS|IMAGE|NOLEGEND")
-        .data({ server: "https://image.discomap.eea.europa.eu/arcgis/rest/services/UrbanAtlas/UA_UrbanAtlas_2018/MapServer/export" })
-        .style({ opacity: "0.8", layerupper: "1:750000" })   // layerupper = scale-gate; hides layer when zoomed out past this denominator
-        .define();
-
+// Single, always-visible WMS layer — inline form (default per Rule 1a; no swap needed here)
 ixmaps.Map("map", {
         mapType: "VT_TONER_LITE",
         mode:    "pan",
@@ -1099,7 +1190,12 @@ ixmaps.Map("map", {
         height:  window.innerHeight + "px",
         legend:  "closed"
     },
-    map => map.view([45.4642, 9.1900], 12).options({ basemapopacity: "0.6" }).layer(wmsLayer)
+    map => map.view({ center: { lat: 45.4642, lng: 9.1900 }, zoom: 12 }).options({ basemapopacity: "0.6" })
+        .layer("urban_atlas")
+            .type("WMS|IMAGE|NOLEGEND")
+            .data({ server: "https://image.discomap.eea.europa.eu/arcgis/rest/services/UrbanAtlas/UA_UrbanAtlas_2018/MapServer/export" })
+            .style({ opacity: "0.8", layerupper: "1:750000" })   // layerupper = scale-gate; hides layer when zoomed out past this denominator
+            .define()
 );
 ```
 

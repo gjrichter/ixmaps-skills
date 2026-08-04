@@ -271,7 +271,7 @@ var graticuleGeoJSON = {
 // MAP INITIALIZATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-var ixMap = ixmaps.Map("map", {
+var myMap = ixmaps.Map("map", {
     mapType:       "white",        // SVG projection — no tile basemap
     mapProjection: "equalearth",   // Equal Earth projection
     mode:          "info",
@@ -288,7 +288,7 @@ var ixMap = ixmaps.Map("map", {
 
 
 // ── Layer 0: ocean / bounding box ─────────────────────────────────────────
-ixMap.layer("bbox")
+myMap.layer("bbox")
     .data({ obj: worldBBox, type: "geojson" })
     .binding({ geo: "geometry" })
     .type("FEATURE")
@@ -298,7 +298,7 @@ ixMap.layer("bbox")
     .define();
 
 // ── Layer 0b: graticule ───────────────────────────────────────────────────
-ixMap.layer("graticule")
+myMap.layer("graticule")
     .data({ obj: graticuleGeoJSON, type: "geojson" })
     .binding({ geo: "geometry" })
     .type("FEATURE")
@@ -316,7 +316,7 @@ ixMap.layer("graticule")
 // Join chain: GEO_SOURCE[GEO_SOURCE.idField] ↔ CHANGE_DATA[DATA_ID_FIELD]
 
 // Layer 1: FEATURE base — loads geometry, registers join key
-ixMap.layer("countries")
+myMap.layer("countries")
     .data({ url: GEO_SOURCE.url, type: GEO_SOURCE.type })
     .binding({ geo: "geometry", id: GEO_SOURCE.idField, title: GEO_SOURCE.nameField })
     .type("FEATURE")
@@ -331,7 +331,7 @@ ixMap.layer("countries")
     .define();
 
 // Layer 2: CHOROPLETH — joins CHANGE_DATA to geometry by id, fills by value
-ixMap.layer("countries")
+myMap.layer("countries")
     .data({ obj: CHANGE_DATA, type: "json" })
     .binding({ lookup: DATA_ID_FIELD, value: DATA_VALUE_FIELD })
     .type("CHOROPLETH")
@@ -358,7 +358,7 @@ ixMap.layer("countries")
 //   negative value → downward arrow, sized by magnitude (COLOR_NEGATIVE)
 //
 // rangecentervalue: 0 splits the two-color scheme at zero.
-ixMap.layer("countries")
+myMap.layer("countries")
     .data({ obj: CHANGE_DATA, type: "json" })
     .binding({ lookup: DATA_ID_FIELD, value: DATA_VALUE_FIELD, title: DATA_TITLE_FIELD })
     .type("CHART|BAR|POINTER|ARROW|SIZE")

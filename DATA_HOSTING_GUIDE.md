@@ -184,11 +184,15 @@ git push
 
 ## File Formats
 
-Supported formats:
+Most commonly hosted:
 - CSV (.csv)
 - JSON (.json)
 - GeoJSON (.geojson)
 - TopoJSON (.topojson)
+
+These four cover almost all hosting cases. The loader itself accepts many more —
+Parquet/GeoParquet, GeoPackage, FlatGeobuf, Geobuf, KML, GML, RSS, JSON-stat and jsonDB
+included. See **DATA_JS_GUIDE.md** for the full list and the loading options each needs.
 
 ## Datasets
 
@@ -312,7 +316,7 @@ FILENAME=$(basename "$FILE")
 BASE="${FILENAME%.*}"
 EXT="${FILENAME##*.}"
 TIMESTAMPED="${BASE}-${TIMESTAMP}.${EXT}"
-PATH="by-date/$MONTH/$TIMESTAMPED"
+TARGET_PATH="by-date/$MONTH/$TIMESTAMPED"   # NOT "PATH" — that would clobber the shell's PATH
 
 CONTENT=$(base64 -i "$FILE" | tr -d '\n')
 
@@ -436,17 +440,23 @@ Bad:
 ### 2. File Size
 
 ```
-CSV/JSON size guidelines:
+CSV/JSON size guidelines (for the GitHub + jsDelivr route):
 - ✅ < 1 MB: Perfect for GitHub + CDN
 - ⚠️  1-10 MB: Acceptable, consider compression
-- ❌ > 10 MB: Too large, use alternatives
+- ❌ > 10 MB: Too large for this route, use alternatives
 
 Alternatives for large data:
 - Split into multiple files
 - Use TopoJSON (compressed GeoJSON)
 - Aggregate data (e.g., grid instead of points)
 - Use database + API
+- Use GeoParquet + bbox loading (see DATA_JS_GUIDE.md) — reads only the
+  byte ranges a viewport needs, so multi-GB remote files are viable
 ```
+
+> The 10 MB ceiling is a **GitHub/jsDelivr** constraint, not a limit of the loader.
+> For genuinely large datasets, remote GeoParquet with bbox range-requests is the
+> supported path — see **DATA_JS_GUIDE.md**.
 
 ### 3. Data Organization
 
@@ -826,3 +836,4 @@ CDN: https://cdn.jsdelivr.net/gh/<user>/ixmaps-data@main/<path>
 - GitHub docs: https://docs.github.com
 - jsDelivr docs: https://www.jsdelivr.com/github
 - ixMaps docs: See SKILL.md, EXAMPLES.md
+- Loading formats, `Data.*` preprocessing, inline `obj:` data, remote GeoParquet: See DATA_JS_GUIDE.md

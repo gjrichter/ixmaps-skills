@@ -70,11 +70,11 @@ symbols: ["icon1.svg"]
 Symbols are typically larger than dots:
 
 ```javascript
-// For dots
-scale: 2  // Normal scale
+// For dots (baseline default is scale: 1 — dots often look better a bit larger)
+scale: 2
 
-// For symbols
-scale: 0.1  // Much smaller scale
+// For symbols (usually much smaller than dots)
+scale: 0.1
 ```
 
 ## Visualization Types with Symbols
@@ -203,7 +203,7 @@ ixmaps.Map("map", {
 })
 .legend("Speed Cameras")
 .layer("cameras")
-    .data({ data: cameraData, type: "json" })
+    .data({ obj: cameraData, type: "json" })
     .binding({
         geo: "lat|lon",
         value: "type",  // Categorize by type
@@ -217,7 +217,7 @@ ixmaps.Map("map", {
             "https://files.svgcdn.io/material-symbols/speed-camera.svg"
         ],
         scale: 0.1,  // Small scale for symbols
-        opacity: 0.9,
+        fillopacity: 0.9,
         showdata: "true"
     })
     .meta({
@@ -305,3 +305,13 @@ symbols: ["https://files.svgcdn.io/material-symbols/icon.svg"]
     showdata: "true"
 })
 ```
+
+## Related Documentation
+
+- **SKILL.md** - Main skill documentation
+- **API_REFERENCE.md** - Complete API reference (style properties, `fillopacity` vs `opacity`)
+- **EXAMPLES.md** - Working code examples
+- **MAP_TYPES_GUIDE.md** - Basemap choice (affects symbol color contrast)
+- **UI_YAML_GUIDE.md** - `fillopacity`/`scale` as `skill-ui.yaml` parameters
+- **RUNTIME_CONTROLS.md** - Changing symbol style at runtime
+- **TROUBLESHOOTING.md** - Common issues and fixes

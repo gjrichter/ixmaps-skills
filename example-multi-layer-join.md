@@ -70,9 +70,10 @@ This example demonstrates the **correct pattern** for creating multiple thematic
                 })
                 .type("FEATURE")
                 .style({
-                    opacity: 0.1,
+                    fillopacity: 0.1,
                     linecolor: "#666666",
-                    linewidth: 0.5
+                    linewidth: 0.5,
+                    showdata: "true"
                 })
                 .define();
 
@@ -91,7 +92,7 @@ This example demonstrates the **correct pattern** for creating multiple thematic
                 .type("CHOROPLETH|QUANTILE")  // ← NO FEATURE! Uses existing geometry
                 .style({
                     colorscheme: ["#e3f2fd", "#90caf9", "#42a5f5", "#1e88e5", "#1565c0", "#0d47a1"],
-                    opacity: 0.7,
+                    fillopacity: 0.7,
                     linecolor: "#333333",
                     linewidth: 0.5,
                     showdata: "true"
@@ -129,7 +130,7 @@ This example demonstrates the **correct pattern** for creating multiple thematic
                 .type("CHART|BUBBLE|SIZE|VALUES")
                 .style({
                     colorscheme: ["#ff6f00"],
-                    opacity: 0.6,
+                    fillopacity: 0.6,
                     linecolor: "#ffffff",
                     linewidth: 1,
                     scale: 1.2,
@@ -163,9 +164,9 @@ This example demonstrates the **correct pattern** for creating multiple thematic
 
 ```javascript
 // All three layers share the same base name "provinces"
-map.layer("provinces")      // Layer 1: FEATURE base
-map.layer("provinces")      // Layer 2: CHOROPLETH
-map.layer("provinces")      // Layer 3: BUBBLE
+myMap.layer("provinces")      // Layer 1: FEATURE base
+myMap.layer("provinces")      // Layer 2: CHOROPLETH
+myMap.layer("provinces")      // Layer 3: BUBBLE
 ```
 
 ixMaps recognizes these as variations of the same base layer and manages data sharing/caching automatically.
@@ -201,18 +202,18 @@ ixMaps recognizes these as variations of the same base layer and manages data sh
 
 ```javascript
 // ✓ CORRECT
-map.layer("provinces")
+myMap.layer("provinces")
     .data({ url: "geometry.topojson", type: "topojson" })
     .binding({ geo: "geometry", id: "code" })
     .define();
 
-map.layer("provinces")
+myMap.layer("provinces")
     .data({ url: "data.csv", type: "csv" })
     .binding({ lookup: "code", value: "stat" })
     .define();
 
 // ✗ WRONG - Two .data() calls on same layer
-map.layer("provinces")
+myMap.layer("provinces")
     .data({ url: "geometry.topojson", type: "topojson" })
     .data({ url: "data.csv", type: "csv" })  // ERROR!
     .define();
@@ -264,12 +265,12 @@ map.layer("provinces")
 **Common mistake:**
 ```javascript
 // ✗ WRONG - both have FEATURE
-map.layer("provinces").type("FEATURE").define();
-map.layer("provinces").type("FEATURE|CHOROPLETH").define();  // BUG!
+myMap.layer("provinces").type("FEATURE").define();
+myMap.layer("provinces").type("FEATURE|CHOROPLETH").define();  // BUG!
 
 // ✓ CORRECT - only base has FEATURE
-map.layer("provinces").type("FEATURE").define();
-map.layer("provinces").type("CHOROPLETH").define();  // Correct!
+myMap.layer("provinces").type("FEATURE").define();
+myMap.layer("provinces").type("CHOROPLETH").define();  // Correct!
 ```
 
 ---
@@ -327,14 +328,14 @@ The TopoJSON from openpolis/geojson-italy has these properties:
 
 ### ❌ Mistake 1: Two `.data()` on same layer
 ```javascript
-map.layer("provinces")
+myMap.layer("provinces")
     .data({ url: "geometry.json", type: "geojson" })
     .data({ url: "data.csv", type: "csv" })  // ERROR!
 ```
 
 ### ❌ Mistake 2: Missing `id` in FEATURE layer
 ```javascript
-map.layer("provinces")
+myMap.layer("provinces")
     .binding({
         geo: "geometry"
         // Missing id!
@@ -343,7 +344,7 @@ map.layer("provinces")
 
 ### ❌ Mistake 3: Missing `lookup` in thematic layer
 ```javascript
-map.layer("provinces")
+myMap.layer("provinces")
     .binding({
         // Missing lookup!
         value: "stat"
@@ -405,7 +406,7 @@ The `DOPACITYMAX` type modifier can be added to choropleth layers to create visu
 
 ```javascript
 // Layer 1: Base FEATURE (geometry only)
-map.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "https://raw.githubusercontent.com/openpolis/geojson-italy/master/topojson/limits_IT_provinces.topo.json",
         type: "topojson",
@@ -420,12 +421,13 @@ map.layer("provinces")
     .style({
         colorscheme: ["none"],
         linecolor: "#000000",
-        linewidth: 1.0
+        linewidth: 1.0,
+        showdata: "true"
     })
     .define();
 
 // Layer 2: CHOROPLETH with DOPACITYMAX (uses Layer 1 geometry)
-map.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "https://s3.fr-par.scw.cloud/ixmaps.data/test%20only/mepa-2024-processed.csv",
         type: "csv"
@@ -437,7 +439,7 @@ map.layer("provinces")
     .type("CHOROPLETH|QUANTILE|DOPACITYMAX")  // ← Add dynamic opacity
     .style({
         colorscheme: ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026", "#800026"],
-        opacity: 0.85,          // Base opacity
+        fillopacity: 0.85,          // Base opacity
         dopacitypow: 1,         // Interpolation curve (default: 1 = linear)
         dopacityscale: 1,       // Intensity multiplier (default: 1)
         linecolor: "#000000",
@@ -447,7 +449,7 @@ map.layer("provinces")
     .define();
 
 // Layer 3: BUBBLE overlay (unaffected by DOPACITYMAX)
-map.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "https://s3.fr-par.scw.cloud/ixmaps.data/test%20only/mepa-2024-processed.csv",
         type: "csv"
@@ -459,10 +461,11 @@ map.layer("provinces")
     .type("CHART|BUBBLE|SIZE|VALUES")
     .style({
         colorscheme: ["#006d77"],  // Contrasting teal color
-        opacity: 0.75,
+        fillopacity: 0.75,
         linecolor: "#000000",
         linewidth: 2,
-        scale: 1.2
+        scale: 1.2,
+        showdata: "true"
     })
     .define();
 ```
@@ -541,7 +544,7 @@ DOPACITYMAX provides **redundant encoding**:
 .type("CHOROPLETH|QUANTILE|DOPACITYMAX")
 .style({
     colorscheme: [...],
-    opacity: 0.85,
+    fillopacity: 0.85,
     dopacitypow: 1,       // Curve shape
     dopacityscale: 1,     // Intensity
     showdata: "true"
@@ -559,7 +562,7 @@ For highlighting both minimum AND maximum values (outliers at both extremes), us
 
 ```javascript
 // Highlight both extremes (U-shaped opacity curve)
-map.layer("provinces")
+myMap.layer("provinces")
     .data({
         url: "https://s3.fr-par.scw.cloud/ixmaps.data/test%20only/deviation-data.csv",
         type: "csv"
@@ -572,7 +575,7 @@ map.layer("provinces")
     .style({
         // Diverging scheme: blue (low) → gray (mid) → red (high)
         colorscheme: ["#0571b0", "#92c5de", "#f7f7f7", "#f4a582", "#ca0020"],
-        opacity: 0.85,
+        fillopacity: 0.85,
         dopacitypow: 0.8,      // Steep U-curve (strong emphasis on outliers)
         dopacityscale: 1.1,    // Slightly more opaque
         showdata: "true"

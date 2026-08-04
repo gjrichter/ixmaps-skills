@@ -315,25 +315,52 @@ Is your data...
    own. Use whatever preview/browser capability the calling environment provides (an in-app
    browser pane, a Playwright/Chrome tool, a local preview server). Its absence is a property
    of the environment, not a misconfiguration to fix.
-   - With such a tool: open the file, then confirm **rendered elements exist**:
+   - With such a tool, run this **preflight first — in order. An element count means nothing
+     until all three gates pass**, and a failed gate says the environment cannot verify, *not*
+     that the map is broken:
      ```javascript
-     document.querySelectorAll('#map svg circle, #map svg path, #map svg rect, #map svg image').length
-     // must be > 0 — if it's 0 the map is blank; walk § The Render Contract stages in order
+     // GATE 1 — container has real size. Everything downstream is meaningless without this.
+     var d = document.getElementById('map');
+     d.offsetWidth > 0 && d.offsetHeight > 0        // must be true
+     // GATE 2 — the page actually executed its script
+     typeof window.ixmaps === 'object'              // must be true
+     // GATE 3 — the theme finished drawing (console logs "theme done - <meta.name>");
+     //          poll, don't measure once — drawing completes asynchronously
+     ```
+     Only then the actual test:
+     ```javascript
+     document.querySelectorAll('circle, path, rect, image').length
+     // > 0 = drew. Compare the count and the painted fills against your data
+     // (e.g. N categories → N distinct fills) — that is what proves the join and
+     // the colour mapping, not the raw number.
      ```
      Also check the console is clean and the data sits inside the current view. A screenshot is
      good supporting evidence, but the element count is the actual test — a map can look
      plausible while showing only the basemap.
-     > ⚠️ **Rule out the tool before blaming the map.** If the preview shows a static snapshot,
-     > reports no page open, or leaves `window.ixmaps` undefined, it is probably not executing
-     > JavaScript — some preview panes only do so for files inside the project folder. A
-     > non-executing preview yields an element count of `0`, which is indistinguishable from a
-     > genuinely blank map: a **false negative on the guarantee**. Confirm the page really ran
-     > (`typeof window.ixmaps === "object"`) before concluding anything. If it didn't, open the
-     > file directly in a browser or serve it over HTTP and re-check. A generated map with inline
-     > data needs no server — it works opened straight from disk.
-     > Likewise, if a synthetic `hover`/`click` doesn't raise a tooltip, dispatch a real
-     > `MouseEvent` on the chart group before deciding tooltips are broken — automated pointer
-     > events don't always reach ixMaps' handlers.
+     > ⚠️ **Rule out the tool before blaming the map — these are false negatives, not defects.**
+     > - **Gate 1 failing (`0x0` container) is the worst trap:** a headless, background or
+     >   unfronted tab commonly reports a `0x0` viewport. Then `height:100%` resolves to `0`,
+     >   Leaflet cannot compute tile bounds, and ixMaps cannot size its SVG. The symptom cluster
+     >   is **no basemap + `getZoom()` returning a low fallback value + elements present in the
+     >   DOM at nonsense transforms + counts that change between calls**. Every one of those
+     >   looks like a map bug and none of them is. Check `offsetWidth`/`offsetHeight` before
+     >   reading anything else.
+     > - **Gate 2 failing:** some preview panes render files outside the project folder as static
+     >   snapshots and never execute JavaScript.
+     > - **Gate 3 failing:** measuring before `theme done` undercounts — the same page can report
+     >   3 elements and then 30 seconds later.
+     > - If any gate fails, do not edit the map. Open the file directly in a browser (a map with
+     >   inline data needs no server — it works straight from disk) or serve it over HTTP, and
+     >   re-run the preflight there. If it still cannot be verified, report it **unverified**.
+     > - Likewise, if a synthetic `hover`/`click` doesn't raise a tooltip, dispatch a real
+     >   `MouseEvent` on the chart group before deciding tooltips are broken — automated pointer
+     >   events don't always reach ixMaps' handlers.
+     >
+     > When the tool cannot give you a clean preflight, a **static control** is the honest
+     > fallback and is worth more than a bad measurement: check the emitted code against
+     > § The Render Contract and the Critical Rules (chain order, `showdata`, binding fields
+     > present in the data, `values:` all strings, `meta.name` ≠ layer name), and cross-check
+     > every tooltip `{{field}}` against the actual data keys.
    - **Without one:** re-walk the step-4 checklist, then say plainly that the map is written
      but **unverified**, and give the user the one-line check above to run themselves. Never
      report it as working — an unverified map is exactly where a silent failure hides.

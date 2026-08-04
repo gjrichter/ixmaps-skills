@@ -1127,6 +1127,27 @@ Complete style property reference.
 
 ### Aggregation Properties
 
+> ⚠️ **Omitting `gridwidthpx`/`gridwidth` entirely does not disable `|AGGREGATE` — it changes
+> what it groups by.** Verified in `maptheme.js`'s aggregation dispatch, which branches in this
+> order:
+> 1. `szAggregationField` set → group by that field's value
+> 2. else `nGridWidth` set (i.e. `gridwidth`/`gridwidthpx` given) → snap each point to a
+>    **pixel-sized grid cell** (`newPos`, rounded to the grid), zoom-dependent — points closer
+>    together than the cell can merge
+> 3. else (**neither given**) → group by each point's **exact position**
+>    (`szSelectionId`) — no snapping, no pixel radius, nothing zoom-dependent. Two points a
+>    few metres apart never merge; only points sharing the *identical* coordinate do.
+>
+> There is **no silent default cell size** — a bare `|AGGREGATE` with no grid property groups
+> by exact coordinate match. That is normally what you want for "aggregate several rows that
+> share one point's exact coordinates" (e.g. several dated records geocoded to the same city).
+> Reach for `gridwidthpx` only when you deliberately want a **spatial density grid** — nearby-
+> but-distinct points folding into shared cells (heatmaps, "generalize by area"). Setting it
+> without meaning to introduces the very risk people reach for `gridwidthpx` to get: two real,
+> distinct locations close enough together can silently end up in one aggregated symbol,
+> depending on zoom. Check real inter-point distances in the data before choosing a cell size —
+> don't assume "small" is safe without comparing it to the closest pair.
+
 **gridwidthpx** (string) — ✅ canonical; write this form
 - Grid cell size for aggregation, as a **unitless** numeric string: `"5"`, `"30"`, `"100"`
 - Only used with `|AGGREGATE` types

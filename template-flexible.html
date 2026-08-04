@@ -141,6 +141,13 @@
             // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
             const myMap = ixmaps.Map("map", mapOptions);
 
+            // Set view FIRST — before options and before any layer (see SKILL.md
+            // § Map call sequence): layer symbols size against the current view.
+            myMap.view({
+                center: config.center,
+                zoom: config.zoom
+            });
+
             // Configure options
             const options = {
                 basemapopacity: config.basemapOpacity,
@@ -151,12 +158,6 @@
                 options.normalSizeScale = config.normalSizeScale;
             }
             myMap.options(options);
-
-            // Set view
-            myMap.view({
-                center: config.center,
-                zoom: config.zoom
-            });
 
             // Add legend if title provided
             if (config.legendTitle && config.legendTitle !== "") {

@@ -47,15 +47,15 @@
                 mapType: "{{MAPTYPE}}",
                 mode: "info"
             })
+            .view({
+                center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
+                zoom: {{ZOOM}}
+            })
             .options({
                 objectscaling: "dynamic",
                 normalSizeScale: "{{NORMAL_SIZE_SCALE}}",
                 basemapopacity: {{BASEMAP_OPACITY}},
                 flushChartDraw: {{FLUSH_CHART_DRAW}}
-            })
-            .view({
-                center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
-                zoom: {{ZOOM}}
             })
             .legend("{{LEGEND_TITLE}}");
 

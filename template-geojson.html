@@ -22,13 +22,13 @@
                 mapType: "{{MAPTYPE}}",
                 mode: "info"
             })
-            .options({
-                basemapopacity: {{BASEMAP_OPACITY}},
-                flushChartDraw: {{FLUSH_CHART_DRAW}}
-            })
             .view({
                 center: { lat: {{CENTER_LAT}}, lng: {{CENTER_LNG}} },
                 zoom: {{ZOOM}}
+            })
+            .options({
+                basemapopacity: {{BASEMAP_OPACITY}},
+                flushChartDraw: {{FLUSH_CHART_DRAW}}
             });
 
             myMap.layer("features")

@@ -297,6 +297,9 @@ Is your data...
    - [ ] viztype matches the data shape; join overlay's layer name == its FEATURE base's name
    - [ ] If `objectscaling:"dynamic"` → `normalSizeScale` set
    - [ ] `.view()` centred over the data (object form, Rule 25); lat/lng not transposed
+   - [ ] Map call sequence is `Map(…)` → `.view()` → `.options()` → `.layer()` — `.view()` must
+         precede every `.layer()`, since layer symbols size against the current view (see
+         § Map call sequence)
    - [ ] `.meta()` present with tooltip; `name` in `.meta()` for anything addressed at runtime
    - [ ] Start with `scale: 1` — let user request size adjustments
 
@@ -547,6 +550,23 @@ var myMap = ixmaps.Map("map", {
 Intermediate points every 2° ensure smooth curves in Lambert projection. Define graticule **before** the countries layer so it renders underneath.
 
 ---
+
+**Map call sequence for a map built from scratch — emit these in this order:**
+```javascript
+const myMap = ixmaps.Map("map", { mapType, mode, legend, tools })  // 1. construct
+    .view({ center: { lat: L, lng: G }, zoom: Z })                 // 2. view   — BEFORE options and layers
+    .options({ objectscaling: "dynamic", normalSizeScale: "…" });   // 3. options — after view
+
+myMap.layer("name") /* … */ .define();                             // 4. layers — last
+```
+- **`.view()` before any `.layer()`** is the load-bearing part: layer symbols are sized and
+  positioned against the current view (`objectscaling:"dynamic"` derives symbol size from map
+  scale), so the view must exist before a layer is defined against it.
+- **`.view()` before `.options()`** matches API_REFERENCE.md (`.options()` — "call after
+  `.view()` and before `.layer()`"). The engine tolerates the reverse, so this is
+  canonicalisation for consistency — one sequence to emit, one to review against — not a bug
+  fix. When *reading* an existing map, `.options()` before `.view()` is an accepted variant;
+  leave it alone (see § Two Modes).
 
 **Layer chain (order matters):**
 ```javascript

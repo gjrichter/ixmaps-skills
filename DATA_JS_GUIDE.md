@@ -524,6 +524,28 @@ SQL-like selection. Query string must start with `WHERE`; supports `=`, `<>`, `>
 - **Parameters:** `szSelection` (string) – e.g. `'WHERE "Age" = "Total"'`, `'WHERE "col" BETWEEN "1" AND "10"'`
 - **Returns:** Data.Table (selection)
 
+> ⚠️ **`>`, `<`, `>=`, `<=`, `BETWEEN` coerce both sides through `Number()` — they are
+> numeric-only, not lexicographic/date comparisons.** The row value goes through
+> `parseFloat()` (so `"2026-08-04"` becomes `2026` — everything after the first `-` is
+> discarded), while the query's comparison value goes through the strict `Number()` (so
+> `"2026-08-04"` becomes `NaN`, since `Number()` requires the *whole* string to be numeric).
+> Comparing anything to `NaN` is always `false`, so a range query on an ISO date column
+> — or any non-purely-numeric string — silently returns **zero rows**, with no error and no
+> warning. This is exactly the `BETWEEN "1" AND "10"` example above: it only works because
+> `"1"` and `"10"` happen to parse fully as numbers.
+>
+> `=` and `<>` are safe for any string — they compare the raw values directly
+> (`this.__szValue == this.__szSelectionValue`) with no `Number()` coercion.
+>
+> **For a date-range or other non-numeric-string filter, don't use `select()` at all** — pull
+> the array with `.getArray()` + `.columnNames()` and filter with plain JS string comparison
+> (works correctly for `YYYY-MM-DD`, since lexicographic order matches chronological order):
+> ```javascript
+> var cols = table.columnNames(), rows = table.getArray();
+> var iDate = cols.indexOf("data");
+> var windowRows = rows.filter(function (r) { return r[iDate] >= "2026-07-31" && r[iDate] <= "2026-08-04"; });
+> ```
+
 ---
 
 #### `aggregate(szColumn, szAggregate)` / `aggregate(options)`

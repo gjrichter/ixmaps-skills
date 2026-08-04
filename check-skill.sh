@@ -175,6 +175,20 @@ else
   ok "no bare 'opacity:' in style blocks"
 fi
 
+# table.select() with a range operator (>,<,>=,<=,BETWEEN) compared against a
+# date-shaped literal ("YYYY-MM-DD") is ALWAYS this bug: both sides go through
+# Number(), which is NaN for a date string, so the comparison is always false
+# and select() silently returns zero rows. This pattern-match has no false
+# positives — it's a hard error, not a style warning.
+range_on_date=$(grep -rnE '\.select\([^)]*(>=|<=|>|<|BETWEEN)[^)]*[0-9]{4}-[0-9]{2}-[0-9]{2}' *.md *.html 2>/dev/null || true)
+if [ -n "$range_on_date" ]; then
+  while IFS= read -r h; do
+    err "select() range operator vs a date literal — Number(date) is NaN, always returns 0 rows → $h"
+  done <<< "$range_on_date"
+else
+  ok "no select() range comparison against a date-shaped literal"
+fi
+
 # ------------------------------------------------- 5. render-contract basics
 head_ "Render contract (templates)"
 for t in template*.html; do

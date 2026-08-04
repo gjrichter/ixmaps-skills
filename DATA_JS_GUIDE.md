@@ -277,12 +277,21 @@ Create a **Data.Merger** to join two or more *already-loaded* `Data.Table`s by a
 
 ```javascript
 Data.merger()
-  .addSource(prezzi,   { lookup: "idImpianto", columns: ["descCarburante", "prezzo"] })
-  .addSource(impianti, { lookup: "idImpianto", columns: ["Bandiera", "Latitudine"] })
+  .addSource(prezzi,   { lookup: "idImpianto",
+                         columns: ["descCarburante", "prezzo"],
+                         label:   ["descCarburante", "prezzo"] })   // ← keeps the names
+  .addSource(impianti, { lookup: "idImpianto",
+                         columns: ["Bandiera", "Latitudine"],
+                         label:   ["Bandiera", "Latitudine"] })
   .merge(function(mergedTable) {
     // mergedTable has prezzi's rows enriched with impianti's columns
   });
 ```
+
+> ⚠️ Always pass `label`. Omit it and every column is renamed
+> `"<name>.<sourceIndex + 1>"` (`descCarburante.1`, `Latitudine.2`, …) — the join still
+> succeeds with the right row count, but any `.binding()` using the original names silently
+> renders nothing. Full rule → [`addSource`](#addsourcetable-option).
 
 > **`.merge(callback)`** — `.realize(callback)` is an older alias for the same method, still works.
 
@@ -732,10 +741,35 @@ Register a loaded table as a merge source.
 - **Parameters:** `table` (Data.Table or 2D array), `option` (object) – `{ lookup, columns, label }`:
   - `lookup` (string) – join key column name, present in every source
   - `columns` (array) – which columns from this source to pull into the merged result
-  - `label` (array, optional) – rename incoming columns; positionally matched to `columns`
+  - `label` (array) – output column names, positionally matched to `columns`. **Supply this
+    in practice** — see the renaming rule below
 - **Returns:** this
 
 The **first** `addSource` call provides the row backbone; every subsequent source is looked up by matching `lookup` values.
+
+> ⚠️ **Omitting `label` renames every merged column — including the first source's.**
+> For each source, any column with no `label` entry is emitted as
+> `"<columnName>.<sourceIndex + 1>"`. So with two sources and no labels:
+>
+> | source | `columns` | resulting merged column |
+> |---|---|---|
+> | 0 (first) | `livello` | `livello.1` |
+> | 0 (first) | `citta`   | `citta.1`   |
+> | 1 (second)| `latitude`| `latitude.2`|
+>
+> This is **not** collision-avoidance — it applies even when nothing collides, and even to
+> the backbone source. A downstream `.binding({ geo: "latitude|longitude", value: "livello" })`
+> then references columns that do not exist: the theme loads, the join succeeds, the row count
+> is correct, and **nothing renders — with no error**.
+>
+> To keep the original names, pass `label` identical to `columns`:
+> ```javascript
+> .addSource(bolletini, { lookup: "citta",
+>                         columns: ["citta", "livello"],
+>                         label:   ["citta", "livello"] })   // ← names preserved
+> ```
+> Because a correct row count does **not** indicate correct column names, verify the merged
+> headers themselves — `mergedTable.columnNames()` — before binding to them.
 
 ---
 
@@ -761,8 +795,14 @@ Perform the join. Calls the callback with the merged **Data.Table**.
 
 ```javascript
 Data.merger()
-  .addSource(prezzi,   { lookup: "idImpianto", columns: ["descCarburante", "prezzo"] })
-  .addSource(impianti, { lookup: "idImpianto", columns: ["Bandiera", "Latitudine"] })
+  // label: is what keeps the output names — without it these become
+  // descCarburante.1, prezzo.1, Bandiera.2, Latitudine.2
+  .addSource(prezzi,   { lookup: "idImpianto",
+                         columns: ["descCarburante", "prezzo"],
+                         label:   ["descCarburante", "prezzo"] })
+  .addSource(impianti, { lookup: "idImpianto",
+                         columns: ["Bandiera", "Latitudine"],
+                         label:   ["Bandiera", "Latitudine"] })
   .merge(function(mergedTable) {
     var selection = mergedTable.select('WHERE tipo_riga == "LI"');
   });

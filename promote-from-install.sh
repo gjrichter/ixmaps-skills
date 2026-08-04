@@ -76,11 +76,13 @@ if [ ${#CHANGED[@]} -eq 0 ] && [ ${#NEW[@]} -eq 0 ] && [ ${#GONE[@]} -eq 0 ]; th
   exit 0
 fi
 
-[ ${#CHANGED[@]} -gt 0 ] && { echo "Modified (${#CHANGED[@]}):"; printf '  M  %s\n' "${CHANGED[@]}"; }
-[ ${#NEW[@]}     -gt 0 ] && { echo "New (${#NEW[@]}) — will need 'git add':"; printf '  +  %s\n' "${NEW[@]}"; }
+# NOTE: bash 3.2 (macOS default) treats an empty array as unset under `set -u`,
+# so every expansion below is guarded with the ${arr[@]+...} idiom.
+[ ${#CHANGED[@]} -gt 0 ] && { echo "Modified (${#CHANGED[@]}):"; printf '  M  %s\n' ${CHANGED[@]+"${CHANGED[@]}"}; }
+[ ${#NEW[@]}     -gt 0 ] && { echo "New (${#NEW[@]}) — will need 'git add':"; printf '  +  %s\n' ${NEW[@]+"${NEW[@]}"}; }
 [ ${#GONE[@]}    -gt 0 ] && {
   echo "In repo but NOT in the working copy (${#GONE[@]}) — left untouched, remove by hand if intended:"
-  printf '  ?  %s\n' "${GONE[@]}"; }
+  printf '  ?  %s\n' ${GONE[@]+"${GONE[@]}"}; }
 
 if [ "$APPLY" -eq 0 ]; then
   printf '\nDry run. Re-run with --apply to promote.\n'
@@ -98,12 +100,12 @@ fi
 
 # -------------------------------------------------------------------- copy
 printf '\n'
-for b in "${CHANGED[@]}" "${NEW[@]}"; do
+for b in ${CHANGED[@]+"${CHANGED[@]}"} ${NEW[@]+"${NEW[@]}"}; do
   cp "$SRC/$b" "$REPO/$b" && echo "  copied $b"
 done
 
 printf '\n\033[1mStaged-for-review diff\033[0m\n'
 git --no-pager diff --stat
 printf '\nNext:\n  git diff              # review\n  git add -p            # stage deliberately\n  git commit && git push\n'
-[ ${#NEW[@]} -gt 0 ] && printf '  git add %s\n' "$(printf '%s ' "${NEW[@]}")"
+[ ${#NEW[@]} -gt 0 ] && printf '  git add %s\n' "$(printf '%s ' ${NEW[@]+"${NEW[@]}"})"
 exit 0

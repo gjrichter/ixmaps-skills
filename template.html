@@ -110,12 +110,13 @@
 
         myMap.layer("{{LAYER_ID}}")
             .data({{DATA_CONFIG}})
-            .binding({{BINDING}})
+            .binding({{BINDING}})        // MUST include geo (+ value on data-driven layers)
             .type("{{VIZ_TYPE}}")
-            .style({{STYLE}})
+            .style({{STYLE}})            // MUST include showdata: "true" — without it the
+                                         // layer loads but draws nothing, with no error
             .meta({{META}})
             .title("{{LAYER_TITLE}}")
-            .define();
+            .define();                   // required — closes and registers the layer
 
         // Hide loading indicator when map is ready
         setTimeout(function() {

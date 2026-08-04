@@ -323,6 +323,17 @@ Is your data...
      Also check the console is clean and the data sits inside the current view. A screenshot is
      good supporting evidence, but the element count is the actual test — a map can look
      plausible while showing only the basemap.
+     > ⚠️ **Rule out the tool before blaming the map.** If the preview shows a static snapshot,
+     > reports no page open, or leaves `window.ixmaps` undefined, it is probably not executing
+     > JavaScript — some preview panes only do so for files inside the project folder. A
+     > non-executing preview yields an element count of `0`, which is indistinguishable from a
+     > genuinely blank map: a **false negative on the guarantee**. Confirm the page really ran
+     > (`typeof window.ixmaps === "object"`) before concluding anything. If it didn't, open the
+     > file directly in a browser or serve it over HTTP and re-check. A generated map with inline
+     > data needs no server — it works opened straight from disk.
+     > Likewise, if a synthetic `hover`/`click` doesn't raise a tooltip, dispatch a real
+     > `MouseEvent` on the chart group before deciding tooltips are broken — automated pointer
+     > events don't always reach ixMaps' handlers.
    - **Without one:** re-walk the step-4 checklist, then say plainly that the map is written
      but **unverified**, and give the user the one-line check above to run themselves. Never
      report it as working — an unverified map is exactly where a silent failure hides.

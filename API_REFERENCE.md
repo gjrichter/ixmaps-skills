@@ -12,20 +12,21 @@ Complete reference for the ixMaps JavaScript API.
 6. [Binding Configuration](#binding-configuration)
 7. [Style Properties](#style-properties)
 8. [Visualization Types](#visualization-types)
-9. [Multi-Variable Charts](#multi-variable-charts)
-10. [CHART|SYMBOL|SEQUENCE — Categorical Symbol Stack](#chartsymbolsequence--categorical-symbol-stack)
-11. [CHART|SYMBOL|PLOT|LINES — Time-Series Curve Chart](#chartsymbolplotlines--time-series-curve-chart)
-12. [CHART|SYMBOL|PLOT|LINES — Curves Anchored to Geo-Points](#chartsymbolplotlines--curves-anchored-to-geo-points-no-grid)
-13. [CHART|SYMBOL|PLOT|LINES — Pattern A vs Pattern B](#chartsymbolplotlines--pattern-a-vs-pattern-b-choosing-the-right-shape)
-14. [Color Schemes](#color-schemes)
-15. [Meta Configuration](#meta-configuration)
-16. [Complete API Flow](#complete-api-flow)
-17. [Common Property Conflicts](#common-property-conflicts)
-18. [View-Dependent Statistics](#view-dependent-statistics--ixmapsdatagetfacets)
-19. [Quick Reference Card](#quick-reference-card)
-20. [Time Slider](#time-slider--timefield-in-binding)
-21. [Programmatic Time Control](#programmatic-time-control--ixmapssetthemetimeframe)
-22. [CHART|USER — Custom Draw Functions](#chartuser--custom-draw-functions)
+9. [Chart Shapes, and Two Independent Ways to Handle Shared Positions](#chart-shapes-and-two-independent-ways-to-handle-shared-positions)
+10. [Multi-Variable Charts](#multi-variable-charts)
+11. [CHART|SYMBOL|SEQUENCE — Categorical Symbol Stack](#chartsymbolsequence--categorical-symbol-stack)
+12. [CHART|SYMBOL|PLOT|LINES — Time-Series Curve Chart](#chartsymbolplotlines--time-series-curve-chart)
+13. [CHART|SYMBOL|PLOT|LINES — Curves Anchored to Geo-Points](#chartsymbolplotlines--curves-anchored-to-geo-points-no-grid)
+14. [CHART|SYMBOL|PLOT|LINES — Pattern A vs Pattern B](#chartsymbolplotlines--pattern-a-vs-pattern-b-choosing-the-right-shape)
+15. [Color Schemes](#color-schemes)
+16. [Meta Configuration](#meta-configuration)
+17. [Complete API Flow](#complete-api-flow)
+18. [Common Property Conflicts](#common-property-conflicts)
+19. [View-Dependent Statistics](#view-dependent-statistics--ixmapsdatagetfacets)
+20. [Quick Reference Card](#quick-reference-card)
+21. [Time Slider](#time-slider--timefield-in-binding)
+22. [Programmatic Time Control](#programmatic-time-control--ixmapssetthemetimeframe)
+23. [CHART|USER — Custom Draw Functions](#chartuser--custom-draw-functions)
 
 ---
 
@@ -1393,6 +1394,48 @@ Complete visualization type reference.
 **CHART|DOT|AGGREGATE**
 - Density grid with dots
 - Use with: `value: "$item$"` and `gridwidth` in style
+
+---
+
+## Chart Shapes, and Two Independent Ways to Handle Shared Positions
+
+### Shapes
+
+`BUBBLE`, `SQUARE`, and `LABEL` sit at the same level — interchangeable point-chart shapes
+(circle, square, horizontal rectangle respectively). Every other modifier (`SIZE`, `CATEGORICAL`,
+`AGGREGATE`, `3D`, …) applies the same way regardless of which shape is chosen; the shape only
+changes what gets drawn, not how binding/style/aggregation work.
+
+### `AGGREGATE` vs `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` — do not conflate these
+
+Both exist to handle several items sharing one map position, but they solve it in opposite ways,
+and **neither requires the other**:
+
+| | `AGGREGATE` | `MULTIPLE` / `MULTIGRID` / `MULTIQUAD` |
+|---|---|---|
+| **What it does** | Detects same-position items, then **merges them into one item**. Position handling: snaps to a pixel grid if `gridwidth`/`gridwidthpx` is set, otherwise groups by exact coordinate match (see § Aggregation Properties above). With `CATEGORICAL`, the merged item holds an **array** of values — one per unique category found — which `PIE`/`SEQUENCE`/`BAR` etc. then render as slices/segments. | Detects same-position items and **keeps every one of them as its own separate item**, offsetting each into a grid/pattern (`MULTIGRID`/`MULTIQUAD`) or a stacked line (`MULTIPLE`) so they don't visually overlap. Nothing is merged or counted. |
+| **Where it runs** | `aggregateValues()` — a distinct pass that runs (or, absent `AGGREGATE`/`GROUP`, immediately returns and does nothing) before drawing. | Inside the draw loop itself (`chartMap`), per item, using a running position registry (`chartPosA`) keyed by screen position — entirely independent of whether `AGGREGATE` is present. |
+| **Result for N items at one point** | 1 item, holding up to N aggregated values | N items, still N distinct items, just spread apart |
+| **Typical use** | "How many of each category at this point?" — `PIE`, `SEQUENCE`, density grids | "Show me all N records individually, don't let them hide each other" — e.g. several dated records geocoded to the same point, each kept as its own coloured/sized symbol |
+
+Setting both is possible but rarely intended: `AGGREGATE` already collapses N items into 1, so by
+the time `MULTIGRID`'s per-item spreading would run there is nothing left to spread.
+
+> ⚠️ **Do not infer from one comment in the source that `MULTIGRID` needs `AGGREGATE`.**
+> `aggregateValues()` contains a code branch whose comment mentions "needed for MULTIPLE or
+> MULTIGRID" — but that branch handles what happens *if* aggregation is already running
+> (whether to merge into one multi-value item or keep items distinct), not whether `MULTIGRID`'s
+> own position-spreading needs aggregation to be enabled at all. It doesn't. If checking this
+> against source, read `chartMap`'s `chartPosA` handling, not the top of `aggregateValues()`.
+
+**Style properties for `MULTIGRID`/`MULTIQUAD` spacing:**
+- `gridx` — items per row before wrapping (default `7`). ⚠️ **`gridx` means something different
+  on `BAR|STACKED`** (see above: there it's values-per-bar-group) — same property name, unrelated
+  meaning, gated by which chart type it's attached to.
+- `rangescale` — scale factor feeding the per-item spacing distance; larger spreads items further
+  apart. Also controls chart size elsewhere (see § Style Properties) — same dual-purpose caveat
+  as `gridx`.
+- `UP` — lay the grid out top-to-bottom instead of the default left-to-right.
 
 ---
 

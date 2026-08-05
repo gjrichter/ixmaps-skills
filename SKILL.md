@@ -181,6 +181,7 @@ These produce **no error, no warning, no console message** — the map just sile
 | 17 | Called global `ixmaps.layer(name)....define()` and never passed the result to `myMap.layer(theme)` | Data loads, theme registers, legend can even populate with the correct value range — but zero elements render (0 `<circle>`/`<path>` in the map SVG) | Use `myMap.layer(name)....define()` inline on the captured instance, **or** if using define-then-add, follow it with `myMap.layer(theme)` / `myMap.layer(theme, "direct")` — see Rule 1a |
 | 18 | Used `Data.merger()` without `label:` in `addSource`, then bound to the original column names | **Every** merged column is renamed `"<name>.<sourceIndex + 1>"` — including the first source's (`livello.1`, `latitude.2`). The join succeeds, the row count is exactly right, no error is logged — and nothing renders, because `.binding()` points at columns that no longer exist | Pass `label` positionally matching `columns` (`label` identical to `columns` keeps the names). A correct row count proves nothing here — check `mergedTable.columnNames()`. See DATA_JS_GUIDE.md § Data.Merger |
 | 19 | Used `table.select('WHERE "col" >= "…"')` (or `<=`/`>`/`<`/`BETWEEN`) on a date or other non-purely-numeric string column | Both sides of the comparison are coerced through `Number()`; a value like `"2026-08-04"` becomes `NaN` on the query side (and is truncated to `2026` on the row side), so the comparison is always false. `select()` returns an empty table — no error, no warning | Never use `>`,`<`,`>=`,`<=`,`BETWEEN` in `select()` on non-numeric strings (dates included). Use `.getArray()` + `.columnNames()` and filter with plain JS string comparison instead — correct for `YYYY-MM-DD` since lexicographic order matches chronological order. `=` and `<>` are unaffected and safe for any string. See DATA_JS_GUIDE.md § `select(szSelection)` |
+| 20 | Added `AGGREGATE\|COUNT` to a `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` theme, reasoning that `MULTIGRID` needs `AGGREGATE` (a comment inside the engine's aggregation code mentions both together) | `COUNT` (or `SUM`) selects the merge-into-one-item path shared with `PIE`/`SEQUENCE`/`BAR` — it collapses all N same-position records into a single item holding a value array. `MULTIGRID`'s draw-time position-spreading then has only 1 item to place, not N — theme reports done, one item renders instead of the N-item grid you were expecting, no error | `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` need **no** `AGGREGATE` at all — their position-spreading runs in the draw loop on whatever items already exist (one per record, by default), independent of `AGGREGATE`. See § Chart Shapes above |
 
 ---
 
@@ -214,8 +215,11 @@ Is your data...
 │  ├─ Sparklines per grid cell?          → CHART|SYMBOL|PLOT|LINES  (see Sparklines below)
 │  ├─ Flows origin→destination?          → CHART|VECTOR|BEZIER|POINTER
 │  ├─ Multi-value per point?             → CHART|SYMBOL|SEQUENCE  (|STAR for 5+ categories)
+│  ├─ Several records at ONE point, want to MERGE them into counts/sum? → add |AGGREGATE (+ COUNT/SUM) — see § Chart Shapes below
+│  ├─ Several records at ONE point, want ALL of them visible, not merged? → add |MULTIPLE, |MULTIGRID, or |MULTIQUAD instead — NOT |AGGREGATE (see § Chart Shapes below — these two are independent mechanisms, easy to conflate)
 │  └─ Stacked/grouped bars per location? → CHART|BAR|STACKED  (add |SIZE|GRID|BOX|VALUES for full display)
 │     gridx:N in .style() = values per bar group (gridx:2 → 2 segments per bar; gridx:3 → 3 separate bars)
+│     ⚠️ gridx also controls |MULTIGRID/|MULTIQUAD spacing (items per row) — same name, unrelated meaning there
 │
 └─ Polygons (GeoJSON/TopoJSON)?
    ├─ Boundaries only?                   → FEATURE
@@ -251,6 +255,35 @@ Is your data...
 | `MEAN` | Arithmetic mean |
 | `MIN` | Minimum value |
 | `MAX` | Maximum value |
+
+### § Chart Shapes — and two independent ways to handle shared positions
+
+`BUBBLE` / `SQUARE` / `LABEL` are interchangeable shapes (circle / square / horizontal
+rectangle) — every other modifier applies the same way regardless of which one is picked.
+
+Two **separate** mechanisms exist for when several records land on the same point, and they do
+opposite things — do not use one where you mean the other:
+
+- **`AGGREGATE`** (+ `COUNT`/`SUM`/…) — detects same-position items and **merges them into one
+  item**. With `CATEGORICAL`, that one item holds an array of per-category values, which
+  `PIE`/`SEQUENCE`/`BAR` render as slices/segments. Position handling: pixel-grid snap if
+  `gridwidth`/`gridwidthpx` is set, else exact-coordinate grouping (§ Aggregation Properties,
+  API_REFERENCE.md).
+- **`MULTIPLE` / `MULTIGRID` / `MULTIQUAD`** — detects same-position items and **keeps every one
+  of them as its own separate item**, offsetting each into a grid/pattern so they don't overlap.
+  Nothing is merged or counted.
+
+**These are independent — neither requires the other, and combining them is rarely useful**
+(if `AGGREGATE` already merged N items into 1, there's nothing left for `MULTIGRID` to spread).
+`gridx` controls `MULTIGRID`/`MULTIQUAD` spacing (items per row, default 7) — same property name
+as the unrelated `BAR|STACKED` meaning above; which one applies depends on the chart type it's
+attached to.
+
+> ⚠️ Don't infer from a comment inside the engine's aggregation code that `MULTIGRID` needs
+> `AGGREGATE` — a comment there mentions both together, but `MULTIGRID`'s position-spreading runs
+> in the draw loop itself, independent of whether `AGGREGATE` is present. It was verified this way
+> by reading the actual dispatch, not inferred from that comment. See API_REFERENCE.md § Chart
+> Shapes for the full mechanism and a worked comparison table.
 
 **Classification methods** (used with `CHOROPLETH` and `CHART`):
 

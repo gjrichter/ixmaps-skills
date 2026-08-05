@@ -12,7 +12,7 @@ Complete reference for the ixMaps JavaScript API.
 6. [Binding Configuration](#binding-configuration)
 7. [Style Properties](#style-properties)
 8. [Visualization Types](#visualization-types)
-9. [Chart Shapes, and Two Independent Ways to Handle Shared Positions](#chart-shapes-and-two-independent-ways-to-handle-shared-positions)
+9. [Chart Shapes, and Three Ways to Handle Shared Positions](#chart-shapes-and-three-ways-to-handle-shared-positions)
 10. [Multi-Variable Charts](#multi-variable-charts)
 11. [CHART|SYMBOL|SEQUENCE — Categorical Symbol Stack](#chartsymbolsequence--categorical-symbol-stack)
 12. [CHART|SYMBOL|PLOT|LINES — Time-Series Curve Chart](#chartsymbolplotlines--time-series-curve-chart)
@@ -1397,7 +1397,7 @@ Complete visualization type reference.
 
 ---
 
-## Chart Shapes, and Two Independent Ways to Handle Shared Positions
+## Chart Shapes, and Three Ways to Handle Shared Positions
 
 ### Shapes
 
@@ -1406,27 +1406,50 @@ Complete visualization type reference.
 `AGGREGATE`, `3D`, …) applies the same way regardless of which shape is chosen; the shape only
 changes what gets drawn, not how binding/style/aggregation work.
 
-### `AGGREGATE` vs `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` — do not conflate these
+### `AGGREGATE` vs `GROUP` vs `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` — do not conflate these
 
-Both exist to handle several items sharing one map position, but they solve it in opposite ways,
-and **neither requires the other**:
+Three modifiers exist to handle several items sharing one map position. `AGGREGATE` and `GROUP`
+share one detection pass and gate the *same* merge decision in opposite directions; `MULTIPLE` /
+`MULTIGRID` / `MULTIQUAD` are a fully separate, independent mechanism:
 
-| | `AGGREGATE` | `MULTIPLE` / `MULTIGRID` / `MULTIQUAD` |
+**Layer 1 — detection (`aggregateValues()`), entered by either `AGGREGATE` or `GROUP`:**
+
+Same-position items are found by snapping to a pixel grid if `gridwidth`/`gridwidthpx` is set,
+otherwise by grouping on exact coordinate match (see § Aggregation Properties above). What
+happens next is where `AGGREGATE` and `GROUP` diverge:
+
+| | `AGGREGATE` | `GROUP` |
 |---|---|---|
-| **What it does** | Detects same-position items, then **merges them into one item**. Position handling: snaps to a pixel grid if `gridwidth`/`gridwidthpx` is set, otherwise groups by exact coordinate match (see § Aggregation Properties above). With `CATEGORICAL`, the merged item holds an **array** of values — one per unique category found — which `PIE`/`SEQUENCE`/`BAR` etc. then render as slices/segments. | Detects same-position items and **keeps every one of them as its own separate item**, offsetting each into a grid/pattern (`MULTIGRID`/`MULTIQUAD`) or a stacked line (`MULTIPLE`) so they don't visually overlap. Nothing is merged or counted. |
-| **Where it runs** | `aggregateValues()` — a distinct pass that runs (or, absent `AGGREGATE`/`GROUP`, immediately returns and does nothing) before drawing. | Inside the draw loop itself (`chartMap`), per item, using a running position registry (`chartPosA`) keyed by screen position — entirely independent of whether `AGGREGATE` is present. |
-| **Result for N items at one point** | 1 item, holding up to N aggregated values | N items, still N distinct items, just spread apart |
-| **Typical use** | "How many of each category at this point?" — `PIE`, `SEQUENCE`, density grids | "Show me all N records individually, don't let them hide each other" — e.g. several dated records geocoded to the same point, each kept as its own coloured/sized symbol |
+| **What it does** | **Merges** same-position items into one item. With `CATEGORICAL`, the merged item holds an **array** of values — one per unique category found — which `PIE`/`SEQUENCE`/`BAR` etc. then render as slices/segments. | **Never merges.** Sorts the same-position items by value (`UP`/`DOWN` direction) and re-keys them to share one selection id, reinserting each under its own unique key. Item count is unchanged. |
+| **Result for N items at one point** | 1 item, holding up to N aggregated values | N items — still N, now sorted and sharing a selection id |
+| **Typical use** | "How many of each category at this point?" — `PIE`, `SEQUENCE`, density grids | "These N points are nearly (not exactly) coincident — snap them together and give them a defined stack order" before spreading with `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` |
+| **Combine with `MULTIPLE`/`MULTIGRID`/`MULTIQUAD`?** | Rarely useful — by the time the spreading pass runs there's only 1 item left to place | This is the intended pairing — `GROUP` positions/sorts, `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` then spreads the still-N items apart |
 
-Setting both is possible but rarely intended: `AGGREGATE` already collapses N items into 1, so by
-the time `MULTIGRID`'s per-item spreading would run there is nothing left to spread.
+`AGGREGATE` and `GROUP` are mutually exclusive in effect: both enter `aggregateValues()` and gate
+the same code path, and only one direction (merge vs skip-merge-but-sort) can apply per theme.
+
+**Layer 2 — spreading (`chartMap`'s `chartPosA` position registry), triggered by `MULTIPLE` /
+`MULTIGRID` / `MULTIQUAD`:**
+
+This runs inside the draw loop itself, per item, keyed by **resolved screen position**
+(`getNodePosition()`'s x,y) — entirely independent of whether `AGGREGATE` or `GROUP` ran at all.
+It detects items that resolve to the same screen position and **keeps every one of them as its
+own separate item**, offsetting each into a grid/pattern (`MULTIGRID`/`MULTIQUAD`) or a stacked
+line (`MULTIPLE`) so they don't visually overlap. Nothing is merged or counted here.
+
+If your source records already share identical (or pixel-close) coordinates, `MULTIPLE` /
+`MULTIGRID` / `MULTIQUAD` alone is enough — no `GROUP` needed. Add `GROUP` only when points are
+close but not identical (so a `gridwidth`/`gridwidthpx` snap is needed to make them collide in
+Layer 2 at all) or when you need a defined value-based sort/stack order that Layer 2's
+position-only comparison can't provide.
 
 > ⚠️ **Do not infer from one comment in the source that `MULTIGRID` needs `AGGREGATE`.**
 > `aggregateValues()` contains a code branch whose comment mentions "needed for MULTIPLE or
 > MULTIGRID" — but that branch handles what happens *if* aggregation is already running
-> (whether to merge into one multi-value item or keep items distinct), not whether `MULTIGRID`'s
-> own position-spreading needs aggregation to be enabled at all. It doesn't. If checking this
-> against source, read `chartMap`'s `chartPosA` handling, not the top of `aggregateValues()`.
+> (whether to merge into one multi-value item or keep items distinct via `GROUP`), not whether
+> `MULTIGRID`'s own position-spreading (Layer 2) needs `AGGREGATE`/`GROUP` to be enabled at all.
+> It doesn't. If checking this against source, read `chartMap`'s `chartPosA` handling, not the
+> top of `aggregateValues()`.
 
 **Style properties for `MULTIGRID`/`MULTIQUAD` spacing:**
 - `gridx` — items per row before wrapping (default `7`). ⚠️ **`gridx` means something different

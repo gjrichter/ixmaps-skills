@@ -87,7 +87,7 @@ This skill enables Claude to generate complete HTML files with interactive geogr
 
 ### Documentation Files
 
-- **SKILL.md** - Main skill instructions (~1,150 lines)
+- **SKILL.md** - Main skill instructions (~1,380 lines)
   - Critical rules + silent-failure hotspots highlighted at top
   - Decision tree for choosing visualization types
   - Core patterns inline; deeper detail delegated to the reference files below
@@ -211,7 +211,8 @@ This skill enables Claude to generate complete HTML files with interactive geogr
 ### Documentation Improvements
 
 2. ✅ **SKILL.md** - Restructured (the v2.0 overhaul cut it to ~326 lines; it has since
-   grown to ~1,150 as new patterns were documented)
+   grown to ~1,380 as new patterns were documented, with periodic trim passes moving
+   duplicated depth out to API_REFERENCE.md as it's spotted)
    - Added decision tree for choosing visualization types
    - Consolidated critical rules + silent-failure hotspots at top
    - Better organization and clearer structure

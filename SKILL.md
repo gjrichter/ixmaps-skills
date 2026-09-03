@@ -109,7 +109,7 @@ rather than implying it works.
 8a. **NEVER use reserved HTML element IDs** — ixMaps owns `loading-div`, `tooltip`, `contextmenu`. Using them causes visible artifacts (a white box stuck on the map). Use `app-loading` or any other non-conflicting name for your own overlays.
 9. **Use `fillopacity`, not `opacity`, to control transparency** in `.style()` — `fillopacity` fades only the fill; `opacity` fades the whole SVG element (fill *and* stroke/border). `fillopacity` is what most map styling calls for
 10. **NEVER use `fillcolor`** — use `colorscheme: ["#hex"]`
-11. **NEVER add `.legend("string")`** unless user explicitly requests it — destroys the default color legend
+11. **NEVER add `.legend("string")`** unless user explicitly requests it — destroys the default color legend. For a map title, use `.title("...")` on the layer instead; for subtitle/description text, use `meta.snippet`/`meta.description` — see § Map title, subtitle & description
 12. **ALWAYS use CDN** `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js`
     - **data.js** (`https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js`) is **already loaded by ixmaps** — `Data.*` functions are available inside `query:` and `process:` callbacks without any extra `<script>` tag
     - **Only include the data.js CDN explicitly** when you need `Data.*` functions *outside* ixmaps theme realization (e.g. pre-processing data in your own `<script>` block before defining layers)
@@ -184,6 +184,8 @@ These produce **no error, no warning, no console message** — the map just sile
 | 19 | Used `table.select('WHERE "col" >= "…"')` (or `<=`/`>`/`<`/`BETWEEN`) on a date or other non-purely-numeric string column | Both sides of the comparison are coerced through `Number()`; a value like `"2026-08-04"` becomes `NaN` on the query side (and is truncated to `2026` on the row side), so the comparison is always false. `select()` returns an empty table — no error, no warning | Never use `>`,`<`,`>=`,`<=`,`BETWEEN` in `select()` on non-numeric strings (dates included). Use `.getArray()` + `.columnNames()` and filter with plain JS string comparison instead — correct for `YYYY-MM-DD` since lexicographic order matches chronological order. `=` and `<>` are unaffected and safe for any string. See DATA_JS_GUIDE.md § `select(szSelection)` |
 | 20 | Added `AGGREGATE\|COUNT` to a `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` theme, reasoning that `MULTIGRID` needs `AGGREGATE` (a comment inside the engine's aggregation code mentions both together) | `COUNT` (or `SUM`) selects the merge-into-one-item path shared with `PIE`/`SEQUENCE`/`BAR` — it collapses all N same-position records into a single item holding a value array. `MULTIGRID`'s draw-time position-spreading then has only 1 item to place, not N — theme reports done, one item renders instead of the N-item grid you were expecting, no error | `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` need **no** `AGGREGATE` at all — their position-spreading runs in the draw loop on whatever items already exist (one per record, by default), independent of `AGGREGATE`. See § Chart Shapes above |
 | 21 | Assumed `GROUP` merges values too, since it enters the same engine function (`aggregateValues()`) as `AGGREGATE` and the function name itself says "aggregate" | It doesn't — `GROUP` explicitly skips the merge branch. Item count stays N (nothing collapses), only position (snap) and order (sort by value, `UP`/`DOWN`) change. Code that then reads a merged multi-value array (e.g. expects `CATEGORICAL` slices) finds N separate single-value items instead — chart renders, but not the shape expected, no error | `GROUP` and `AGGREGATE` gate the *same* decision in opposite directions — only one of them ever applies. If you need merged category counts, use `AGGREGATE`; if you need N individual items snapped/sorted for `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` to then spread, use `GROUP`. See § Chart Shapes above |
+| 22 | Used `colorfield` (style) on a `CHART\|BUBBLE` theme to color bubbles by a field different from the one driving size/value (the pattern documented for CHOROPLETH/VECTOR/DOT categorical coloring) | Every bubble renders in **one single color** — `colorScheme[0]` — regardless of the per-item class, which IS computed correctly (`itemA[a].nClass`/`.szColor` resolve right) but the BUBBLE draw path never reads them: it recomputes color fresh from the chart *value* (`nClass = nValue − 1`), ignoring `colorfield` entirely. No error, no warning — the legend can even show the right classes while every bubble on the map is identical | `colorfield` genuinely doesn't work on BUBBLE. Use the **category field as `binding.value` directly** instead (§ Special Patterns "CATEGORICAL + bubble size from a numeric field" — this is the engine's own supported path for BUBBLE categorical color, decoupled size via `binding.size`). If you truly need `colorfield` semantics (color field ≠ value field) keep the chart as `CHART\|SYMBOL` instead of `BUBBLE` (`symbols:"circle"` looks identical) — SYMBOL's draw path does read the resolved per-item color |
+| 23 | Assumed hover/tooltip priority among overlapping `CHART` themes on the same or nearby geometry follows visual z-order (later `.layer()` call = drawn on top = wins hover) | It follows **definition order** instead — the theme defined **earlier** in the `.layer(...)` chain wins hover, even when a later-defined theme is visually on top. A `VECTOR`/`BEZIER` line theme also has a mouse hit-area noticeably wider than its rendered stroke, so an early-defined flow/line theme can silently steal hover from nearby `BUBBLE`/`CHOROPLETH` points that only *look* unrelated. No error — the wrong theme's tooltip just shows | Reorder `.layer(...)` calls: put the theme you want hover/tooltip priority for **earliest**, and push wide-hit-area `VECTOR`/`BEZIER` line themes as **late** as possible in the chain. If a tooltip shows the "wrong" theme's content, suspect layer *order* before debugging tooltip HTML/CSS |
 
 ---
 
@@ -236,7 +238,7 @@ Is your data...
 - `|DOPACITYMINMAX` — dynamic opacity (extremes prominent)
 - `|CATEGORICAL` — discrete category coloring; `values:` array in style maps to `colorscheme` in order
 - `|SILENT` — excludes layer from legend, statistics **and** suppresses tooltips on its items
-- `|NOLEGEND` — excludes layer from legend only (tooltips still work)
+- `|NOLEGEND` / `|NOINFO` — excludes layer from legend only (tooltips still work); this is also what suppresses that layer's own "loading ..." splash text in the legend panel while its data is still processing — `.meta({splash:"..."})` only changes that text, it doesn't suppress it
 - `|NOOUTLIER` — removes extreme outliers from classification calculations
 - `|ZEROISNOTVALUE` — suppresses rendering where value ≤ 0 (useful for sparse/incomplete time series)
 - `|NOSCALE` — disables dynamic zoom scaling; flows/symbols stay constant size regardless of zoom
@@ -259,48 +261,33 @@ Is your data...
 | `MIN` | Minimum value |
 | `MAX` | Maximum value |
 
-### § Chart Shapes — and three ways to handle shared positions
+### § Chart Shapes — and four ways to handle shared positions
 
 `BUBBLE` / `SQUARE` / `LABEL` are interchangeable shapes (circle / square / horizontal
 rectangle) — every other modifier applies the same way regardless of which one is picked.
 
-Three **separate** mechanisms exist for when several records land on the same (or nearly the
-same) point. Two of them share the same position-detection code but differ on whether they merge;
-the third is fully independent of both — do not use one where you mean another:
+Four ways exist to handle several records landing on the same (or nearly the same) point —
+picking the wrong one is a common source of "renders, but not the shape I expected" with no error:
 
-- **`AGGREGATE`** (+ `COUNT`/`SUM`/…) — detects same-position items and **merges them into one
-  item**. With `CATEGORICAL`, that one item holds an array of per-category values, which
-  `PIE`/`SEQUENCE`/`BAR` render as slices/segments. Position handling: pixel-grid snap if
-  `gridwidth`/`gridwidthpx` is set, else exact-coordinate grouping (§ Aggregation Properties,
-  API_REFERENCE.md).
-- **`GROUP`** — enters the **same** detection pass as `AGGREGATE` (same pixel-grid-snap-or-
-  exact-match rule), but **never merges**. It sorts the same-position items by value (`UP`/`DOWN`
-  direction) and re-keys them to share one selection id, while keeping every item as its own
-  entry — item count stays N, not 1. It exists to (a) snap NEARLY-coincident points onto one shared
-  position via `gridwidth`/`gridwidthpx` before spreading them, or (b) impose a defined sort/stack
-  order — cases plain `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` can't handle on their own, since those only
-  compare already-resolved screen position with no notion of value order.
-- **`MULTIPLE` / `MULTIGRID` / `MULTIQUAD`** — detects same-position items and **keeps every one
-  of them as its own separate item**, offsetting each into a grid/pattern so they don't overlap.
-  Nothing is merged or counted. This runs in the draw loop on resolved screen position, entirely
-  independent of `AGGREGATE`/`GROUP` — if your source records already share identical coordinates
-  (or close enough to resolve to the same pixel), `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` alone is
-  enough; add `GROUP` only for the snap-nearby-points or defined-order cases above.
+| Need | Use | Item count after |
+|---|---|---|
+| Merge into counts/totals per category (PIE/SEQUENCE/BAR slices) | `AGGREGATE` (+ `COUNT`/`SUM`/…) | 1 |
+| Keep every record visible, snapped/sorted first (nearly-coincident points, or a defined stack order) | `GROUP` + `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` | N |
+| Keep every record visible, already exactly coincident | `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` alone | N |
+| A handful (2-5) of real coincident points, want to preserve rough true position | Manual `lat`/`lon` jitter (~0.0005–0.02°) in the source data | N |
 
-**`AGGREGATE` and `GROUP` are mutually exclusive** (both gate the same merge decision — `AGGREGATE`
-takes it, `GROUP` explicitly skips it) — **`GROUP` and `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` are
-commonly paired** (`GROUP` positions/sorts, `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` spreads), while
-combining `AGGREGATE` with `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` is rarely useful (if `AGGREGATE`
-already merged N items into 1, there's nothing left for `MULTIGRID` to spread).
-`gridx` controls `MULTIGRID`/`MULTIQUAD` spacing (items per row, default 7) — same property name
-as the unrelated `BAR|STACKED` meaning above; which one applies depends on the chart type it's
-attached to.
+`AGGREGATE` and `GROUP` are mutually exclusive (same detection pass, opposite merge decision).
+`MULTIPLE`/`MULTIGRID`/`MULTIQUAD` are a fully independent mechanism keyed on *resolved screen
+position*, not on whether `AGGREGATE`/`GROUP` ran. Manual jitter is the odd one out — it's not an
+engine feature, just deciding the source coordinates aren't exactly equal in the first place;
+prefer it over `GROUP`+`MULTIPLE` only for a small, known cluster where each point should still
+look roughly right at close zoom (`GROUP`+`MULTIPLE` scales further but spreads items into an
+arbitrary pattern unrelated to their real position).
 
 > ⚠️ Don't infer from a comment inside the engine's aggregation code that `MULTIGRID` needs
-> `AGGREGATE` — a comment there mentions both together, but `MULTIGRID`'s position-spreading runs
-> in the draw loop itself, independent of whether `AGGREGATE` is present. It was verified this way
-> by reading the actual dispatch, not inferred from that comment. See API_REFERENCE.md § Chart
-> Shapes for the full mechanism and a worked comparison table.
+> `AGGREGATE` — it doesn't; `MULTIGRID`'s position-spreading runs independently in the draw loop.
+> Full mechanism, worked comparison table, and the jitter tradeoff in detail →
+> **API_REFERENCE.md § Chart Shapes, and Four Ways to Handle Shared Positions**.
 
 **Classification methods** (used with `CHOROPLETH` and `CHART`):
 
@@ -353,6 +340,7 @@ attached to.
          precede every `.layer()`, since layer symbols size against the current view (see
          § Map call sequence)
    - [ ] `.meta()` present with tooltip; `name` in `.meta()` for anything addressed at runtime
+   - [ ] If the map needs a title/subtitle/description, use `.title()` + `meta.snippet` + `meta.description` (§ Map title, subtitle & description) — not a custom overlay `<div>`
    - [ ] Start with `scale: 1` — let user request size adjustments
 
    **Optional programmatic check** — for parameter-driven maps, validate a JSON config
@@ -410,6 +398,13 @@ attached to.
      > - Likewise, if a synthetic `hover`/`click` doesn't raise a tooltip, dispatch a real
      >   `MouseEvent` on the chart group before deciding tooltips are broken — automated pointer
      >   events don't always reach ixMaps' handlers.
+     > - **Two clicks at the same spot in quick succession read as a double-click** — Leaflet's
+     >   native zoom fires, jumping to a very high zoom with a blank viewport (`getZoom()` far
+     >   above the coded value, nothing renders) — a tool artifact, not a defect. Space out clicks;
+     >   don't immediately re-click a spot that didn't seem to register.
+     > - **`navigate()` to the identical URL in an already-used tab can leave stale engine state**
+     >   (e.g. `getZoom()` wrong even though the DOM/title are correct). Don't chase this by
+     >   re-navigating the same tab — open a fresh tab (`tabs_create` → `navigate`) instead.
      >
      > When the tool cannot give you a clean preflight, a **static control** is the honest
      > fallback and is worth more than a bad measurement: check the emitted code against
@@ -479,6 +474,30 @@ const myMap = ixmaps.Map("map", {
 > ⚠️ **Custom top-left overlay (e.g. your own legend/layer panel) vs `tools`** — if you're placing your own HTML panel (not ixMaps' built-in legend) in the map's top-left corner, set `tools: false`. With `tools: true`, ixMaps creates its own UI overlay in that same corner, which visually collides with a custom panel there. This is independent of the "tools" link in the map's bottom footer (`.map-footer` chrome) — that stays regardless of this option.
 >
 > ⚠️ **Custom panel/legend needs `z-index: 1000` or higher** — ixMaps' own map surface (Leaflet panes: tile pane, marker pane, etc.) tops out around `z-index: 700`, so a custom overlay with a low z-index (e.g. the CSS default `10`) can render **underneath** the map instead of on top of it. Give any custom HTML panel `z-index: 1000`+ to sit above the map surface. Stay below ixMaps' own floating chrome (`#tooltip` is `10000`, `#contextmenu` is `99999`) so native tooltips/context menus can still render on top of your panel if they ever overlap it — `1000`–`2000` is a safe range.
+
+### Map title, subtitle & description — use the native legend panel, not a custom overlay
+
+**Recommended default whenever a map needs a title + subtitle + explanatory note (and optionally a source citation):** put it in ixMaps' own legend panel instead of building a custom absolutely-positioned `<div>`. A custom overlay collides with the INFO/LEGEND buttons or bottom chrome and needs manual z-index tuning — and worse, gets **wiped out on every legend redraw** (mark/unmark a class, zoom, pan all rebuild the legend DOM from scratch). The native fields below are re-rendered by the engine itself on every redraw, so they just persist.
+
+```javascript
+myMap.layer("name")
+    // ...data/binding/type/style...
+    .meta({
+        name:        "name",                         // unique theme id
+        tooltip:     "...",
+        snippet:     "One-line subtitle, shown right below the title",
+        description: "Longer explanatory paragraph, shown near the bottom of the " +
+                      "legend panel, after the auto color-swatch rows." +
+                      "<div style='margin-top:0.6em;padding-top:0.5em;border-top:1px solid #e5e5e5;font-size:0.8em;color:#888'>" +
+                      "Source: ...</div>"             // citation nested inside description — no separate slot for it
+    })
+    .title("Map Title Shown as the Legend Heading")   // NOT .legend("...") — see warning below
+    .define();
+```
+
+Add `legend: "open"` to the map init options (instead of `"closed"`) so the panel is visible on load without the user having to click the LEGEND toggle.
+
+> ⚠️ **Don't call `.legend("title")` on the map builder for this** — it destroys the auto color-swatch legend (Critical Rule 11). Use `.title("...")` on the **layer** instead. Full mechanism (why `meta.snippet`/`meta.description` survive redraws) → **API_REFERENCE.md § Legend Title, Snippet & Description**.
 
 ### `mode`: pan on touch, info on desktop
 
@@ -668,6 +687,8 @@ Tooltips in `.meta({ tooltip: "..." })` use `{{…}}` placeholders. Two prefixes
 > .meta({ tooltip: "<b>{{comune}}</b> ({{provincia}} — {{regione}})<br>N: {{freq}}<br>Tot: {{ammk}} k€<br>{{theme.item.data}}" })
 > // string/number fields via {{field}}; use {{theme.item.data}} for the bound value display
 > ```
+
+> ⚠️ **Generating this HTML via Python f-strings (or similar templating that treats `{{`/`}}` specially)?** Use **four** braces in the source (`{{{{field}}}}`) to get the required double-brace `{{field}}` in the output — an f-string's own escaping collapses `{{` → `{` and `}}` → `}`, so a single-escaped `{{field}}` in the source produces `{field}` in the emitted HTML, which ixMaps doesn't recognize as a tooltip placeholder.
 
 ### `{{theme.item.chart}}` on a CHOROPLETH → pulls a sibling CHART theme (not a histogram)
 
@@ -1012,12 +1033,13 @@ embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`. The
 | `colorscheme` | Array of hex colors. `["100","tableau"]` for auto-palette. `["N", colorA, colorB, colorC]` = N-class gradient auto-swept start→middle→end (middle auto-computed if `colorC` omitted) — caps at 3 anchor colors, does NOT extend to more; a bare list of colors with no leading count (`["c1","c2","c3","c4","c5"]`) maps 1:1 to classes instead (no interpolation) — see API_REFERENCE.md § Color Properties. A bare string (`colorscheme: "#0066cc"`) is accepted **only** for a single color — **always use the array form** (`["#0066cc"]`, `["none"]`) as best practice |
 | `fillopacity` | 0–1. Fades only the fill. `opacity` also exists but fades the whole element (fill + stroke) — use `fillopacity` unless the border should fade too |
 | `linecolor` / `linewidth` | NEVER `strokecolor` / `strokewidth`; `linecolor` accepts a single string **or** an array `["#c1","#c2"]` — array form required for `VECTOR\|GRADIENT` |
-| `scale` | Uniform size multiplier (start at 1) |
+| `scale` | Uniform size multiplier (start at 1). On a chart/symbol theme this resizes the symbol; on a separate *label/text overlay* theme (some styles render on-map value text as its own theme layered over the chart, not as part of the chart theme) it resizes that theme's own text — check which theme is actually drawing the visible text before deciding which knob to turn |
+| `valuescale` | Size of the value-label text rendered **by the theme that owns it** (e.g. `VALUES`-generated numbers on a CHOROPLETH/chart theme). Not interchangeable with a *different* label-overlay theme's `scale` (see above) — these are separate knobs on separate themes even though both visually affect "the text size" |
 | `normalsizevalue` | Data value that maps to "normal" display size. **Higher = SMALLER bubbles** — a larger reference value means most real data values fall below it, so bubbles render smaller. E.g. `"1000"` → smaller bubbles than `"300"`. |
 | `gridwidthpx` | Grid cell size for aggregate layers, unitless string (e.g. `"5"`). Canonical form — same name `changeThemeStyle` uses. (`gridwidth: "5px"` is an accepted variant you'll see in existing maps.) |
 | `rangecentervalue` | Diverging center; requires EVEN number of colors |
 | `ranges` | Explicit class breaks (n+1 values for n colors) |
-| `values` | Category list for CATEGORICAL (must be **strings**) |
+| `values` | Category list for CATEGORICAL (must be **strings**). These strings are shown **verbatim** as the legend row labels — there's no separate display-label mapping, so write the full human-readable category name here (e.g. `"Ruled misleading / banned"`), not a terse internal code, if the map has a visible legend |
 | `align` | Chart anchor: `"left"` `"right"` `"top"` `"bottom"` `"above"` `"below"` |
 | `sizepow` | Power for size scaling: radius ∝ value^(1/sizepow). `1` = linear (width ∝ value); `2` = area proportional to value (cartographic standard, flattens apparent contrast); `3` = volume proportional to value (even flatter). Higher = smaller arrows for small values appear relatively larger |
 | `rotation` | Rotate chart symbol in degrees (e.g. `35` for a tilted arrow) |
@@ -1081,6 +1103,20 @@ Interactive controls that modify the map after load. What's available:
 .style({ colorscheme: ["#4fc3f7","#ffb300","#ef5350"], values: ["C","F","R"], normalsizevalue: "80", showdata: "true" })
 ```
 > Add `size: "numericField"` to `.binding()` to drive bubble radius from a numeric column independently from the category `value` field. This avoids needing a separate `SIZE|VALUES` layer when you want both category color and numeric sizing.
+> ⚠️ This is the **only** working way to get size + categorical color on one `BUBBLE` layer — `style.colorfield` looks like the natural fit (it's how CHOROPLETH/VECTOR/DOT do it) but is silently broken for BUBBLE, see Silent Failure Hotspot #22.
+
+**...with the real number displayed too (on-bubble label + tooltip), not the category code:**
+```javascript
+.binding({ geo: "lat|lon", value: "categoryField", title: "label", size: "numericField" })
+.type("CHART|BUBBLE|SIZE|CATEGORICAL|VALUES|DTEXT|VALUEBACKGROUND|SUM")
+.style({
+    colorscheme: ["#4fc3f7","#ffb300","#ef5350"], values: ["C","F","R"],
+    valuefield:  "numericField",   // ← mirrors size back in as the displayed value
+    normalsizevalue: "80", showdata: "true"
+})
+```
+> Without `valuefield`, `{{theme.item.data}}`/the on-bubble label show the internal class index (or `1`), not `numericField`'s real value — `binding.value` is spent driving color, so the engine has nothing else to display by default. Set `style.valuefield` to the **same field name as `binding.size`** and the engine substitutes that field's value for display (maptheme.js: `szValueField == szSizeField` → shows the size value) without disturbing the color binding.
+> Add `|SUM` to `.type()` to make legend rows show the **sum** of `valuefield`/size across each category's items (e.g. total population per class) instead of a per-class mean/representative value.
 
 **Urban trees preset (species color + diameter size + GLOW):**
 ```javascript

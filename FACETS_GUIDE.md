@@ -226,6 +226,8 @@ myMap.on("layerdraw", function(e) {
 ```
 
 > **Legacy hook `ixmaps.htmlgui_onDrawTheme`** — still works but is old-style. Prefer `map.on("layerdraw")` for new code. If an existing plugin already uses `htmlgui_onDrawTheme`, wrap it (`var _prev = ixmaps.htmlgui_onDrawTheme; ixmaps.htmlgui_onDrawTheme = function(szId){ ...; _prev && _prev(szId); }`) rather than overwriting.
+>
+> ⚠️ **Chained wraps run newest-first** — each wrap's own logic executes *before* it delegates to the handler it captured, so a later-added wrap can't rely on shared state that an earlier-added wrap sets during the *same* draw invocation (the earlier wrap hasn't run yet for this call — it only runs when the later wrap finally calls `_prev(szId)`). If a later hook needs to know "has X already happened for this exact invocation," track it with that hook's own local variable set at the top of its own function body, not by reading state an earlier wrap writes.
 
 ### Clear all facet filters
 

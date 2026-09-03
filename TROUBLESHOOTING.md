@@ -681,6 +681,25 @@ ixMaps internally creates and manages several DOM elements by fixed ID. **Never 
 
 ---
 
+## Custom Loading Overlay Vanishes Mid-Init
+
+A custom loading overlay/spinner, even with a non-conflicting id, can still disappear partway
+through a cold init — this is a *different* problem from the reserved-ID collision above.
+
+**Why it happens:** during `ixmaps.Map()`/`.embed()` init, ixMaps loads its own `mappage.html`
+resource, which runs `document.getElementById(targetDiv).innerHTML = html` roughly 2-3 seconds
+into a cold load (well before the map itself is ready, which can take ~9s on a cold CDN fetch).
+This **replaces the entire contents of the map's target `<div>`**, destroying any element that was
+appended as a *child* of that div at `ixmaps.Map()` call time — with no error, no warning, and no
+relation to which ID you used.
+
+**Fix:** attach any custom loading overlay to `document.body` (e.g. `position: fixed`, positioned
+over the map div's `getBoundingClientRect()`), never as a child of the map's target div. Remove it
+in the `ixmaps.Map(...).then(...)` ready callback (fires once the base map is visible), plus a
+timeout safety net in case `.then()` never resolves.
+
+---
+
 ## Debugging Checklist
 
 **First, establish whether anything rendered at all** — a clean console proves nothing, because

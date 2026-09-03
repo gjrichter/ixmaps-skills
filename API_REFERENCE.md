@@ -12,7 +12,7 @@ Complete reference for the ixMaps JavaScript API.
 6. [Binding Configuration](#binding-configuration)
 7. [Style Properties](#style-properties)
 8. [Visualization Types](#visualization-types)
-9. [Chart Shapes, and Three Ways to Handle Shared Positions](#chart-shapes-and-three-ways-to-handle-shared-positions)
+9. [Chart Shapes, and Four Ways to Handle Shared Positions](#chart-shapes-and-four-ways-to-handle-shared-positions)
 10. [Multi-Variable Charts](#multi-variable-charts)
 11. [CHART|SYMBOL|SEQUENCE — Categorical Symbol Stack](#chartsymbolsequence--categorical-symbol-stack)
 12. [CHART|SYMBOL|PLOT|LINES — Time-Series Curve Chart](#chartsymbolplotlines--time-series-curve-chart)
@@ -146,6 +146,10 @@ Configure map behavior and rendering.
 - `100` - Animate medium speed (batches of 100)
 - `1000000` - No animation (instant rendering) - recommended
 
+**worksilent** / **loadsilent** (string, `"true"`/`"false"`)
+- Suppress the **engine-level** tile/progress UI: `worksilent` gates message dialogs during processing, `loadsilent` gates the tile-loading progress bar. `worksilent` defaults to `true`; `loadsilent` defaults to `false`.
+- This is a **different mechanism** from a layer's own "loading ..." splash text in the legend panel (that one is per-layer, suppressed via `NOLEGEND`/`NOINFO` in `.type()` — see § Visualization Types). If a layer already has `NOLEGEND` and you still see loading/progress chrome, it's this engine-level one you need.
+
 **Example:**
 ```javascript
 .options({
@@ -190,21 +194,42 @@ Set initial map view (center and zoom). Works with every projection, including t
 - `11-14` - City view
 - `15-18` - Street/building view
 
+> ⚠️ **Default (tiled Web Mercator) world maps: check pixel width, don't trust "1-3" blindly when
+> data spans most of the globe.** The default map (no `mapProjection` set) is a single non-repeating
+> Leaflet tile layer `256 * 2^zoom` px wide. If that's narrower than the actual viewport, the world
+> renders once with margin and everything is visible — but if it's wider, only the portion around
+> `center` shows and points far from center (in longitude) get silently cut off at the edge, with no
+> error. This bites specifically when data spans close to the full 360° (e.g. a dataset with points
+> in both the Americas and Asia/Australia): zoom 2-3 (the "world view" range above) can already be
+> too high for a typical viewport. Rule of thumb: pick `zoom` so `256 * 2^zoom ≲` viewport width in
+> px — for a ~700-800px-wide pane that's usually `zoom: 1`, not 2-3. When in doubt, compute it from
+> the data's actual longitude range rather than guessing, and verify by checking that every expected
+> element renders (§ Render Contract stage 6), not just that the map "looks like a world map."
+> (SVG world projections — `equalearth`, `orthographic`, etc. — don't have this failure mode; they
+> already use `zoom: 0-1` per § Projections above.)
+
 ### `.legend(title)`
 
-Set custom legend title.
+Set a custom legend title **at the map level**, replacing the entire legend body.
+
+> ⚠️ **Do not use this to set a map title if the map has a CATEGORICAL legend you want to keep.**
+> `.legend(title)` replaces the whole legend panel the default renderer builds — it does **not**
+> compose with the auto-generated color-swatch rows, it removes them. For a title that coexists
+> with the auto swatches (the common case), use `.title(text)` on the **layer** instead, plus
+> `meta.snippet`/`meta.description` for subtitle/description text — see § Legend Title, Snippet &
+> Description and SKILL.md's Critical Rule 11. Reserve `.legend(title)` for a map with no
+> CATEGORICAL theme (nothing to preserve) or when a fully custom legend body is genuinely wanted.
 
 **Parameters:**
 - `title` (string) - Legend title text
 
 **Example:**
 ```javascript
-.legend("Population by Region")
+.legend("Population by Region")   // only if there's no CATEGORICAL swatch legend to preserve
 ```
 
 **Notes:**
 - Call after `.view()` and before `.layer()`
-- Legend automatically shows categories for CATEGORICAL themes
 - Omit to hide legend
 
 ### `.layer(layerDefinition)`
@@ -1397,7 +1422,7 @@ Complete visualization type reference.
 
 ---
 
-## Chart Shapes, and Three Ways to Handle Shared Positions
+## Chart Shapes, and Four Ways to Handle Shared Positions
 
 ### Shapes
 
@@ -1459,6 +1484,28 @@ position-only comparison can't provide.
   apart. Also controls chart size elsewhere (see § Style Properties) — same dual-purpose caveat
   as `gridx`.
 - `UP` — lay the grid out top-to-bottom instead of the default left-to-right.
+
+### A fourth option: manual lat/lon jitter — not an engine feature
+
+The three mechanisms above all operate on records that already share (or nearly share) coordinates.
+For a **small, known cluster** of real coincident points — e.g. two organizations sharing one
+building, or a handful of unrelated cases all handled by the same regulator's office — it's often
+simpler to just decide the source coordinates aren't exactly equal in the first place: offset each
+record's `lat`/`lon` by a tiny amount (roughly 0.0005–0.02°, i.e. tens of meters to ~1km) directly
+in the data, before it ever reaches ixMaps.
+
+**Tradeoff vs. `GROUP` + `MULTIPLE`/`MULTIGRID`/`MULTIQUAD`:**
+
+| | `GROUP` + `MULTIPLE`/`MULTIGRID`/`MULTIQUAD` | Manual jitter |
+|---|---|---|
+| Position after spreading | Arbitrary synthetic grid/pattern — no relation to real position | Each point stays roughly where it really is |
+| Scales to | Any number of coincident items, no manual tuning | Only a handful (2-5) — offsets are hand-picked |
+| Looks right at street-level zoom | Not necessarily (positions are synthetic) | Yes, if jitter is kept small relative to the zoom level shown |
+| Individually addressable tooltip/click | Yes | Yes |
+
+Use jitter when geographic fidelity at close zoom matters and the cluster is small and known in
+advance; use `GROUP`+`MULTIPLE`/`MULTIGRID`/`MULTIQUAD` for anything larger, or where the exact
+sub-position within the cluster doesn't matter.
 
 ---
 
@@ -2017,16 +2064,17 @@ colorscheme: ["100", "tableau"]
 - Second value: palette name
 - ixMaps automatically calculates exact number needed
 
-**Available palettes:**
-- `"tableau"` - Tableau 10 colors (good for 5-10 categories)
-- `"paired"` - ColorBrewer Paired (12 colors)
-- `"set1"` - ColorBrewer Set1 (9 colors)
-- `"set2"` - ColorBrewer Set2 (8 colors)
-- `"set3"` - ColorBrewer Set3 (12 colors)
-- `"pastel1"` - ColorBrewer Pastel1 (9 colors)
-- `"pastel2"` - ColorBrewer Pastel2 (8 colors)
-- `"dark2"` - ColorBrewer Dark2 (8 colors)
-- `"accent"` - ColorBrewer Accent (8 colors)
+**Available palettes** (source-verified against `colorscheme.js` — this is the complete list; any other name silently resolves to white `#ffffff` with no error):
+- `"tableau"` - Tableau 10 colors, repeats past 10
+- `"tableau10"` / `"tableau20"` - Tableau's 10- and 20-color qualitative sets
+- `"office"`, `"mineral"`, `"pastel"`, `"harvest"`, `"fruit"` - built-in qualitative palettes
+- `"kmeans"` / `"kmeansp"` - built-in qualitative palettes tuned for cluster distinctness
+- `"pimp"`, `"intense"`, `"fluo"` - built-in high-contrast qualitative palettes
+- `"viridis"`, `"plasma"`, `"magma"` - sequential (perceptually uniform) colormaps — for ordered/numeric data, not unordered categories
+
+⚠️ **ColorBrewer names are NOT implemented** — `"paired"`, `"set1"`/`"set2"`/`"set3"`, `"pastel1"`/`"pastel2"`, `"dark2"`, `"accent"` do not exist in the engine. Passing any of them produces a broken all-white scheme with no error. Use one of the names above instead.
+
+Separately, `["count", "spectrum", stylePreset, hueStart, hueEnd]` (aliases: `spectral`) generates a hue-wheel sweep instead of picking from a fixed palette — `stylePreset` is one of `default`/`pastel`/`soft`/`hard`/`light`/`pale` (avoid `work`, it's broken upstream).
 
 ### Explicit CATEGORICAL Color Binding (colorscheme + values)
 
@@ -2047,17 +2095,39 @@ When you need to **pin specific colors to specific category values** (e.g., for 
 - Position i in `colorscheme` is assigned to position i in `values`
 - Any category value not listed in `values` falls back to the first color
 
-**Option 2 — Function as colorscheme:**
+**Option 2 — Function as colorscheme** (requires ixMaps engine ≥ 1.0.5 / ixmaps-flat ≥ 1.0.21 — older engine builds silently corrupt a literal function value instead of calling it):
+
+There are two distinct function forms — they are NOT interchangeable, and neither one receives a bare "value" argument on its own; pick based on what you want to happen:
+
+*(a) `["byvalue", fn]` — called once per distinct category value, receives just that value:*
 ```javascript
 .style({
-    colorscheme: function(value) {
-        const map = { "Lombardia": "#e74c3c", "Toscana": "#27ae60", "Veneto": "#2980b9" };
+    colorscheme: ["byvalue", function (value) {
+        var map = { "Lombardia": "#e74c3c", "Toscana": "#27ae60", "Veneto": "#2980b9" };
         return map[value] || "#aaaaaa";
+    }],
+    colorfield: "origin",
+    showdata: "true"
+})
+```
+
+*(b) A bare literal function — called once with the whole theme object, must fill in `theme.colorScheme` itself:*
+```javascript
+.style({
+    colorscheme: function (theme) {
+        var map = { "Lombardia": "#e74c3c", "Toscana": "#27ae60", "Veneto": "#2980b9" };
+        var labels = theme.szColorField ? Object.keys(theme.colorFieldA) : theme.szLabelA;
+        for (var i = 0; i < labels.length; i++) {
+            theme.colorScheme[i] = map[labels[i]] || "#aaaaaa";
+        }
     },
     colorfield: "origin",
     showdata: "true"
 })
 ```
+Form (a) is almost always what you want for per-category color lookups like this example. Form (b) is lower-level (same contract as the older `colorscheme: "functionName"` string-reference form) and only worth reaching for when you need to compute the whole array at once — e.g. deriving colors from `theme.nMin`/`theme.nMax`.
+
+⚠️ A literal function passed anywhere it isn't one of these two forms (e.g. as `linecolor`, or nested inside a plain array without the `"byvalue"` marker) is not supported and will not be called.
 
 **⚠️ What does NOT work:**
 ```javascript
@@ -2124,6 +2194,55 @@ myMap.layer("regions")
 - Same `colorscheme` / `values` arrays reused across all ixMaps layers → guaranteed consistency
 - Name translation map needed when data labels differ from geometry labels (e.g., `"EMILIA ROMAGNA"` → `"Emilia-Romagna"`)
 - Works for VECTOR, BUBBLE, DOT, and CHOROPLETH|CATEGORICAL layers
+
+### Colored Bubbles with Independent Size and a Real Displayed Value
+
+The natural-looking way to color a `CHART|BUBBLE` by one field while sizing it by another is
+`style.colorfield` (as used above for CHOROPLETH/VECTOR/DOT). **It does not work on BUBBLE** —
+confirmed against engine source (`maptheme.js`): the BUBBLE draw path recomputes color fresh
+from the chart *value* (`nClass = nValue - 1; szColor = colorScheme[nClass]`) and never reads
+`itemA[a].szColor`/`.nClass`, which is where `colorfield` resolution actually lands. Every
+bubble silently renders as `colorScheme[0]` — no error, and the legend can even show the
+correct per-class breakdown while every bubble on the map is one flat color, because the
+legend reads a different, correctly-resolved code path.
+
+**The engine's actual supported path for BUBBLE is simpler: bind the category field as `value`
+directly** (the same field a plain single-field categorical bubble would use), and use
+`binding.size` for the independently-driven radius:
+
+```javascript
+.binding({ lookup: "id", value: "categoryField", size: "numericField", title: "label" })
+.type("CHART|BUBBLE|SIZE|CATEGORICAL")
+.style({ colorscheme: [...], values: [...], normalsizevalue: "80", showdata: "true" })
+```
+
+This alone gets size + categorical color right. But `binding.value` is now spent on the
+category — so `{{theme.item.data}}` (tooltip) and the on-bubble text label (`VALUES|DTEXT`)
+have nothing left to show but the raw class index (or a constant `1`), not `numericField`'s
+real value. Fix by mirroring the size field back in as the **displayed** value:
+
+```javascript
+.binding({ lookup: "id", value: "categoryField", size: "numericField", title: "label" })
+.type("CHART|BUBBLE|SIZE|CATEGORICAL|VALUES|DTEXT|VALUEBACKGROUND|SUM")
+.style({
+    colorscheme: [...], values: [...],
+    valuefield:  "numericField",     // same field name as binding.size
+    normalsizevalue: "80", valuedecimals: 0, units: " ab.", showdata: "true"
+})
+```
+
+- `style.valuefield` maps to the engine's `szValueField`; when it equals `szSizeField`
+  (from `binding.size`), a dedicated branch substitutes the real size value for display —
+  `{{theme.item.data}}` and the on-bubble label both show it correctly, tooltip included.
+- `|SUM` changes what the **legend rows** aggregate: without it they show a per-class
+  mean/representative value; with it, each row sums `valuefield` (i.e. the size field)
+  across every item in that class — e.g. total population per acceleration class, not
+  per-comune population.
+- If you genuinely need `colorfield`-style semantics (color driven by a field that's neither
+  the category nor the size field), switch the base shape from `BUBBLE` to `SYMBOL` —
+  `CHART|SYMBOL|SIZE|CATEGORICAL` with `style.symbols: "circle"` looks pixel-identical to a
+  bubble, and SYMBOL's draw path *does* read the colorfield-resolved per-item color, unlike
+  BUBBLE's.
 
 ### Color Scheme Examples
 
@@ -2213,6 +2332,29 @@ colorscheme: ["100", "tableau"]
 })
 ```
 
+### Legend Title, Snippet & Description
+
+A map's title/subtitle/description text belongs in ixMaps' own legend panel — via `.title()` on
+the layer plus `meta.snippet` and `meta.description` — rather than a custom overlay `<div>` (see
+SKILL.md § Map title, subtitle & description for the recommended pattern and code example).
+
+**Why this works and persists across redraws:** `.meta({...})` fields are merged straight into
+the theme's internal style object by the engine (`ixmaps.newTheme`: `for (i in theme.meta)
+theme.style[i] = theme.meta[i]`), and the legend-rendering code (`ui/js/tools/legend.js`) reads
+`styleObj.snippet`/`styleObj.description` fresh **every time it rebuilds the panel** — rendering
+`snippet` as an `<h4>` right after the title and `description` as a `<div>` after the
+auto-generated CATEGORICAL color-swatch list, before the chart-size slider. Because this happens
+inside the engine's own redraw path (triggered by `markThemeClass`/`unmarkThemeClass`, zoom, and
+pan), it survives all of them automatically — no reinjection code needed, unlike a hand-rolled
+overlay injected via a one-shot `myMap.then()` call.
+
+`.title(text)` sets `theme.style.title`, which the same renderer reads as the legend heading
+(`themeObj.szTitle`). Calling `.legend("title")` on the **map builder** instead looks like the
+obvious way to set a title, but it replaces the whole legend body the default renderer wires up —
+confirmed by inspecting the DOM it produces, the color-swatch rows disappear entirely, leaving
+only a bare title. This is why Critical Rule 11 says never call `.legend()` unless explicitly
+requested.
+
 ---
 
 ## Complete API Flow
@@ -2237,10 +2379,9 @@ ixmaps.Map("map", { mapType: "VT_TONER_LITE", mode: "info" })
     zoom: 6
 })
 
-// 4. Add legend (optional)
-.legend("Legend Title")
-
-// 5. Add layer(s)
+// 4. Add layer(s) — the layer's own .title() becomes the legend heading; see
+//    § Legend Title, Snippet & Description for subtitle/description text.
+//    Don't call .legend() here unless you have no CATEGORICAL swatches to keep.
 .layer(
     ixmaps.layer("layer_id")
         .data({ obj: data, type: "json" })
@@ -2259,8 +2400,8 @@ ixmaps.Map("map", { mapType: "VT_TONER_LITE", mode: "info" })
 // IMPORTANT: Don't use 'map' as variable name - conflicts with ixMaps internals
 const myMap = ixmaps.Map("map", { mapType: "white", mode: "info" })
     .options({ ... })
-    .view({ ... })
-    .legend("Multi-Layer Map");
+    .view({ ... });
+    // title comes from each layer's own .title(); see § Legend Title, Snippet & Description
 
 // Layer 1
 myMap.layer(
@@ -2411,10 +2552,12 @@ Each element of the returned array corresponds to one requested field:
 | Rule | Why |
 |---|---|
 | Always read `themeObj.szFilter` | The facet engine updates the theme filter internally — a local copy goes stale |
-| `"map"` scope | Counts only features in the current viewport; omit or pass `""` for the full dataset |
+| `"map"` scope | Counts only features in the current viewport; omit or pass `""` for the full dataset — **except see the AGGREGATE/RELOCATE caveat below** |
 | `"NONUMERIC"` last arg | Suppresses range-slider behaviour for fields like year codes or severity IDs that are numeric but categorical |
 | Values in `valuesCount` are **strings** | Match with string keys even when data values are numbers: `vc["2"]`, not `vc[2]` |
 | Call from `layerdraw`, not `viewchange` | `layerdraw` fires after each re-render (including post-pan/zoom), ensuring counts match what's actually drawn |
+
+> ⚠️ **`getFacets` always walks `theme.indexA`/`itemA` — the items the theme actually drew for the current viewport — regardless of the scope argument.** For a `CHART|BUBBLE|...|AGGREGATE|RELOCATE` grid/hotspot layer that re-buckets on every pan/zoom, if the current view happens to show zero points for that theme, `getFacets` silently returns `[]` (with a console warning, no exception) **even with thousands of records loaded** — passing `""` or omitting scope does not recover the full dataset here, because there's nothing in `indexA`/`itemA` to read. This is correct/expected behavior for the "live visible counts" use case above; it's the wrong tool if you need the full, viewport-independent range or distinct values of a field (e.g. to size a slider's min/max once). For that, read `ixmaps.getThemeObj(name).objTheme.dbRecords` + `.dbFields` directly instead — the same technique EXTENSIONS_GUIDE.md's KDE pattern uses to pull raw columns straight from the loaded dataset.
 
 ---
 
@@ -2558,6 +2701,8 @@ slider.addEventListener('input', function () {
 |----------|----------|-------------|
 | `timefield` + `legend: 'open'` | open | Quick built-in slider |
 | `timefield` + `setThemeTimeFrame()` | closed | Custom slider UI, full programmatic control |
+
+> ⚠️ **One slider driving multiple themes: call `setThemeTimeFrame(null, start, end)`, not one call per theme.** On ixmaps-flat builds before v1.0.24, `setThemeTimeFrame` debounced through a timer shared across *all* themes, so calling it back-to-back for theme A, then B, then C in the same tick (`themeNames.forEach(name => ixmaps.setThemeTimeFrame(name, min, max))`) silently cancelled A's and B's pending updates — only the last call actually applied, no error. Passing `null` as `themeId` updates every loaded theme in one atomic pass through that same debounce, so it can't collide with itself — this is also what the engine's own built-in time slider uses internally. Fixed at the source in v1.0.24 (per-theme debounce), but `setThemeTimeFrame(null, ...)` remains the safe, version-independent pattern for a multi-theme slider — use it unless you've confirmed the pinned CDN build is ≥ 1.0.24.
 
 ---
 

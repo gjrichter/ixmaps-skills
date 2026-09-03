@@ -1,5 +1,75 @@
 # ixMaps Skill Changelog
 
+## 2026-09-03 — Native legend title/snippet/description pattern; 8 gotchas from a session audit; size/structure trim pass
+
+While building a series of real-data maps, a hand-rolled floating `<div>` used for map
+title/subtitle/description text kept losing its content on every legend redraw (clicking a
+legend swatch to mark/unmark a class, zoom, pan all rebuild the legend DOM from scratch, wiping
+out anything injected into it via one-shot JS after load). Traced through the engine source
+(`ixmaps.newTheme` in `htmlgui.js`, and `ui/js/tools/legend.js`) and found the legend renderer
+already reads `styleObj.snippet`/`styleObj.description` — populated from `.meta({snippet,
+description})`, since every `meta` key is merged straight into the theme's internal style
+object — fresh on every rebuild, rendering them as an `<h4>` right after the title and a `<div>`
+after the auto color-swatch rows respectively. Using the native fields instead of a custom
+overlay means the content just persists, with no reinjection code needed.
+
+- Documented the pattern in SKILL.md § Map title, subtitle & description and API_REFERENCE.md
+  § Legend Title, Snippet & Description, including the `.legend(title)` trap: calling it on the
+  map builder (instead of `.title()` on the layer) replaces the whole legend body and destroys
+  the auto-generated CATEGORICAL color-swatch legend — confirmed by inspecting the DOM it
+  produces. Fixed two stale `.legend("...")` examples in API_REFERENCE.md's "Complete API Flow"
+  that predated this finding and would have hit the same trap.
+- Audited every past-session memory file against the skill for undocumented ixMaps engine
+  gotchas and added 8 that were missing: VECTOR/BEZIER hover priority follows layer definition
+  order (not z-order); `worksilent`/`loadsilent` (engine-level loading UI) vs `NOLEGEND`/
+  `NOINFO` (per-layer splash text) are different mechanisms; `setThemeTimeFrame` shares one
+  debounce timer across all themes pre-v1.0.24, so a multi-theme slider must call it with
+  `szId=null`; chained `htmlgui_onDrawTheme` wraps execute newest-first; `getFacets` is always
+  viewport-scoped even when scope is omitted, and silently returns empty for an AGGREGATE/
+  RELOCATE grid layer with nothing currently in view; `mappage.html` wipes the map div's
+  children ~2-3s into init, so a custom loading overlay must attach to `document.body`; `scale`
+  can live on a separate label-overlay theme from `valuescale` on the primary theme; Python
+  f-string HTML generation needs 4 braces in source for a 2-brace mustache tag in output.
+- Also added a fourth option (manual lat/lon jitter) to § Chart Shapes, and Four Ways to Handle
+  Shared Positions, for a small known cluster of real coincident points where `GROUP`+`MULTIPLE`
+  would spread items into an arbitrary pattern unrelated to their true position.
+- Trim pass: SKILL.md had grown steadily since the last real sync (2026-08-05) and was
+  duplicating depth already covered in API_REFERENCE.md in two places (the Chart Shapes
+  mechanism, and the legend-persistence mechanism above) — condensed both to a decision
+  table/code example plus a pointer, moving the full explanations into API_REFERENCE.md so the
+  file loaded on every skill invocation carries less redundant weight.
+
+## 2026-08-30 — `colorfield` is silently broken on BUBBLE; documented the working size+color+value pattern
+
+While colorizing a BUBBLE theme's circles by one field (seismic acceleration class) while
+sizing them by another (population), `style.colorfield` — the documented pattern for
+CHOROPLETH/VECTOR/DOT categorical coloring — produced every bubble in one flat color
+(`colorScheme[0]`), no error. Traced to engine source (`maptheme.js`): BUBBLE's draw path
+recomputes color fresh from the chart value (`nClass = nValue - 1`) and never reads the
+correctly-resolved `itemA[a].szColor`/`.nClass` that `colorfield` populates — a genuine BUBBLE-
+only engine bug, not a config mistake. The legend can even render correctly (it uses a
+different, correct code path) while the map itself shows one color, which made this easy to
+misdiagnose as a legend-vs-map inconsistency rather than a broken binding.
+
+The working path was already half-documented in SKILL.md § Special Patterns ("CATEGORICAL +
+bubble size from a numeric field": `binding.value` = category, `binding.size` = radius) but
+stopped short of the display-value problem that pattern creates: with `value` spent on the
+category, the on-bubble label and tooltip (`{{theme.item.data}}`) have nothing real to show.
+Found the fix in engine source too — `style.valuefield` set to the same field name as
+`binding.size` triggers a dedicated branch that substitutes the size value for display.
+Also found `|SUM` changes what legend rows aggregate (sum across a class vs. a per-class
+mean/representative value) — needed for a legend that shows "total population per class"
+rather than a single sample value.
+
+- Added Silent Failure Hotspot #22 to SKILL.md: `colorfield` on BUBBLE, with the fix (use
+  `binding.value` for BUBBLE, or switch to `CHART|SYMBOL|...|symbols:"circle"` — pixel-identical
+  to a bubble — if `colorfield` semantics are genuinely needed).
+- Extended the existing "CATEGORICAL + bubble size" quick-ref pattern in SKILL.md with a
+  second example showing `valuefield` + `|SUM`, and a cross-reference to the hotspot.
+- Added a full worked writeup (broken vs. working code, why each piece is needed) to
+  API_REFERENCE.md § Color Schemes, right after the existing categorical color-binding
+  section it builds on.
+
 ## 2026-07-18 — Corrected colorscheme gradient docs: 3-color sweep, not a bug
 
 Initially misdiagnosed `colorscheme: ["N", c1, c2, c3, c4, c5]` (5 explicit anchor colors after

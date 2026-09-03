@@ -1,5 +1,30 @@
 # ixMaps Skill Changelog
 
+## 2026-09-03 — `objectscaling:"dynamic"` silently collapses some CATEGORICAL classes with no size binding
+
+While re-verifying a set of already-shipped maps after a skill update, one map's bubbles were
+mostly missing: 8 of 10 points across 2 of its 3 `CATEGORICAL` classes had silently stopped
+rendering, while the legend still showed correct per-class counts throughout — a strong signal
+it looked like a data problem rather than a draw one. Traced it live in the browser: the affected
+items' SVG groups kept an identity transform (`matrix(1 0 0 1 0 0)`) and an unscaled raw radius
+(`r="100"`), meaning they never received their real screen position/size at all. Confirmed
+reproducible on a genuine hard reload (`location.reload(true)`) in a fresh tab — not a stale-tab
+artifact.
+
+The map had `objectscaling: "dynamic"` + a very large `normalSizeScale` (`"150000000"`, for a
+world/zoom-1 view) set on a `CHART|BUBBLE|CATEGORICAL` theme with **no per-item size binding** —
+every bubble was meant to render at the same fixed size via `style.scale` alone. Dynamic scaling
+had nothing to actually scale *from*, and combined with the extreme scale denominator, silently
+broke the position/size transform for some (not all) classes. Removing `objectscaling` and
+`normalSizeScale` from `.options()` entirely (unnecessary for a fixed-size theme) fixed all 10
+points immediately, verified in a genuinely fresh tab.
+
+- Added Silent Failure Hotspot #24 to SKILL.md.
+- Added a warning to API_REFERENCE.md's `objectscaling` option description and to the
+  `normalSizeScale` vs `normalsizevalue` vs `scale` comparison table: only enable
+  `objectscaling`/`normalSizeScale` when a theme has a real per-item size value driving it: skip
+  both for a fixed-size `CATEGORICAL` theme.
+
 ## 2026-09-03 — Native legend title/snippet/description pattern; 8 gotchas from a session audit; size/structure trim pass
 
 While building a series of real-data maps, a hand-rolled floating `<div>` used for map

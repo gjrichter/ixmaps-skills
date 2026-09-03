@@ -111,6 +111,7 @@ Configure map behavior and rendering.
 **objectscaling** (string)
 - `"dynamic"` - Symbols scale with zoom level
 - `undefined` - Fixed size symbols
+- ⚠️ Only enable this when a theme actually has a per-item value driving size (`binding.size`, or `binding.value` on a `SIZE` type). On a theme with **no** size-driving value — e.g. a `CATEGORICAL` theme where every bubble is meant to be the same fixed size via `style.scale` alone — `objectscaling: "dynamic"` has nothing to scale from, and combined with an extreme `normalSizeScale` (e.g. a world/zoom-1 view) has been observed to silently collapse some (not all) category classes to zero size at the SVG origin, with the legend still showing correct counts throughout. See SKILL.md Silent Failure Hotspot #24. Drop `objectscaling`/`normalSizeScale` from `.options()` entirely for a fixed-size theme.
 
 **normalSizeScale** (string) ⚠️ REQUIRED with objectscaling
 - The **map scale denominator** at which charts render at their normal/default size — i.e. the scale part after "1:" in "1:n"
@@ -2456,7 +2457,7 @@ Properties that look similar but are NOT interchangeable. Using the wrong one is
 
 | Property | Where | What it does |
 |---|---|---|
-| `normalSizeScale` | `.options()` | Map-level: the map zoom scale at which charts render at "normal" size. **Higher = smaller symbols** (reference scale is farther out). Required with `objectscaling: "dynamic"`. |
+| `normalSizeScale` | `.options()` | Map-level: the map zoom scale at which charts render at "normal" size. **Higher = smaller symbols** (reference scale is farther out). Required with `objectscaling: "dynamic"` — but only add `objectscaling`/`normalSizeScale` at all when a theme has a real per-item size value; on a fixed-size `CATEGORICAL` theme (sized via `normalsizevalue`/`scale` alone, no `binding.size`), skip both — see SKILL.md Silent Failure Hotspot #24. |
 | `normalsizevalue` | `.style()` | Layer-level: the data value that maps to the default symbol size. **Higher = smaller symbols** (the reference value is above most data). Also works **without a `size` binding** — acts as fixed dot diameter for `BUBBLE|CATEGORICAL` themes (e.g. `"10"` → small dot). |
 | `scale` | `.style()` | Layer-level: simple size multiplier on top of both above. Start at `1`. For fixed-size categorical bubbles, keep `scale:1` as the neutral baseline and expose it via a slider. |
 

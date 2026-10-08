@@ -1,5 +1,19 @@
 # ixMaps Skill Changelog
 
+## 2026-10-08 — `changeThemeStyle(null, …)`: change all themes at once; full mode list
+
+Porting a chart-size slider (`ixmaps.changeThemeStyle(null, null, 'scale:' + v, 'set')`) to
+ixmaps-gl showed that this form was used by real pages but documented nowhere. Traced through
+the flat source (htmlgui.js 2050 → mapapi.js 1474 → maptheme.js 4464 / 5002 / 3326 / 26544):
+
+- **`null` as the theme name = every theme except FEATURE themes**, no `meta.name` needed. The
+  4-argument global form's two leading nulls are the map + theme (identical leading args are
+  shifted). → RUNTIME_CONTROLS.md, SKILL.md runtime-controls list.
+- **Modes beyond set/remove/factor:** `add`/`delta` and `pow` also exist (numeric properties only);
+  `scale` is a resize factor, so `"scale:0"` is ignored.
+- **Correction:** `silent`/`fast`/`direct` only suppress the "... processing ..." message — the
+  theme is still redrawn (docs previously said "set without triggering a redraw").
+
 ## 2026-09-03 — `objectscaling:"dynamic"` silently collapses some CATEGORICAL classes with no size binding
 
 While re-verifying a set of already-shipped maps after a skill update, one map's bubbles were

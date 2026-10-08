@@ -61,6 +61,29 @@ gridSlider.addEventListener('input', function () {
 });
 ```
 
+**All themes at once — `null` as the theme name.** `changeThemeStyle(null, …)` applies the change to
+**every theme except FEATURE themes** (base geometries are skipped), no `meta.name` needed. This is
+the standard wiring for one "chart size" slider that resizes all chart themes together:
+
+```javascript
+// global form (leading null = the map; two identical leading args are shifted)
+sizeSlider.addEventListener('input', function () {
+  ixmaps.changeThemeStyle(null, null, 'scale:' + this.value, 'set');
+});
+// handle form
+myMap.then(api => api.changeThemeStyle(null, "scale:1.5", "set"));
+```
+
+Use `"set"` for a slider (the slider value *is* the scale); `"factor"` compounds on every input
+event and only suits +/- step buttons. `"scale:0"` is ignored (flat treats it as a zero resize
+factor and skips it).
+
+**Modes** (3rd argument): `set`, `remove`, `factor` (current × v), `add`/`delta` (current + v),
+`pow` (current^v, not for `scale`). The arithmetic modes apply to numeric properties only
+(`scale`, `opacity`, `fillopacity`, `valuescale`, `linewidth`, `gridwidthpx`, `normalsizevalue`,
+`maxcharts`, …); anything else is simply set. `silent` / `fast` / `direct` (e.g. `"set|silent"`)
+only suppress the "... processing ..." message — the theme is **still redrawn**.
+
 > ❌ Wrong (silently ignored): `api.changeThemeStyle("name", "fillopacity", "0.5")` — the second argument must be `"prop:value"`, not two separate arguments for property and value.
 
 ## Region selector with zoom navigation

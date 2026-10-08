@@ -1076,6 +1076,7 @@ embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`. The
 Interactive controls that modify the map after load. What's available:
 
 - **Filter across layers** — `changeThemeStyle(themeName, "filter:WHERE …", "set")` via `myMap.then(map => …)`; aggregate layers (grids, sparklines) re-aggregate. Every responsive layer needs `name` in `.meta()`.
+- **Resize all charts** — `ixmaps.changeThemeStyle(null, null, 'scale:' + v, 'set')` (null = every non-FEATURE theme, no `meta.name` needed) → **RUNTIME_CONTROLS.md**
 - **Region selector + zoom** — a `<select>` that filters all named themes and pans/zooms via `myMap.view()`; `<option value="">` is the "show all" sentinel.
 - **Toggle visibility** — `ixmaps.hideTheme(name)` / `ixmaps.showTheme(name)` are global, so a user-triggered toggle (button, checkbox) can call them directly without `.then()`. To start a layer **hidden on load**, use `visible: false` in `.style()` — do **not** try to achieve it by calling `hideTheme` from `myMap.then()` at init time (the theme may not exist yet). See RUNTIME_CONTROLS.md § Initially hidden layer.
 - **Isolate categories** — `ixmaps.markThemeClass(name, idx)` / `unmarkThemeClass(name, idx)` for clickable legends (idx = position in the `values:` array).

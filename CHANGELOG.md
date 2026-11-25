@@ -1,5 +1,18 @@
 # ixMaps Skill Changelog
 
+## 2026-11-25 — Engine choice: ixmaps-flat (default) or ixmaps-gl (opt-in)
+
+The skill was flat-only. ixmaps-gl (MapLibre + deck.gl, same builder API) now runs real pages, so
+SKILL.md gains § Choosing the Engine (flat | gl):
+
+- **Default stays flat** (stable `@1`; every rule, template and hotspot here is verified on it).
+- **gl is offered** on request or for large point counts, globe / 3D arcs, heatmap/KDE and
+  vector-tile layers — only after `npx ixmaps-check --engine gl page.html` shows no
+  `gl-unsupported` theme finding (page-chrome options such as `tools`, `search`, `mapName` are fine).
+- **Switching = the script tag only**, never a rewrite of the page's API calls.
+- Known differences listed (`objectscaling` default, flags drawn plainly, WebGL required, hotspots
+  verified on flat only). Critical Rules 12 and 13 updated to match.
+
 ## 2026-10-08 — `changeThemeStyle(null, …)`: change all themes at once; full mode list
 
 Porting a chart-size slider (`ixmaps.changeThemeStyle(null, null, 'scale:' + v, 'set')`) to
@@ -13,6 +26,73 @@ the flat source (htmlgui.js 2050 → mapapi.js 1474 → maptheme.js 4464 / 5002 
   `scale` is a resize factor, so `"scale:0"` is ignored.
 - **Correction:** `silent`/`fast`/`direct` only suppress the "... processing ..." message — the
   theme is still redrawn (docs previously said "set without triggering a redraw").
+
+## 2026-09-20 — World bubble map + live projection toggle: corrected `.view()` guidance, new `|SUM`+`valuefield` legend pattern, new worked example
+
+Building a world-scale WRI power-plant bubble map (categorical color + numeric size, dark
+theme, native legend, live Equal Earth ⟷ Orthographic globe toggle) surfaced one correction to
+existing docs and one new documented pattern, both confirmed with live browser instrumentation:
+
+**§ "Switching projection at runtime": the documented `myMap.view({...})` call after
+`setProjectJSON` is build-dependent, not universally required.** The existing doc said this
+call was required to force the SVG transform to follow the new center/zoom. On this session's
+engine build, adding that same call **silently reverted the entire projection swap** —
+confirmed via `JSON.parse(ixmaps.getProjectString()).map.map` reading back the *previous*
+projection's `.svg` path immediately after calling `.view()`, as if `setProjectJSON` had never
+run. No error either way. Updated the section to say this is build-dependent and to test
+without `.view()` first, verifying via a `getProjectString()` readback rather than trusting a
+screenshot.
+
+**New pattern: `|SUM` + `style.valuefield` makes a CATEGORICAL bubble legend show summed value,
+not facility count.** A `CATEGORICAL` bubble theme's native legend defaults to showing each
+class's item count (or a placeholder index) because `binding.value` is spent driving color.
+Setting `style.valuefield` to the same field driving `binding.size`, plus `|SUM` in the type
+string, makes the legend sum that field per class instead — verified against the raw CSV
+(legend read Coal ≈1,964,838 MW etc., matching an independent per-fuel `sum(capacity_mw)`, not
+the ~2,330-facility count that showed before the fix).
+
+**New Hotspot #33: `setProjectJSON` also resets the map's tool state, silently killing hover
+tooltips a second time.** A rebuild of this same map (fresh session, following the recorded
+recipe above) surfaced a gotcha the first pass missed: `ixmaps.setMapTool("info")` at init
+(Hotspot #26) is not enough once a live projection toggle exists — `setProjectJSON`'s redraw
+resets `map.szMapToolType` back to `""` again, so tooltips work fine until the *first* toggle
+click, then go dead with no error. Confirmed the obvious fix doesn't stick: calling
+`setMapTool("info")` synchronously right after `setProjectJSON()` is a no-op (the async theme
+redraw overwrites it again moments later); the identical call from the console *after* the swap
+visibly finishes works immediately. Fix: `setTimeout(() => ixmaps.setMapTool("info"), 400)`
+placed after the `setProjectJSON`/theme-swap block, not inline with it. Added to
+§ "Switching projection at runtime" and as Silent Failure Hotspot #33.
+
+Full worked example (complete code, all gotchas, testing checklist) →
+**example-world-bubble-projection-toggle.md**.
+
+## 2026-09-04 — Two multi-theme/hover gotchas from a swappable-choropleth build
+
+Building a 3-theme swappable choropleth (one `FEATURE` base + a `CHOROPLETH` overlay redefined
+per theme, § Multi-Layer Join Pattern · B) surfaced two silent failures, both confirmed with live
+browser instrumentation rather than assumed from symptoms:
+
+**Overlay join needs an explicit `id` (Hotspot #25).** Binding the overlay with only `geo` +
+`value` (+ `title`) — reasoning that it re-supplies its own geometry from the same source file, so
+no join key should be needed — silently classified only 1,107 of 7,894 polygons (clustered by
+insertion order in the source file), leaving the rest at the base layer's fallback fill with no
+error. Adding `id: "PRO_COM"` (matching the base's own `id` field) to the overlay's `.binding()`
+fixed it completely: 7,893/7,894 correctly classified. Root cause not traced into engine source,
+but the fix is cheap, reliable, and empirically verified before/after.
+
+**`mode:"info"` doesn't arm hover-tooltips by itself (Hotspot #26).** Tooltips stayed completely
+dead on a fresh load despite `mode:"info"` in the init options, a correctly-registered
+`.meta().tooltip` (verified via `ixmaps.getThemeObj(name).objTheme.theme.szTooltip`), and a
+confirmed-firing hover handler (`map.Event.defaultMouseOver`, verified by monkey-patching it).
+Traced the handler's source: it gates the actual `displayTooltip()` call on
+`map.szMapToolType !== ""`, and that property stays `""` at init regardless of the `mode` option,
+`tools:true/false`, or wait time. First suspected this was a false alarm from earlier manual
+testing (clicking near the toolbar may have coincidentally toggled it) — re-verified from scratch
+across four isolated variants (`tools:true`, `tools:false`, no `mode` set, long-wait) with both
+synthetic `MouseEvent` dispatch and genuine mouse hover via the `computer` tool, on a minimal
+single-bubble repro independent of the original map entirely. All four stayed broken; all were
+fixed by calling `ixmaps.setMapTool("info")` once the map is ready — the same call the `tools:true`
+toolbar's own PAN/INFO toggle button invokes internally.
 
 ## 2026-09-03 — `objectscaling:"dynamic"` silently collapses some CATEGORICAL classes with no size binding
 

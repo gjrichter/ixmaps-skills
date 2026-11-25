@@ -398,6 +398,10 @@ myMap.layer("b").data({ url: "data.csv", type: "csv", name: "shared" }) … .def
 
 > This is the **data-source** name — completely separate from the layer name and from `meta.name` (Rule 24). It only controls data-object reuse.
 
+**This also applies to a single theme redefined repeatedly over time** — e.g. a Year/Age/Sex-style control panel that calls `.data({ url: DATA_URL, type: "csv" }).binding(...).define()` again on every change (§ Animated/Timeseries Maps, Multi-Layer Join Pattern · B). It's easy to read this section as being only about *multiple simultaneous* themes and skip `name`+`cache:"true"` on a redraw function's single `.data({url:...})` call, since the URL never changes between calls — but without them, **every redraw re-fetches and re-parses the whole file from scratch**, confirmed via console timing at ~450ms per redraw for a real CSV vs ~5-15ms once `name`+`cache:"true"` let ixmaps reuse the already-parsed table. This also means code that reads `ixmaps.getThemeObj(name).objTheme.dbFields/dbRecords` synchronously right after that `.define()` (e.g. a custom click/hover panel) can race an in-flight reload and see stale or missing data — see SKILL.md Silent Failure Hotspot #27. The cleanest option for a redraw function is often to fetch/parse the data **once** yourself and pass the cached result back in via `obj:` on every subsequent `.define()`, rather than `url:` — the pattern SKILL.md's own swappable-theme example uses.
+
+> ⚠️ **`name`+`cache:"true"` is not a blanket default for every `.data()` call** — add it deliberately wherever a `.data({url:...})` genuinely gets reloaded for the same source (the redraw/animated/swappable pattern above), not as a habit applied everywhere. Two failure modes in opposite directions: (1) on a theme defined only **once**, it's inert boilerplate — there's no second load to skip, so it does nothing; (2) more importantly, `name` is a manually-chosen cache key — if two `.data()` calls that are meant to load **different** data (different `url`, or the same `url` filtered/queried differently upstream) end up sharing the same `name`, ixmaps silently serves the first one's cached object to the second instead of loading its own data. No error, no warning, just the wrong dataset behind a theme that looks like it loaded fine — see Silent Failure Hotspot #30. Scope every `name` to one specific data source, never a generic reused label like `"data"` or `"popData"` copied across unrelated layers.
+
 **For programmatic multi-source loading (`query` + `ixmaps.setExternalData`):**
 
 Use this pattern when you need to load multiple files, merge them, and/or transform the combined result before handing it to the layer. The `query` property takes a function string (like `process`); the function receives a `themeObj` and an `options` object and must call `ixmaps.setExternalData(table, options)` to inject the final Data.Table.
@@ -557,6 +561,31 @@ Filter data before visualization.
 - ⚠️ **NEVER use single quotes `'`** — they are NOT string delimiters in ixMaps filters; they become part of the matched value and produce no matches
 - Unquoted (no spaces): `.filter("WHERE code == IT")`
 - Quoted (explicit / spaces): use escaped double quotes → `.filter("WHERE name == \"New York\"")`
+
+**⚠️ `OR` is not implemented — only `AND` chaining actually works, and `OR` fails silently.**
+Verified directly in the engine source (`maps/svg/js/maptheme.js`, the filter tokenizer): after
+parsing one `field op value` clause, the loop only continues if the next token is literally
+`"AND"` — anything else (including `"OR"`) breaks the loop immediately, silently discarding every
+clause after it. The code comment even says so: `// only 'AND' combination (OR tdb)` ("to be
+done" — never implemented). Confirmed empirically: a 6-clause `CNTR_ID == "A" OR CNTR_ID == "B"
+OR ...` filter matched **only** the first clause (`A`) — no error, no warning, `theme done` logs
+normally, and the other 5 records were just silently absent.
+```javascript
+// ❌ BROKEN — only the first clause ("NL") ever matches; the rest are silently dropped
+.filter('WHERE CNTR_ID == "NL" OR CNTR_ID == "CH" OR CNTR_ID == "FR"')
+
+// ✅ Excluding a set works fine — <> chained with AND is fully supported
+.filter('WHERE CNTR_ID <> "NL" AND CNTR_ID <> "CH" AND CNTR_ID <> "FR"')
+```
+To select a **set** of values (the inverse — an inclusion list, which needs real `OR` semantics),
+`.filter()` cannot do it at all. Instead, filter the source data yourself before it reaches
+ixMaps:
+- **GeoJSON/JSON data**: fetch it yourself, filter the `features`/rows in plain JS, then pass
+  the filtered result via `.data({ obj: filteredData, type: "geojson" })` (or `"json"`).
+- **TopoJSON data**: the same client-side approach needs a TopoJSON→GeoJSON conversion your page
+  would have to do itself — simpler to fetch the **GeoJSON** twin of the same dataset instead (a
+  GISCO topojson URL's `/topojson/….json` path segment has a matching `/geojson/….geojson` one)
+  and filter that, rather than fighting the engine's own topojson loader.
 
 ### `.type(vizType)`
 
@@ -1151,6 +1180,84 @@ Complete style property reference.
 **opacity** (number) — a different property, not an alias for `fillopacity`
 - Overall element transparency: fades the fill **and** the stroke/border together
 - Use `fillopacity` unless you specifically want the border/outline to fade too
+
+### Shadow Properties
+
+**shadow** (boolean/string) — real drop-shadow, works on `FEATURE`/`CHOROPLETH` *and* `CHART`
+- `shadow: "true"` (or `true`) adds a genuine SVG drop-shadow filter (`feGaussianBlur` +
+  `feOffset` + `feColorMatrix` + `feMerge`) to the theme's rendered shapes — confirmed in the
+  engine source (`maps/svg/js/maptheme.js`), not just documentation: `MapTheme.prototype.chartMap`
+  applies it per-item (works for `CHOROPLETH` polygons and `CHART` symbols/bars alike — both are
+  drawn through this same shared loop), and a separate `FEATURE`-only branch (search "make shadow
+  for the FEATURES") applies one shadow filter to a `FEATURE` layer's whole group.
+- Real production usage confirmed for both a plain `FEATURE` boundary layer (`shadow: true` on
+  `.type("FEATURES|NOLEGEND|SILENT")` — an Italy-outline layer) and multiple `CHART`/`CHOROPLETH`
+  dashboards.
+- Default `false` — must be explicitly enabled.
+- This is a `.style()` **property**, not a `|SHADOW` type-string flag — do not confuse it with the
+  unrelated `SHADOW` token accepted inside a `CHART|USER` type string (see below).
+- Example — shadow on a choropleth overlay:
+  ```javascript
+  myMap.layer("countries")
+      .data({ url: DATA_URL, type: "csv" })
+      .binding({ lookup: "iso3", value: "pct" })
+      .type("CHOROPLETH|QUANTILE")
+      .style({ colorscheme: ["#fff2cc", "#a83232"], shadow: "true", showdata: "true" })
+      .meta({ tooltip: "{{pct}}%" })
+      .define();
+  ```
+
+**⚠️ The blur/offset amounts are hardcoded and NOT exposed as a style property — they can be
+imperceptible on a `FEATURE` layer under non-Mercator projections.** The `FEATURE`-only shadow
+branch ("make shadow for the FEATURES") builds its SVG filter with fixed constants —
+`feGaussianBlur stdDeviation="0.3"`, `feOffset dx="0.2" dy="0.5"` — with no style-property hook to
+change them. These are reasonable against a small lat/lng-degree coordinate space, but this
+engine's non-Mercator projections (Lambert, Albers, Equal Earth, …) render into a much larger
+internal SVG coordinate system (confirmed: a Lambert-projection Europe view used a `viewBox`
+spanning `7400×16040` units) — against that scale, a 0.3-unit blur is a small fraction of a
+pixel. Symptom: `shadow: "true"` is confirmed genuinely applied (`filter: url(#DropShadowFilter…)`
+is present on the shape's `<g>`, and the toggle indisputably works on smaller-scale content) but
+the drop-shadow is visually indistinguishable from no shadow at all — no error, nothing to debug
+in your own map config, because the map config is correct.
+- **Fix:** after the map draws, find the generated filter node and override its amounts directly
+  — it's a plain SVG element once created, nothing ixmaps-internal is protecting it:
+  ```javascript
+  function boostFeatureShadow() {
+      var filt = document.getElementById("DropShadowFilterShape:antizoomandpan");
+      if (!filt) return;                                    // not created until a FEATURE
+      var blur = filt.querySelector("feGaussianBlur");       // theme with shadow:"true" draws
+      var off  = filt.querySelector("feOffset");
+      if (blur) blur.setAttribute("stdDeviation", "25");     // tune to your own coordinate scale
+      if (off)  { off.setAttribute("dx", "15"); off.setAttribute("dy", "30"); }
+  }
+  myMap.on("layerdraw", boostFeatureShadow);   // idempotent — safe to call on every redraw
+  ```
+- The id is always `DropShadowFilterShape:antizoomandpan` (`map.szShadowFilterShapeId` in the
+  source) — it's created lazily on the first `FEATURE` theme that draws with `shadow: "true"`, so
+  don't query for it before that. The **per-item** chart/choropleth shadow filter is a **separate**
+  element (`DropShadowFilterObjects:antizoomandpan`, larger defaults of `stdDeviation="10"`,
+  `dx="10"`, `dy="10"` — tuned for small point-symbol coordinate deltas, not polygon geometry) and
+  would need the same treatment if it also reads as too small/large for a given coordinate scale.
+- There's no formula to pick the right numbers from first principles — the correct scale depends
+  on the actual coordinate magnitude of your projected geometry, which varies by projection and
+  view. Start from a value visibly wrong in either direction and adjust from what you see.
+
+**shadowupper** / **shadowlower** (scale string, e.g. `"1:2000000"`)
+- Scale-dependent gate: shadow only renders within this map-scale range — same mechanism as
+  `layerupper`/`layerlower` but scoped to the shadow filter alone (the shapes themselves still draw
+  outside that range, just without the shadow).
+
+**maxshadow** (number)
+- Caps how many shadowed items may render at once (maps to the engine's `nMaxShadowCharts`,
+  default `1000`). Existing code comment: "chrome crashes if more objects with shadow" — lower this
+  for large point-chart datasets with `shadow: true` to avoid renderer slowdown/crashes.
+
+**`SHADOW` inside a `CHART|USER` type string** — a different, narrower mechanism
+- Only meaningful for custom D3 draw functions (`pinnacleChart`/`arrowChart` — see § CHART|USER),
+  e.g. `.type("CHART|USER|SIZE|3D|SHADOW|...")`. Inside those scripts, `args.theme.szFlag.match(/SHADOW/)`
+  gates drawing an extra hand-built skewed grey polygon behind a 3D bar/arrow shape, only when the
+  bar is tall enough (`nHeight > 100`). It does **not** apply the generic SVG filter above and has
+  no effect outside those specific USER draw functions.
 
 ### Aggregation Properties
 

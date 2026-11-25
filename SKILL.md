@@ -111,9 +111,10 @@ rather than implying it works.
 10. **NEVER use `fillcolor`** — use `colorscheme: ["#hex"]`
 11. **NEVER add `.legend("string")`** unless user explicitly requests it — destroys the default color legend. For a map title, use `.title("...")` on the layer instead; for subtitle/description text, use `meta.snippet`/`meta.description` — see § Map title, subtitle & description
 12. **ALWAYS use CDN** `https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-flat@1/ixmaps.js`
+    - **Default engine is ixmaps-flat.** Use ixmaps-gl only per § Choosing the Engine (flat | gl) below. Never mix both scripts on one page.
     - **data.js** (`https://cdn.jsdelivr.net/gh/gjrichter/data.js@master/data.js`) is **already loaded by ixmaps** — `Data.*` functions are available inside `query:` and `process:` callbacks without any extra `<script>` tag
     - **Only include the data.js CDN explicitly** when you need `Data.*` functions *outside* ixmaps theme realization (e.g. pre-processing data in your own `<script>` block before defining layers)
-13. **NEVER use info from** `ixmaps.ca` or `ixmaps.com` — only `github.com/gjrichter/ixmaps-flat`
+13. **NEVER use info from** `ixmaps.ca` or `ixmaps.com` — only `github.com/gjrichter/ixmaps-flat` (and `github.com/gjrichter/ixmaps-gl` for the gl engine)
 14. **ONE `.data()` per layer** — never chain two `.data()` calls on the same layer
 15. **🔑 SAME LAYER NAME = GEOMETRY REUSE** — see § Geometry Reuse Pre-flight Checklist below for the authoritative rules. Quick example:
 
@@ -187,6 +188,15 @@ These produce **no error, no warning, no console message** — the map just sile
 | 22 | Used `colorfield` (style) on a `CHART\|BUBBLE` theme to color bubbles by a field different from the one driving size/value (the pattern documented for CHOROPLETH/VECTOR/DOT categorical coloring) | Every bubble renders in **one single color** — `colorScheme[0]` — regardless of the per-item class, which IS computed correctly (`itemA[a].nClass`/`.szColor` resolve right) but the BUBBLE draw path never reads them: it recomputes color fresh from the chart *value* (`nClass = nValue − 1`), ignoring `colorfield` entirely. No error, no warning — the legend can even show the right classes while every bubble on the map is identical | `colorfield` genuinely doesn't work on BUBBLE. Use the **category field as `binding.value` directly** instead (§ Special Patterns "CATEGORICAL + bubble size from a numeric field" — this is the engine's own supported path for BUBBLE categorical color, decoupled size via `binding.size`). If you truly need `colorfield` semantics (color field ≠ value field) keep the chart as `CHART\|SYMBOL` instead of `BUBBLE` (`symbols:"circle"` looks identical) — SYMBOL's draw path does read the resolved per-item color |
 | 23 | Assumed hover/tooltip priority among overlapping `CHART` themes on the same or nearby geometry follows visual z-order (later `.layer()` call = drawn on top = wins hover) | It follows **definition order** instead — the theme defined **earlier** in the `.layer(...)` chain wins hover, even when a later-defined theme is visually on top. A `VECTOR`/`BEZIER` line theme also has a mouse hit-area noticeably wider than its rendered stroke, so an early-defined flow/line theme can silently steal hover from nearby `BUBBLE`/`CHOROPLETH` points that only *look* unrelated. No error — the wrong theme's tooltip just shows | Reorder `.layer(...)` calls: put the theme you want hover/tooltip priority for **earliest**, and push wide-hit-area `VECTOR`/`BEZIER` line themes as **late** as possible in the chain. If a tooltip shows the "wrong" theme's content, suspect layer *order* before debugging tooltip HTML/CSS |
 | 24 | Set `objectscaling: "dynamic"` + a very large `normalSizeScale` (e.g. `"150000000"`, for a world/zoom-1 view) on a `CHART|BUBBLE|CATEGORICAL` theme that has **no per-item size binding** (every bubble meant to render at the same fixed size via `style.scale` alone) | Some — not all — category classes silently collapse: their SVG group keeps an identity transform (`matrix(1 0 0 1 0 0)`) and an unscaled raw radius (e.g. `r="100"`), so those items render at zero effective size at the SVG origin instead of at their real position. Confirmed reproducible on a genuine hard reload (not a stale-tab artifact) with 2 of 3 classes affected and the third rendering correctly — the legend still shows correct per-class counts throughout, so it looks like a data problem rather than a draw one | `objectscaling: "dynamic"` has nothing to scale *from* when there's no `binding.size` value — drop `objectscaling`/`normalSizeScale` from `.options()` entirely for a theme where every bubble is meant to be the same fixed size (control size with `style.scale` alone). Only enable dynamic scaling when a real per-item size value exists to drive it. If a map's bubbles inexplicably work for some categories but not others with the legend counts still correct, suspect this before suspecting the data |
+| 25 | Built a swappable `CHOROPLETH` overlay reusing a `FEATURE` base's geometry (same layer name, § Multi-Layer Join Pattern · B), binding the overlay with only `geo` + `value` (+ `title`) — no `id` — reasoning that the overlay supplies its own full geometry from the same source file, so no join key should be needed | Only a small, non-random fraction of records get classified/colored — confirmed 1,107 of 7,894 polygons (clustered by insertion order in the source file, e.g. all from the first province) — the rest silently keep the base layer's fallback fill color. `theme done` logs normally, no error, no warning | Give the overlay's `.binding()` an explicit `id` matching the base layer's own `id` field, even though the overlay isn't doing a separate-CSV lookup join: `.binding({ geo: "geometry", id: "PRO_COM", value: field, title: "NAME" })`. Confirmed empirically: without `id`, 6,787/7,894 stuck at the base fill; with it, 7,893/7,894 correctly classified. Add this `id` any time an overlay redefine on a shared layer name covers less than the full dataset with no visible cause |
+| 26 | Set `mode: "info"` in `ixmaps.Map()` init options, expecting hover to show tooltips immediately with no further calls — as documented under § `mode`: pan on touch, info on desktop | Hover tooltips stay completely dead. `map.szMapToolType` remains `""` (not `"info"`) at init regardless of the `mode` option, `tools: true`/`false`, or how long you wait after load. `.meta().tooltip` is confirmed correctly registered on the theme object (`ixmaps.getThemeObj(name).objTheme.theme.szTooltip`), and the hover handler (`map.Event.defaultMouseOver`) does fire — but it gates the call to `displayTooltip` on `map.szMapToolType !== ""` and returns early. No console error. Confirmed with both synthetic `MouseEvent` dispatch and genuine mouse hover (`computer` tool), independent of `tools:true/false` | Explicitly call `ixmaps.setMapTool("info")` once the map is ready (e.g. inside `myMap.then(function(){ ixmaps.setMapTool("info"); })`). This is a plain global call — the same one a `tools:true` toolbar's own PAN/INFO toggle button invokes internally — and it reliably sets `szMapToolType` regardless of the `mode` init option. Do this any time a map needs working hover-tooltips from the first paint, without requiring the user to find and click a small toolbar icon first |
+| 27 | Redefined the **same** theme repeatedly from a control-driven redraw function (Year/Age/Sex-style dropdowns, § Animated/Timeseries Maps), with `.data({ url: DATA_URL, type: "csv" })` reloaded on every redraw and no `name`+`cache:"true"` | Every redraw re-runs the full fetch→parse pipeline (`Data.Broker.addSource` → `__doCSVImport` → `__processCSVData`) even though the URL never changed — confirmed via console timing: ~450ms per redraw for a real CSV, vs ~5-15ms once cached. No error, no warning — the map just redraws slower than it needs to, and reading `ixmaps.getThemeObj(name).objTheme.dbFields/dbRecords` synchronously right after that `.define()` (e.g. building a custom click/hover panel per Hotspot below) races the reload and can return stale/`null` data | Add `name: "someLabel", cache: "true"` to the repeatedly-reloaded `.data()` call so ixmaps reuses the already-parsed table across redraws instead of re-fetching — this applies to a single theme redefined many times over, not just multiple simultaneous themes sharing one load (API_REFERENCE.md's documented use case). Cleanest of all: fetch/parse the CSV **once** yourself and redefine with `obj: cachedData` instead of `url:` thereafter — the pattern SKILL.md's own swappable-theme example already uses. Either way, still hook `layerdraw`/`"theme done"` rather than assuming any given redraw is fast enough to read synchronously — see the custom-tooltip Hotspot below |
+| 28 | Assumed `{{fieldname}}` / `{{raw.fieldname}}` / `{{title}}` in a `.meta().tooltip` mustache template resolve a plain string field the same way they do for a directly-bound `FEATURE`, when the theme is actually a `CHOROPLETH` driven by a `.binding({ lookup: ... })` join | The string field renders **empty** — only the bound numeric `value` and `{{theme.item.data}}` (which dumps every column) actually resolve for a lookup-joined CHOROPLETH. No error; the tooltip just silently loses the country/region name while still showing a value | Read the row directly from the theme's own already-loaded table instead: `ixmaps.getThemeObj(themeName).objTheme.dbFields` (array of `{id,...}`) + `.dbRecords` (raw row arrays) — build a field-name→column-index map from `dbFields`, then scan `dbRecords` for the row matching your join key. Build a fully custom tooltip/panel from that rather than fighting the mustache template. To suppress the native tooltip entirely while doing this, use `tooltip: "{{}}"` in `.meta()` — `tooltip: ""` does not fully disable it |
+| 29 | Attached a custom `mousemove` listener via delegation on the map container (e.g. `document.getElementById("map").addEventListener("mousemove", handler)`, the same delegation pattern that works for `click`) to build a custom hover tooltip | The listener never fires. ixmaps attaches its own mousemove/mouseover handlers directly on the SVG item groups for its native hover-highlight system, and those call `stopPropagation()` — a normal bubble-phase listener on the container never receives the event. Click delegation is unaffected (ixmaps doesn't stop that one) — only mousemove/hover | Register the listener on the **capture phase** instead: `addEventListener("mousemove", handler, true)` (3rd argument `true`, or `{capture:true}`). Capture fires top-down before ixmaps' bubble-phase `stopPropagation()` can block it |
+| 30 | Applied `name`+`cache:"true"` to every `.data()` call as a blanket habit (following Hotspot #27's fix), rather than scoping each `name` to one specific data source — e.g. reused a generic label like `"data"` across two `.data()` calls that actually load different URLs, or the same URL filtered/queried differently upstream | The **second** theme silently gets the **first** theme's already-cached data object instead of loading its own — `name` is a manually-chosen cache key, and ixmaps has no way to know the two calls were supposed to differ. No error, no warning, no mismatch in row count necessarily — the theme just renders with the wrong dataset behind it | `name`+`cache:"true"` is not a default to sprinkle everywhere — add it only where a `.data({url:...})` genuinely reloads the same source repeatedly (redraw/animated/swappable patterns, Hotspot #27), and give each distinct data source its own `name`. On a theme defined once and never redefined, it's inert boilerplate with no benefit either way |
+| 31 | Tried to build a 2D/3D-globe toggle by calling `ixmaps.Map()` a second time for the new projection (a fresh div included) — reasoning that `mapProjection` being init-time-only just meant "re-run init" | The second call returns an empty stub object (`{}`, no `.view()`/`.layer()`) — `ixmaps.Map()` is a page-wide singleton, not scoped per div. Separately, the *correct* live-swap technique (`ixmaps.getProjectString()`/`setProjectJSON()`, § Switching projection at runtime) has its own gotcha: switching Orthographic → Equal Earth leaves the SVG transform permanently stuck off-screen (every path still in the DOM, `getZoom()`/`getCenter()` report correctly, nothing fixes it short of a reload) — no error either way, both fail silently into a blank or broken map | Never re-call `ixmaps.Map()` once a map exists on the page. Use the `getProjectString`/`setProjectJSON` swap instead — and for the one broken direction (3D → 2D), reload the page rather than continuing to fight the stuck transform. Full mechanism, code, and the reload workaround → § Switching projection at runtime |
+| 32 | Wrote a `.filter()` with `OR` to select a set of values (e.g. `CNTR_ID == "NL" OR CNTR_ID == "CH" OR ...` to pick 6 countries out of a world dataset) — reasoning that the skill's own `.filter()` examples say "use AND/OR" | Only the **first** clause ever matches — confirmed in the engine source (`maps/svg/js/maptheme.js`): the filter tokenizer only continues past one clause if the next token is literally `"AND"`; anything else, including `"OR"`, breaks the loop and silently discards every remaining clause (source comment: `// only 'AND' combination (OR tdb)` — never implemented). `theme done` logs normally, no error — the theme just renders with 1 record selected instead of 6 | `OR` genuinely does not work in `.filter()` — only `AND` does (confirmed: a 6-clause `<>`/`AND` exclusion filter worked correctly). To select a *set* of values, filter the source data yourself in plain JS before it reaches ixmaps (fetch, `.filter()` the array/features, then `.data({obj: filtered, ...})`) rather than trying to express it as an ixmaps WHERE clause. See API_REFERENCE.md § `.filter(expression)` |
+| 33 | Built a live projection toggle (`ixmaps.setProjectJSON()`, § Switching projection at runtime) on a map that already correctly called `ixmaps.setMapTool("info")` once at init (Hotspot #26), assuming that call would keep hover tooltips armed for the rest of the page's life | Hover tooltips work fine until the **first** projection switch, then go silently dead — `setProjectJSON` (via the theme redraw it triggers) resets `map.szMapToolType` back to `""`, the exact same gate as Hotspot #26. No error, no warning. Confirmed the obvious fix doesn't stick: calling `ixmaps.setMapTool("info")` synchronously right after `setProjectJSON()` is a no-op, because the async redraw the swap triggers overwrites the tool state again a moment later; calling the identical line from the console *after* the swap has visibly finished works immediately | Re-arm with a short delay placed **after** the `setProjectJSON`/theme-swap block, not inline with it: `setTimeout(function(){ try { ixmaps.setMapTool("info"); } catch(e){} }, 400);`. Needed on every runtime projection switch, in addition to the one-time init call from Hotspot #26 — the two are independent, both required |
 
 ---
 
@@ -205,6 +215,35 @@ Run this mental check before writing **any** overlay layer (CHOROPLETH, CHART on
 ```
 
 ---
+
+## Choosing the Engine (flat | gl)
+
+Same builder API, two renderers. **Default: ixmaps-flat** (SVG/Leaflet, stable `@1`, every rule,
+template and hotspot in this skill is verified against it).
+**ixmaps-gl** (MapLibre + deck.gl, 0.x) is an opt-in second option.
+
+**Offer gl only when the user asks for it, or when one of these applies:**
+- more than ~50k points/features, or pan/zoom smoothness is the problem
+- a globe (orthographic) view or 3D flow arcs (`3D` on `CHART|VECTOR|BEZIER`)
+- heatmap/KDE or vector-tile / PMTiles layers (`HEATMAP`, `KDE`, `MLHEATMAP`, `MLPMTILES`)
+
+**Gate, before proposing gl:** run the grammar checker on the finished page.
+  `npx ixmaps-check --engine gl page.html`
+Any `gl-unsupported` finding on a theme type, flag or style key → stay on flat and say why.
+`gl-unsupported` on page chrome only (`tools`, `toolbutton`, `search`, `mapName`, `mapService`,
+`flushChartDraw`) is acceptable: gl has no toolbar or search UI.
+
+**Switching:** change only the script tag; never rewrite the page's API calls.
+  `<script src="https://cdn.jsdelivr.net/gh/gjrichter/ixmaps-gl@0/ixmaps-gl.js"></script>`
+(replaces the flat `<script>`; MapLibre, deck.gl and data.js are loaded by the engine itself.)
+
+**Known differences to tell the user:** `objectscaling` defaults to `"dynamic"` in gl; pie/bar
+`3D`, `VOLUME`, `TRENDLINE`, `ZOOM` and flow `DYNAMICWIDTH` are logged and drawn plainly;
+needs WebGL (no WebGL, no map); this skill's Silent Failure Hotspots are verified on flat only,
+so for gl pages verify rendering visibly (Render Contract, stage 6), not by absence of errors.
+Debug with `.options({validate:true})` or `?ixmaps-validate` on the page URL.
+
+Full gl feature list and limits → `github.com/gjrichter/ixmaps-gl` README.
 
 ## Choosing Visualization Type
 
@@ -245,7 +284,7 @@ Is your data...
 - `|NOSCALE` — disables dynamic zoom scaling; flows/symbols stay constant size regardless of zoom
 - `|GRADIENT` — gradient color along flow lines (origin color → destination color); use with `CHART|VECTOR|BEZIER` — **gradient must be defined via `linecolor: ["#from","#to"]` array, NOT `colorscheme`**
 - `|CLIPTOGEOBOUNDS` — clips chart rendering to the containing polygon boundary
-- `|DOMINANT|PERCENTOFMEAN` — colors by which of multiple piped fields is above-mean dominant; useful for showing "winner" category per region
+- `|DOMINANT` — colors each record by whichever of several piped fields most exceeds the mean *of that record's own fields* (within-record "peak class"); `|PERCENTOFMEAN` changes the axis to *that field's own mean across all records* (cross-record "biggest outlier") — easy to conflate, see § Special Patterns "Dominant class per record" for the verified worked example and the difference in practice
 - `|DTEXT` — makes `VALUES`-generated text labels on `CHOROPLETH` themes properly sized (always pair with `|VALUES` on choropleth layers that show value labels)
 - `|SMOOTH` — smoothing interpolation on sparkline curves
 - `|SORT` / `|SORT|DOWN` — sort sparkline categories ascending / descending
@@ -511,11 +550,18 @@ var MAP_MODE = (window.matchMedia && window.matchMedia("(pointer: coarse)").matc
 var myMap = ixmaps.Map("map", { mapType: "white", mode: MAP_MODE, legend: "closed", tools: true })
     .view({ center: { lat: 42.5, lng: 12.5 }, zoom: 6 })
     .options({ /* … */ });
+
+// ⚠️ mode:"info" alone does not reliably arm hover-tooltips — see Silent Failure Hotspot #26.
+// Force it explicitly once the map is ready:
+myMap.then(function () {
+    if (MAP_MODE === "info") { try { ixmaps.setMapTool("info"); } catch (e) {} }
+});
 ```
 
 - Use `(pointer: coarse)` — NOT a `max-width` breakpoint. Screen size ≠ input type (a small window on a desktop is still mouse-driven; a large tablet is still touch).
 - Pure CSS media queries can't set `mode` (it's a JS init option), so this branch must run in JS before `ixmaps.Map(...)`.
 - The user can still switch modes at runtime via the ixMaps tools toolbar; this only sets the **initial** mode.
+- **`mode: "info"` sets the intended starting mode, but not the engine's internal tool state** (`map.szMapToolType`) — confirmed it stays `""` at init regardless of `mode` or `tools:true/false`, leaving hover-tooltips silently dead until either the user clicks the toolbar's PAN/INFO toggle, or `ixmaps.setMapTool("info")` is called explicitly (as above). See Hotspot #26.
 
 ### Projections
 
@@ -595,6 +641,79 @@ var myMap = ixmaps.Map("map", {
 - Do **not** use a full ±180°/±90° world-bounding polygon for the orthographic ocean background (the classic d3 "Sphere hack") — this engine's orthographic renderer does adaptive horizon-clamping per vertex, and a polygon spanning both hemispheres collapses into a degenerate sliver instead of a disc. `{type:"Sphere"}` is the correct native replacement.
 - ⚠️ Requires an ixmaps-flat build with native Sphere support (added 2026-07-03). If the sea silently doesn't render and the theme otherwise reports done with no error, the loaded engine predates this feature — confirm the build/version before assuming a config mistake.
 
+#### Switching projection at runtime (e.g. a 2D/3D-globe toggle button)
+
+`mapProjection` is an init-time-only option on `ixmaps.Map()` — there is no documented call to
+change it on a live map. **Do not try to work around this by calling `ixmaps.Map()` again**
+(even targeting a brand-new, never-before-used div): confirmed empirically, once one instance
+exists on the page, every subsequent `ixmaps.Map()` call returns an empty stub object with no
+`.view()`/`.layer()` methods at all — `ixmaps.Map()` is a page-wide singleton, not scoped per
+div, regardless of target id.
+
+The real mechanism — found in production code (a live `ixmap_interactive_legend.html` demo),
+completely undocumented elsewhere — is a lower-level project-JSON swap that never touches
+`ixmaps.Map()`:
+
+```javascript
+function switchProjection(name) {           // "equalearth" | "orthographic" | "winkel" | "mercator" | "lambert" | ...
+  var project = JSON.parse(ixmaps.getProjectString());
+  project.map.map = ixmaps.szResourceBase + "maps/svg/maps/generic/" + name + ".svg";
+  project.map.center = { lat: 0, lng: 0 };   // set inside the JSON — see caveat below on .view()
+  project.map.zoom   = 1;
+  ixmaps.setProjectJSON(project);
+  // Do NOT chain a `myMap.view({...})` call here on every build — see caveat below.
+}
+```
+
+- Existing themes (FEATURE base, CHOROPLETH overlay) reproject in place automatically — no
+  redefine needed. Confirmed: switching an Equal Earth choropleth to Orthographic changed the
+  rendered path count from 1626 to 808 (back-hemisphere countries correctly clipped) while
+  keeping the same theme instance and its color mapping.
+- A **dense-polygon** ocean background (the Equal Earth/Lambert technique above) does **not**
+  reproject correctly through this swap — it needs `removeTheme` + a fresh `.define()` with the
+  geometry appropriate for the new projection (`{type:"Sphere"}` for orthographic, the polygon
+  otherwise), same as building either projection from scratch.
+- ⚠️ **Whether a trailing `myMap.view({...})` call is needed after `setProjectJSON` is
+  build-dependent — test both ways.** One session found it necessary (without it, the rendered
+  SVG transform silently kept its old pan/zoom even though `getCenter()`/`getZoom()` reported
+  the new values correctly). A later session, on a different engine build, found the exact
+  opposite: adding that same `myMap.view({...})` call **silently reverted the whole projection
+  swap** — confirmed by reading `JSON.parse(ixmaps.getProjectString()).map.map` immediately
+  after, which showed the *previous* projection's `.svg` path and the *original* init
+  center/zoom, as if `setProjectJSON` had never run. No error either way. Try the swap **without**
+  `.view()` first (rely on `project.map.center`/`.zoom` alone), verify via a
+  `getProjectString()` readback that `map.map` actually changed, and only add `.view()` back if
+  the projection changed but the pan/zoom visibly didn't follow. Full worked example (world
+  bubble map, Equal Earth ⟷ Orthographic toggle switch) → **example-world-bubble-projection-toggle.md**.
+- ⚠️ **One specific direction is still broken even with the `.view()` call**: switching
+  **from Orthographic back to Equal Earth** (3D globe → 2D) leaves the SVG group's transform
+  matrix stuck on the Orthographic pan offset — confirmed reproducible on a clean cycle, every
+  time. `ixmaps.getZoom()`/`getCenter()` report the correct restored values and every path is
+  still present in the DOM (confirmed via path count) — the map is just rendered off-screen, a
+  pure transform bug. Tried and confirmed **ineffective** for un-sticking it: a second
+  `.view()` call, routing through `myMap.then(api => api.view(...))` instead, a repeat
+  `setProjectJSON`, and even a genuine zoom-button click. No workaround found short of a full
+  page reload (which does cleanly reset to Equal Earth) — for a 2D/3D toggle, make the "back to
+  2D" direction specifically do `location.reload()` (persisting Year/Age/Sex-style UI state via
+  `sessionStorage` across the reload) rather than fighting this further. The reverse direction
+  (2D → 3D, or presumably any other same-hemisphere-style pair) is unaffected.
+- ⚠️ **`setProjectJSON` also resets the map's tool state, silently killing hover tooltips** —
+  the same `map.szMapToolType` gate as Hotspot #26, tripped a second time by the redraw the
+  projection swap triggers. This bites even a map that already correctly called
+  `ixmaps.setMapTool("info")` once at init — the tooltip works fine until the first projection
+  toggle, then goes dead. Confirmed the naive fix doesn't stick: calling
+  `ixmaps.setMapTool("info")` synchronously right after `setProjectJSON()` is a no-op (the async
+  theme redraw the swap triggers overwrites it again a moment later); calling it from the
+  console *after* the swap has visibly settled works immediately. Re-arm it with a short delay
+  **after** the `setProjectJSON`/theme-swap block, not inline with it:
+  ```javascript
+  ixmaps.setProjectJSON(project);
+  // ...removeTheme/define swap for the projection-specific ocean backdrop, if any...
+  setTimeout(function () { try { ixmaps.setMapTool("info"); } catch (e) {} }, 400);
+  ```
+  Do this on every call that switches projection at runtime, in addition to the one-time
+  `setMapTool("info")` call at initial map load (Hotspot #26) — see Hotspot #33.
+
 ### Graticule (world grid lines)
 ```javascript
 (function() {
@@ -645,7 +764,7 @@ myMap.layer("name") /* … */ .define();                             // 4. layer
 myMap.layer("name")
     .data({ url: "…", type: "csv" })   // OR obj: myArray
     .binding({ geo: "lat|lon", value: "fieldname", title: "label" })
-    .filter('WHERE field == "value"')   // optional; use AND/OR not && /||
+    .filter('WHERE field == "value"')   // optional; use AND (not && /||) — OR is NOT implemented, see Hotspot #32
     .type("CHART|BUBBLE|SIZE|VALUES")
     .style({ colorscheme: ["#0066cc"], fillopacity: 0.7, showdata: "true" })
     .meta({ tooltip: "{{label}}: {{fieldname}}" })
@@ -850,6 +969,11 @@ create a separate layer per theme.
 - **Layer name** (`myMap.layer("comuni")`) = GEOMETRY bucket — must equal the FEATURE base's name (not unique).
 - **meta.name** (`.meta({name: "pie-theme-rd"})`) = THEME identity — unique, and the **key that drives replacement**.
 - ⚠️ **Never make these two the same string** (see Rule 24) — reusing one string for both has caused failures. Keep the `meta.name` distinct from the layer name.
+
+⚠️ **The overlay always needs an explicit `id` in its `.binding()`, matching the base's `id`** —
+even when the overlay's own `.data()` call re-supplies full `geo` geometry from the *same* source
+file as the base (not a separate lookup CSV). Omitting it silently joins only a fraction of
+records (confirmed: ~14% of a 7,894-feature set, with no error) — see Hotspot #25.
 
 **Replacement is automatic by `meta.name`.** Adding a theme whose `meta.name` already exists
 on the map *replaces* the existing one in place. So there are two ways to swap:
@@ -1058,6 +1182,9 @@ embedded Api — reach it via `myMap.then(api => api.removeTheme(name))`. The
 | `dopacitypow` | Power curve exponent for `DOPACITY` opacity mapping (default ≈ 1; `2` = quadratic, exaggerates contrast) |
 | `dopacityscale` | Multiplier applied after opacity calculation — stretches the opacity range |
 | `gridwidthpx` | (see Key Style Properties) supports `"factor"` mode in `changeThemeStyle` for runtime zoom-scaling |
+| `shadow` | `"true"` adds a real SVG drop-shadow filter — works on `FEATURE`/`CHOROPLETH` polygons **and** `CHART` symbols/bars (verified in engine source, `maptheme.js` `chartMap`/FEATURE branch — see API_REFERENCE.md § Shadow Properties). Not the same thing as the `SHADOW` token inside a `CHART\|USER` type string, which only triggers a hand-drawn shadow shape in the `pinnacleChart`/`arrowChart` D3 scripts |
+| `shadowupper` / `shadowlower` | Scale-gate for the shadow filter only (shape still renders outside the range, just without shadow) |
+| `maxshadow` | Cap on simultaneously-shadowed items (perf/crash guard on large point datasets) |
 
 **Trees (street-level) sizing baseline with `|GLOW`:**
 - Use this as a reliable starting point for urban tree inventories (diameter in cm):
@@ -1090,6 +1217,16 @@ Interactive controls that modify the map after load. What's available:
 ---
 
 ## Special Patterns (quick ref)
+
+**Dominant class per record, from several piped fields (e.g. "which age band is this comune's peak?"):**
+```javascript
+.binding({ lookup: "joinField", value: "class1|class2|class3|...classN", title: "nameField" })
+.type("CHOROPLETH|DOMINANT")
+.style({ colorscheme: [...N distinct colors], values: ["class1","class2",...,"classN"], showdata: "true" })
+```
+Picks, **per record**, whichever piped field most exceeds the mean of *that record's own* N fields — e.g. with 21 age-band columns piped in, colors each comune by its own peak age band relative to its own age profile. Confirmed with a controlled 3-field test (Roma 2024 male: `0-4`=1.71, `50-54`=4.07, `100+`=0.01 → mean 1.93) — renders `50-54` (the correct within-record winner, 211% of that 3-field mean), matching a from-scratch calculation exactly.
+
+> ⚠️ **`|PERCENTOFMEAN` changes the comparison axis entirely** — `CHOROPLETH|DOMINANT|PERCENTOFMEAN` compares each piped field against **that field's own mean across all records** instead (e.g. Roma's `100+` share vs. the *national average* `100+` share), not against the other fields within the same record. On the same Roma test, adding `PERCENTOFMEAN` picked `100+` as "dominant" — a band where Roma's raw value (0.0085%) is negligible in absolute terms, but far above what `100+` typically looks like nationally (most small comuni round to 0% for a band that rare). Confirmed reproducible, not a bug: it answers a legitimately different question ("which class is this record the biggest *national* outlier for", vs. plain `DOMINANT`'s "which class dominates *within* this one record"). Reach for whichever axis the question actually needs — they are easy to conflate since both render, both report `theme done`, and neither errors.
 
 **Categorical color binding (pin specific colors to values):**
 ```javascript
